@@ -1,0 +1,432 @@
+/**
+ * Report rendering stylesheet (Phase 4, refreshed Module 15 - visual
+ * redesign) - deliberately separate from theme.css (the app UI's
+ * Bootstrap theme). A report page has its own fixed physical
+ * dimensions, print rules and typography driven by TemplateSettings,
+ * and must render identically in the on-screen Preview, the
+ * html2canvas/jsPDF export, and the browser's native print dialog.
+ * Imported once by ReportPage.tsx (the shared wrapper every template
+ * renders through), not globally in main.tsx, so it never affects the
+ * rest of the application's UI.
+ *
+ * Visual redesign notes: the school's own two brand colours
+ * (`--report-primary`/`--report-secondary`, from TemplateSettings)
+ * still drive the header, title and table - but each section below
+ * also gets its own distinct, fixed accent colour (amber for the
+ * overall-total row, and a five-colour rotation for the remarks
+ * block) so the page reads as organised sections rather than one flat
+ * block of colour. No web fonts are used (the app is fully offline) -
+ * typographic variety instead comes from font-weight, letter-spacing,
+ * text-transform and a serif display face for the title, layered on
+ * top of whichever body font the school configured. Avoids CSS
+ * features with patchy older-browser support (e.g. color-mix()) since
+ * this opens in whatever default browser a school PC happens to have.
+ */
+
+.actrs-report-page {
+  --report-primary: #1f3864;
+  --report-secondary: #2f6fb0;
+  --report-font: "Segoe UI", system-ui, sans-serif;
+  --report-font-size: 11pt;
+  --report-margin: 15mm;
+
+  /* Fixed accent palette used for section variety - independent of
+     the school's configurable brand colours above. */
+  --report-accent-amber: #b8860b;
+  --report-accent-amber-bg: #fdf3d9;
+  --report-accent-teal: #0e7c7b;
+  --report-accent-teal-bg: #e4f5f4;
+  --report-accent-plum: #6b3fa0;
+  --report-accent-plum-bg: #f1eaf8;
+  --report-accent-rose: #b5384b;
+  --report-accent-rose-bg: #fbeaed;
+  --report-accent-green: #2f7d4f;
+  --report-accent-green-bg: #e9f6ee;
+
+  background: #fff;
+  color: #202733;
+  font-family: var(--report-font);
+  font-size: var(--report-font-size);
+  width: 210mm;
+  min-height: 297mm;
+  padding: var(--report-margin);
+  margin: 0 auto 16px auto;
+  box-shadow: 0 0 0 1px #d7dde5, 0 4px 16px rgba(0, 0, 0, 0.08);
+  position: relative;
+  box-sizing: border-box;
+  line-height: 1.38;
+  -webkit-font-smoothing: antialiased;
+}
+
+.actrs-report-page.paper-letter {
+  width: 216mm;
+  min-height: 279mm;
+}
+
+.actrs-report-page.orientation-landscape {
+  width: 297mm;
+  min-height: 210mm;
+}
+
+.actrs-report-page.paper-letter.orientation-landscape {
+  width: 279mm;
+  min-height: 216mm;
+}
+
+.actrs-report-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.actrs-report-watermark img {
+  max-width: 60%;
+  max-height: 60%;
+}
+
+.actrs-report-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Header (school branding) ---------- */
+
+.actrs-report-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px 10px;
+  margin: 0 0 4px;
+  border-radius: 6px 6px 0 0;
+  background: #f7f9fc;
+}
+
+.actrs-report-header img.logo {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #fff;
+  padding: 2px;
+  box-shadow: 0 0 0 1px #e1e6ec;
+}
+
+.actrs-report-header .school-name {
+  color: var(--report-primary);
+  font-weight: 800;
+  font-size: 1.32em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.actrs-report-header .school-meta {
+  font-size: 0.82em;
+  color: #4a5464;
+}
+
+/* Gradient divider between the branding header and the report title -
+   a subtle "vary the colour" flourish using both brand colours plus
+   the amber accent, rather than a single flat rule. */
+.actrs-report-header-rule {
+  height: 3px;
+  border-radius: 2px;
+  margin-bottom: 10px;
+  background: linear-gradient(
+    90deg,
+    var(--report-primary) 0%,
+    var(--report-secondary) 55%,
+    var(--report-accent-amber) 100%
+  );
+}
+
+.actrs-report-title {
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--report-secondary);
+  margin: 4px 0 12px;
+  font-size: 1.15em;
+  font-family: Georgia, "Cambria", "Times New Roman", serif;
+}
+
+.actrs-report-title div {
+  font-family: var(--report-font);
+}
+
+/* ---------- Student info + photo ---------- */
+
+.actrs-report-student-block {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.actrs-report-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px 24px;
+  font-size: 0.92em;
+  margin-bottom: 10px;
+  align-content: start;
+  flex: 1;
+  background: #f8fafc;
+  border: 1px solid #e3e8ee;
+  border-left: 3px solid var(--report-primary);
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+.actrs-report-student-block .actrs-report-info-grid {
+  margin-bottom: 0;
+}
+
+.actrs-report-info-grid .label {
+  color: #55606f;
+  font-weight: 700;
+  display: inline-block;
+  min-width: 128px;
+}
+
+.actrs-report-photo {
+  flex-shrink: 0;
+  width: 92px;
+  height: 110px;
+  border: 2px solid var(--report-primary);
+  border-radius: 5px;
+  overflow: hidden;
+  background: #eef1f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.actrs-report-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.actrs-report-photo .placeholder {
+  font-size: 2.1em;
+  font-weight: 800;
+  color: var(--report-primary);
+  opacity: 0.32;
+  font-family: Georgia, serif;
+}
+
+/* ---------- Subjects / skills table ---------- */
+
+.actrs-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88em;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #dbe1e8;
+}
+
+.actrs-report-table th,
+.actrs-report-table td {
+  border: 1px solid #dbe1e8;
+  padding: 4px 7px;
+  text-align: center;
+}
+
+.actrs-report-table th {
+  background: var(--report-primary);
+  border-bottom: 2px solid var(--report-secondary);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.92em;
+}
+
+.actrs-report-table td.subject-name {
+  text-align: left;
+  font-weight: 600;
+  color: #202733;
+}
+
+.actrs-report-table tbody tr:nth-child(even) {
+  background: #f5f8fb;
+}
+
+.actrs-report-table tr.overall-row {
+  font-weight: 700;
+  background: var(--report-accent-amber-bg) !important;
+}
+
+.actrs-report-table tr.overall-row td {
+  border-top: 2px solid var(--report-accent-amber);
+  color: #6b4e0a;
+}
+
+.actrs-report-summary-line {
+  font-size: 0.86em;
+  color: #55606f;
+  margin: -4px 0 10px;
+  font-weight: 600;
+}
+
+/* ---------- Remarks ---------- */
+/* Five-colour rotation so each remark reads as its own labelled
+   callout rather than a uniform grey list - "vary the colours for
+   various sections". */
+
+.actrs-report-remarks {
+  font-size: 0.9em;
+  margin-bottom: 6px;
+  padding: 5px 9px;
+  border-radius: 3px;
+  border-left: 3px solid var(--report-primary);
+  background: #f7f9fc;
+}
+
+.actrs-report-remarks .remark-label {
+  font-weight: 700;
+  color: var(--report-primary);
+}
+
+.actrs-report-remarks.accent-teal {
+  border-left-color: var(--report-accent-teal);
+  background: var(--report-accent-teal-bg);
+}
+.actrs-report-remarks.accent-teal .remark-label {
+  color: var(--report-accent-teal);
+}
+
+.actrs-report-remarks.accent-plum {
+  border-left-color: var(--report-accent-plum);
+  background: var(--report-accent-plum-bg);
+}
+.actrs-report-remarks.accent-plum .remark-label {
+  color: var(--report-accent-plum);
+}
+
+.actrs-report-remarks.accent-rose {
+  border-left-color: var(--report-accent-rose);
+  background: var(--report-accent-rose-bg);
+}
+.actrs-report-remarks.accent-rose .remark-label {
+  color: var(--report-accent-rose);
+}
+
+.actrs-report-remarks.accent-green {
+  border-left-color: var(--report-accent-green);
+  background: var(--report-accent-green-bg);
+}
+.actrs-report-remarks.accent-green .remark-label {
+  color: var(--report-accent-green);
+}
+
+.actrs-report-remarks.accent-amber {
+  border-left-color: var(--report-accent-amber);
+  background: var(--report-accent-amber-bg);
+}
+.actrs-report-remarks.accent-amber .remark-label {
+  color: var(--report-accent-amber);
+}
+
+/* ---------- KG legend ---------- */
+
+.actrs-report-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.82em;
+  border: 1px solid #dbe1e8;
+  border-radius: 5px;
+  padding: 7px 11px;
+  margin-bottom: 10px;
+  background: #f7f9fc;
+}
+
+.actrs-report-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.actrs-report-legend .legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- Signatures ---------- */
+
+.actrs-report-signatures {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30px;
+  font-size: 0.88em;
+}
+
+.actrs-report-signatures .signature {
+  width: 42%;
+  text-align: center;
+}
+
+.actrs-report-signatures .signature .line {
+  border-top: 1.5px solid var(--report-primary);
+  margin-bottom: 3px;
+  padding-top: 4px;
+  font-weight: 600;
+}
+
+.actrs-report-signatures .signature .text-muted {
+  font-size: 0.86em;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #7a8494 !important;
+}
+
+/* ---------- Footer ---------- */
+
+.actrs-report-footer {
+  margin-top: 14px;
+  padding-top: 7px;
+  border-top: 2px solid;
+  border-image: linear-gradient(90deg, var(--report-primary), var(--report-secondary)) 1;
+  font-size: 0.74em;
+  color: #666;
+  text-align: center;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .actrs-report-print-area,
+  .actrs-report-print-area * {
+    visibility: visible;
+  }
+  .actrs-report-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  .actrs-report-page {
+    box-shadow: none;
+    margin: 0;
+    page-break-after: always;
+  }
+  .actrs-report-page.is-last-page {
+    page-break-after: auto;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

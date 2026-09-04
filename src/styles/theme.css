@@ -1,0 +1,281 @@
+/**
+ * ACTRS design tokens - "Blue-Black / Navy / Sea Blue / Gold" theme.
+ * These CSS variables layer on top of Bootstrap 5 (imported separately in
+ * main.tsx) rather than forking Bootstrap's Sass, so upgrading Bootstrap
+ * later stays low-friction.
+ *
+ * Palette rationale: a deep blue-black -> navy -> sea-blue gradient
+ * carries the app chrome (sidebar, buttons, accents), with a small,
+ * deliberately sparing amount of gold/yellow reserved for "this is
+ * active / this matters right now" signals (the current nav item, the
+ * topbar's accent line) rather than being spread across the whole UI -
+ * a little goes a long way before it stops looking professional.
+ */
+:root {
+  --actrs-black: #05080f;
+  --actrs-blue-black: #0b1a30;
+  --actrs-navy: #123363;
+  --actrs-blue: #1f6feb;
+  --actrs-seablue: #0ea5c4;
+  --actrs-yellow: #f2b705;
+  --actrs-blue-light: #eaf2fb;
+  --actrs-grey-light: #f4f6f9;
+  --actrs-grey-border: #e1e5ea;
+  --actrs-text: #1c2733;
+  --actrs-text-muted: #5b6b7c;
+  --actrs-success: #1e8a5f;
+  --actrs-warning: #b8860b;
+  --actrs-danger: #b3261e;
+
+  /* "Surface" is the background of raised UI elements (cards, modals,
+     dropdowns, the topbar) - deliberately a separate token from the page
+     background so those elements stay visually distinct from the page
+     behind them in both light and dark mode, and so their text color
+     (which follows --actrs-text / --bs-body-color) never ends up sitting
+     on a background that doesn't also switch with the theme. */
+  --actrs-surface: #ffffff;
+
+  --actrs-gradient-chrome: linear-gradient(180deg, var(--actrs-blue-black) 0%, var(--actrs-navy) 55%, var(--actrs-seablue) 100%);
+  --actrs-gradient-accent: linear-gradient(90deg, var(--actrs-blue) 0%, var(--actrs-seablue) 60%, var(--actrs-yellow) 100%);
+  --actrs-gradient-button: linear-gradient(135deg, var(--actrs-navy) 0%, var(--actrs-seablue) 100%);
+  --actrs-gradient-button-hover: linear-gradient(135deg, var(--actrs-blue-black) 0%, var(--actrs-blue) 100%);
+
+  --actrs-radius: 0.75rem;
+  --actrs-shadow: 0 2px 10px rgba(11, 26, 48, 0.1);
+  --actrs-font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+
+  /* Bootstrap variable overrides */
+  --bs-primary: var(--actrs-navy);
+  --bs-body-font-family: var(--actrs-font);
+  --bs-body-color: var(--actrs-text);
+  --bs-body-bg: var(--actrs-grey-light);
+}
+
+[data-bs-theme="dark"] {
+  --actrs-grey-light: #12161c;
+  --actrs-grey-border: #262c35;
+  --actrs-text: #e7ebef;
+  --actrs-text-muted: #9aa7b4;
+  --bs-body-bg: #0c0f13;
+  --actrs-surface: #161d29;
+  --actrs-blue-light: #16283d;
+}
+
+body {
+  font-family: var(--actrs-font);
+}
+
+.actrs-card {
+  border: 1px solid var(--actrs-grey-border);
+  border-radius: var(--actrs-radius);
+  box-shadow: var(--actrs-shadow);
+  background: var(--actrs-surface);
+}
+
+/* Shared "raised surface" treatment for anything that used to hardcode
+   a white background (modals, confirm dialogs, dropdown panels, the
+   update-available toast). Those hardcoded backgrounds stayed white
+   even after switching to Night mode, while their text switched to the
+   light color meant for dark backgrounds - making the text unreadable.
+   This class keeps them visually raised above the page in both themes
+   without ever going invisible against it. */
+.actrs-surface {
+  background-color: var(--actrs-surface) !important;
+  color: var(--actrs-text);
+}
+
+.actrs-sidebar {
+  background: var(--actrs-gradient-chrome);
+  color: #fff;
+  min-height: 100vh;
+}
+
+/* The sidebar is always dark-styled regardless of Day/Night mode (by
+   design - it's part of the app's fixed brand chrome, not page content),
+   so anything inside it that uses Bootstrap's theme-aware muted-text
+   color (which switches to a dark grey in Light mode) needs to be
+   pinned to a light, translucent white instead - otherwise the school
+   name/tagline under the logo becomes very low-contrast against the
+   gradient. */
+.actrs-sidebar .text-muted {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.actrs-sidebar .nav-link {
+  color: rgba(255, 255, 255, 0.82);
+  border-radius: var(--actrs-radius);
+  margin: 2px 8px;
+  padding: 0.55rem 0.9rem;
+  border-left: 3px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.actrs-sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.actrs-sidebar .nav-link.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-left-color: var(--actrs-yellow);
+}
+
+.actrs-topbar {
+  background: var(--actrs-surface);
+  border-bottom: 1px solid var(--actrs-grey-border);
+  position: relative;
+}
+
+/* A thin gradient accent line under the topbar - the "flashy" touch
+   the sidebar's solid gradient already carries, echoed once more at the
+   top of the page content without tinting the whole topbar. */
+.actrs-topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background: var(--actrs-gradient-accent);
+}
+
+.actrs-brand-mark {
+  background: var(--actrs-gradient-button);
+  color: #fff;
+  border-radius: 0.5rem;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.actrs-phase-badge {
+  background: var(--actrs-blue-light);
+  color: var(--actrs-navy);
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+[data-bs-theme="dark"] .actrs-phase-badge {
+  color: #bcd6f5;
+}
+
+/* Buttons get the same navy -> sea-blue gradient as the brand mark
+   instead of a flat fill, so the app's primary call-to-action color
+   matches the rest of the "flashy but professional" chrome. Bootstrap's
+   own --bs-primary variable still drives every other primary-colored
+   element (focus rings, links, form checks), so this only touches the
+   button surface itself. */
+.btn-primary {
+  background: var(--actrs-gradient-button);
+  border-color: var(--actrs-navy);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: var(--actrs-gradient-button-hover);
+  border-color: var(--actrs-blue-black);
+}
+
+.btn-primary:disabled,
+.btn-primary.disabled {
+  background: var(--actrs-navy);
+  border-color: var(--actrs-navy);
+  opacity: 0.55;
+}
+
+/* Print styles - used by the Class Register (Module 12) and future
+   report-card printing. Anything marked .no-print (filters, nav,
+   action buttons) is hidden when the browser's print dialog is used. */
+@media print {
+  .no-print,
+  .actrs-sidebar,
+  .actrs-topbar {
+    display: none !important;
+  }
+}
+
+/* Assessment score-entry / KG skill grids (Phase 3, Modules 2 & 8) -
+   Excel-like sticky headers + frozen first column so a teacher scrolling
+   through many subjects/skills never loses track of which student's row
+   they're on. */
+.actrs-grid-scroll {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--actrs-grey-border);
+  border-radius: var(--actrs-radius);
+}
+
+.actrs-grid-scroll table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: max-content;
+}
+
+.actrs-grid-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--actrs-navy);
+  color: #fff;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.actrs-grid-scroll thead tr:first-child th {
+  top: 0;
+}
+
+.actrs-grid-scroll thead tr:nth-child(2) th {
+  top: 33px;
+}
+
+.actrs-grid-frozen-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--actrs-surface);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.06);
+}
+
+.actrs-grid-scroll thead .actrs-grid-frozen-col {
+  z-index: 3;
+  background: var(--actrs-navy);
+}
+
+.actrs-grid-cell-input {
+  width: 56px;
+  text-align: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 4px;
+  background: transparent;
+  color: var(--actrs-text);
+}
+
+.actrs-grid-cell-input:focus {
+  outline: none;
+  border-color: var(--actrs-blue);
+  box-shadow: 0 0 0 2px var(--actrs-blue-light);
+}
+
+.actrs-grid-cell-input.is-invalid {
+  border-color: var(--actrs-danger);
+  background: #fdecea;
+  color: #581510;
+}
+
+[data-bs-theme="dark"] .actrs-grid-cell-input.is-invalid {
+  background: rgba(179, 38, 30, 0.28);
+  color: #ffb4ac;
+}
+
+.actrs-grid-cell-input:disabled {
+  background: transparent;
+  color: var(--actrs-text-muted);
+}

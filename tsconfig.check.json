@@ -1,0 +1,57 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ],
+      "@services/*": [
+        "src/services/*"
+      ],
+      "@models/*": [
+        "src/models/*"
+      ],
+      "@utils/*": [
+        "src/utils/*"
+      ],
+      "@reporting/*": [
+        "src/reporting/*"
+      ],
+      "@config/*": [
+        "src/config/*"
+      ]
+    }
+  },
+  "include": [
+    "src/lib/supabaseClient.ts",
+    "src/types/database.ts",
+    "src/services/cloud/StudentService.ts",
+    "src/services/cloud/EnrollmentService.ts",
+    "src/services/cloud/AssessmentSessionService.ts",
+    "src/services/cloud/GradeBandService.ts",
+    "src/services/cloud/ScoreRecordService.ts",
+    "src/services/cloud/SchoolService.ts",
+    "src/services/cloud/GuardianService.ts",
+    "src/services/cloud/ReportRecordService.ts",
+    "src/services/cloud/ReportTemplateService.ts",
+    "src/services/cloud/ReportDataService.ts",
+    "src/services/cloud/ReportGenerationService.ts",
+    "src/vite-env.d.ts",
+    "src/services/cloud/TemplateSettingsService.ts",
+    "src/services/cloud/PdfService.ts"
+  ]
+}
