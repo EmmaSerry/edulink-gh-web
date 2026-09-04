@@ -4,6 +4,7 @@ import { useCloudAuth } from "@contexts/CloudAuthContext";
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard", icon: "bi-speedometer2" },
   { path: "/students", label: "Students", icon: "bi-people" },
+  { path: "/students/register", label: "Register student", icon: "bi-person-plus" },
 ];
 
 export function CloudSidebar() {
@@ -26,7 +27,7 @@ export function CloudSidebar() {
             <li className="nav-item" key={item.path}>
               <NavLink
                 to={item.path}
-                end={item.path === "/"}
+                end
                 className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? "active" : ""}`}
               >
                 <i className={`bi ${item.icon}`} />

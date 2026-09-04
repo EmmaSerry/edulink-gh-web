@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import type { StudentRow } from "@/types/database";
 
@@ -40,16 +41,22 @@ export function CloudStudents() {
 
   return (
     <div>
-      <div className="d-flex align-items-center justify-content-between mb-3">
+      <div className="d-flex align-items-center justify-content-between mb-3 gap-3">
         <h1 className="h4 mb-0">Students</h1>
-        <input
-          type="search"
-          className="form-control"
-          style={{ maxWidth: 280 }}
-          placeholder="Search by name or student ID…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="d-flex align-items-center gap-2">
+          <input
+            type="search"
+            className="form-control"
+            style={{ maxWidth: 280 }}
+            placeholder="Search by name or student ID…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <Link to="/students/register" className="btn btn-primary text-nowrap">
+            <i className="bi bi-person-plus me-1" />
+            Register student
+          </Link>
+        </div>
       </div>
 
       {error && (
