@@ -197,6 +197,45 @@ export interface SubjectRow {
   is_active: boolean;
 }
 
+/** A KG (skill-checklist) grouping of skills, e.g. "Numeracy" - the
+ *  official NaCCA Kindergarten Learner Report Form's sections. */
+export interface LearningAreaRow {
+  id: string;
+  school_id: string;
+  name: string;
+  level_ids: string[];
+  sort_order: number;
+  is_active: boolean;
+}
+
+/** One rateable skill within a learning area, scoped to a specific KG
+ *  level (KG1/KG2 can diverge even though they start identical). */
+export interface SkillRow {
+  id: string;
+  school_id: string;
+  learning_area_id: string;
+  level_id: string;
+  serial_number: number | null;
+  description: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export type SkillRating = "G" | "S" | "B" | "X" | "O";
+
+/** One student's rating for one skill, for one term - the KG
+ *  equivalent of ScoreRecordRow. */
+export interface SkillAssessmentRecordRow {
+  id: string;
+  school_id: string;
+  student_id: string;
+  term_id: string;
+  skill_id: string;
+  rating: SkillRating | null;
+  comment: string | null;
+  updated_at: string;
+}
+
 export interface ScoreRecordRow {
   id: string;
   school_id: string;

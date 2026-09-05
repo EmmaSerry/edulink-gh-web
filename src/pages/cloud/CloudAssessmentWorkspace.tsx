@@ -3,6 +3,9 @@ import { CloudTermService } from "@services/cloud/TermService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudLevelService } from "@services/cloud/LevelService";
 import { CloudSubjectService } from "@services/cloud/SubjectService";
+import { CloudLearningAreaService } from "@services/cloud/LearningAreaService";
+import { CloudSkillService } from "@services/cloud/SkillService";
+import { CloudSkillAssessmentService } from "@services/cloud/SkillAssessmentService";
 import { CloudEnrollmentService } from "@services/cloud/EnrollmentService";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudScoreRecordService } from "@services/cloud/ScoreRecordService";
@@ -12,6 +15,9 @@ import type {
   ClassRow,
   LevelRow,
   SubjectRow,
+  LearningAreaRow,
+  SkillRow,
+  SkillRating,
   StudentRow,
   AssessmentSessionRow,
   AssessmentSessionStatus,
@@ -36,19 +42,23 @@ function fullNameOf(s: StudentRow): string {
 }
 
 /**
- * Assessment Entry, scoped to "scored" levels (Lower Primary, Upper
- * Primary, JHS) for this first pass - KG's skill-checklist entry is a
- * different UI entirely (ratings, not SBA/Exam numbers) and is called
- * out below rather than silently mishandled.
+ * Assessment entry, covering both assessment modes a level can use:
  *
- * Deliberately one-subject-at-a-time rather than a single giant
- * all-subjects grid: it's a smaller, safer first version of this
- * screen to ship and verify, and matches how a teacher marking one
- * test/subject at a time actually works. A combined grid can replace
- * this once this simpler version has been used for real.
+ * - "scored" levels (Lower Primary, Upper Primary, JHS): a Subject
+ *   picker plus an SBA/Exam score table, one subject at a time.
+ * - "skill-checklist" levels (KG1/KG2): a Learning Area picker
+ *   cascading to a Skill picker, plus a G/S/B/X/O rating + comment
+ *   table for the selected skill, one skill at a time - the NaCCA
+ *   Kindergarten Learner Report Form's rating scale.
+ *
+ * Deliberately one-subject/skill-at-a-time rather than a single giant
+ * all-subjects grid: it's a smaller, safer version of this screen to
+ * ship and verify, and matches how a teacher marking one thing at a
+ * time actually works. A combined grid can replace this once this
+ * simpler version has been used for real.
  *
  * Report generation requires the session to reach FINALIZED (see
- * ReportDataService.validateReportPrerequisites), so scores are only
+ * ReportDataService.validateReportPrerequisites), so entry is only
  * editable while the session is still in DRAFT - once moved forward,
  * re-opening to DRAFT (an admin-only action) is required to edit again,
  * exactly matching the lifecycle enforced server-side by
@@ -67,6 +77,15 @@ export function CloudAssessmentWorkspace() {
   const [subjectId, setSubjectId] = useState("");
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [scores, setScores] = useState<Map<string, { sba: number | null; exam: number | null }>>(new Map());
+
+  const [learningAreas, setLearningAreas] = useState<LearningAreaRow[]>([]);
+  const [learningAreaId, setLearningAreaId] = useState("");
+  const [skills, setSkills] = useState<SkillRow[]>([]);
+  const [skillId, setSkillId] = useState("");
+  const [ratings, setRatings] = useState<Map<string, { rating: SkillRating | null; comment: string | null }>>(
+    new Map()
+  );
+
   const [loadingClass, setLoadingClass] = useState(false);
   const [classError, setClassError] = useState<string | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -94,53 +113,122 @@ export function CloudAssessmentWorkspace() {
     [levels, selectedClass]
   );
   const isScoredLevel = selectedLevel?.assessment_mode === "scored";
+  const isSkillLevel = selectedLevel?.assessment_mode === "skill-checklist";
 
   useEffect(() => {
-    if (!classId || !term || !selectedLevel || !isScoredLevel) {
+    if (!classId || !term || !selectedLevel) {
       setSession(null);
       setSubjects([]);
       setSubjectId("");
       setStudents([]);
       setScores(new Map());
+      setLearningAreas([]);
+      setLearningAreaId("");
+      setSkills([]);
+      setSkillId("");
+      setRatings(new Map());
       return;
     }
     let cancelled = false;
     setLoadingClass(true);
     setClassError(null);
-    Promise.all([
+
+    const rosterPromise = Promise.all([
       CloudAssessmentSessionService.getOrCreate(classId, term.id),
-      CloudSubjectService.listForLevel(selectedLevel.id),
       CloudEnrollmentService.getRoster(term.id, classId),
-      CloudScoreRecordService.getForTerm(term.id),
-    ])
-      .then(async ([sessionRow, subjectRows, roster, allScores]) => {
-        if (cancelled) return;
-        setSession(sessionRow);
-        setSubjects(subjectRows);
-        setSubjectId((current) => (subjectRows.some((s) => s.id === current) ? current : subjectRows[0]?.id ?? ""));
+      CloudStudentService.list(),
+    ]);
 
-        const studentIds = roster.map((e) => e.student_id);
-        const allStudents = await CloudStudentService.list();
-        const rosterStudents = allStudents
-          .filter((s) => studentIds.includes(s.id))
-          .sort((a, b) => fullNameOf(a).localeCompare(fullNameOf(b)));
-        if (cancelled) return;
-        setStudents(rosterStudents);
+    if (isScoredLevel) {
+      Promise.all([rosterPromise, CloudSubjectService.listForLevel(selectedLevel.id), CloudScoreRecordService.getForTerm(term.id)])
+        .then(async ([[sessionRow, roster, allStudents], subjectRows, allScores]) => {
+          if (cancelled) return;
+          setSession(sessionRow);
+          setSubjects(subjectRows);
+          setSubjectId((current) => (subjectRows.some((s) => s.id === current) ? current : subjectRows[0]?.id ?? ""));
+          setLearningAreas([]);
+          setLearningAreaId("");
+          setSkills([]);
+          setSkillId("");
+          setRatings(new Map());
 
-        const scoreMap = new Map<string, { sba: number | null; exam: number | null }>();
-        for (const rec of allScores) {
-          if (!studentIds.includes(rec.student_id)) continue;
-          scoreMap.set(`${rec.student_id}:${rec.subject_id}`, { sba: rec.sba_score, exam: rec.exam_score });
-        }
-        setScores(scoreMap);
-      })
-      .catch((err) => !cancelled && setClassError(err instanceof Error ? err.message : "Could not load this class."))
-      .finally(() => !cancelled && setLoadingClass(false));
+          const studentIds = roster.map((e) => e.student_id);
+          const rosterStudents = allStudents
+            .filter((s) => studentIds.includes(s.id))
+            .sort((a, b) => fullNameOf(a).localeCompare(fullNameOf(b)));
+          if (cancelled) return;
+          setStudents(rosterStudents);
+
+          const scoreMap = new Map<string, { sba: number | null; exam: number | null }>();
+          for (const rec of allScores) {
+            if (!studentIds.includes(rec.student_id)) continue;
+            scoreMap.set(`${rec.student_id}:${rec.subject_id}`, { sba: rec.sba_score, exam: rec.exam_score });
+          }
+          setScores(scoreMap);
+        })
+        .catch((err) => !cancelled && setClassError(err instanceof Error ? err.message : "Could not load this class."))
+        .finally(() => !cancelled && setLoadingClass(false));
+    } else if (isSkillLevel) {
+      Promise.all([
+        rosterPromise,
+        CloudLearningAreaService.listForLevel(selectedLevel.id),
+        CloudSkillAssessmentService.getForTerm(term.id),
+      ])
+        .then(async ([[sessionRow, roster, allStudents], areaRows, allRatings]) => {
+          if (cancelled) return;
+          setSession(sessionRow);
+          setSubjects([]);
+          setSubjectId("");
+          setScores(new Map());
+          setLearningAreas(areaRows);
+          setLearningAreaId((current) => (areaRows.some((a) => a.id === current) ? current : areaRows[0]?.id ?? ""));
+
+          const studentIds = roster.map((e) => e.student_id);
+          const rosterStudents = allStudents
+            .filter((s) => studentIds.includes(s.id))
+            .sort((a, b) => fullNameOf(a).localeCompare(fullNameOf(b)));
+          if (cancelled) return;
+          setStudents(rosterStudents);
+
+          const ratingMap = new Map<string, { rating: SkillRating | null; comment: string | null }>();
+          for (const rec of allRatings) {
+            if (!studentIds.includes(rec.student_id)) continue;
+            ratingMap.set(`${rec.student_id}:${rec.skill_id}`, { rating: rec.rating, comment: rec.comment });
+          }
+          setRatings(ratingMap);
+        })
+        .catch((err) => !cancelled && setClassError(err instanceof Error ? err.message : "Could not load this class."))
+        .finally(() => !cancelled && setLoadingClass(false));
+    } else {
+      setLoadingClass(false);
+    }
+
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId, term, isScoredLevel]);
+  }, [classId, term, selectedLevel, isScoredLevel, isSkillLevel]);
+
+  // Skills cascade from the chosen learning area - loaded separately so
+  // switching learning areas doesn't have to re-fetch the whole roster.
+  useEffect(() => {
+    if (!isSkillLevel || !selectedLevel || !learningAreaId) {
+      setSkills([]);
+      setSkillId("");
+      return;
+    }
+    let cancelled = false;
+    CloudSkillService.listForLevelAndArea(selectedLevel.id, learningAreaId)
+      .then((rows) => {
+        if (cancelled) return;
+        setSkills(rows);
+        setSkillId((current) => (rows.some((s) => s.id === current) ? current : rows[0]?.id ?? ""));
+      })
+      .catch((err) => !cancelled && setClassError(err instanceof Error ? err.message : "Could not load skills."));
+    return () => {
+      cancelled = true;
+    };
+  }, [isSkillLevel, selectedLevel, learningAreaId]);
 
   async function handleScoreBlur(studentId: string, field: "sba" | "exam", raw: string) {
     if (!term || !session || !subjectId) return;
@@ -174,6 +262,48 @@ export function CloudAssessmentWorkspace() {
     } finally {
       setSavingKey(null);
     }
+  }
+
+  async function saveSkillRating(studentId: string, rating: SkillRating | null, comment: string | null) {
+    if (!term || !session || !skillId) return;
+    const key = `${studentId}:${skillId}`;
+    setSavingKey(`${key}:rating`);
+    setClassError(null);
+    try {
+      const updated = await CloudSkillAssessmentService.upsertRating(
+        studentId,
+        term.id,
+        skillId,
+        rating,
+        comment,
+        session.id
+      );
+      setRatings((prev) => {
+        const next = new Map(prev);
+        next.set(key, { rating: updated.rating, comment: updated.comment });
+        return next;
+      });
+    } catch (err) {
+      setClassError(err instanceof Error ? err.message : "Could not save this rating.");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  function handleRatingSelect(studentId: string, raw: string) {
+    const key = `${studentId}:${skillId}`;
+    const existing = ratings.get(key) ?? { rating: null, comment: null };
+    const rating = (raw === "" ? null : raw) as SkillRating | null;
+    if (existing.rating === rating) return;
+    void saveSkillRating(studentId, rating, existing.comment);
+  }
+
+  function handleCommentBlur(studentId: string, raw: string) {
+    const key = `${studentId}:${skillId}`;
+    const existing = ratings.get(key) ?? { rating: null, comment: null };
+    const comment = raw.trim() === "" ? null : raw.trim();
+    if (existing.comment === comment) return;
+    void saveSkillRating(studentId, existing.rating, comment);
   }
 
   async function handleStatusChange(newStatus: AssessmentSessionStatus) {
@@ -216,31 +346,62 @@ export function CloudAssessmentWorkspace() {
               ))}
             </select>
           </div>
-          <div className="col-md-5">
-            <label className="form-label small">Subject</label>
-            <select
-              className="form-select"
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              disabled={!isScoredLevel || subjects.length === 0}
-            >
-              {subjects.length === 0 && <option value="">No subjects for this level</option>}
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isSkillLevel ? (
+            <>
+              <div className="col-md-4">
+                <label className="form-label small">Learning area</label>
+                <select
+                  className="form-select"
+                  value={learningAreaId}
+                  onChange={(e) => setLearningAreaId(e.target.value)}
+                  disabled={learningAreas.length === 0}
+                >
+                  {learningAreas.length === 0 && <option value="">No learning areas for this level</option>}
+                  {learningAreas.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-md-3">
+                <label className="form-label small">Skill</label>
+                <select
+                  className="form-select"
+                  value={skillId}
+                  onChange={(e) => setSkillId(e.target.value)}
+                  disabled={skills.length === 0}
+                >
+                  {skills.length === 0 && <option value="">No skills</option>}
+                  {skills.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.serial_number != null ? `${s.serial_number}. ` : ""}
+                      {s.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="col-md-5">
+              <label className="form-label small">Subject</label>
+              <select
+                className="form-select"
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                disabled={!isScoredLevel || subjects.length === 0}
+              >
+                {subjects.length === 0 && <option value="">No subjects for this level</option>}
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
-
-      {classId && selectedLevel && !isScoredLevel && (
-        <div className="alert alert-info">
-          {selectedLevel.name} uses skill-based (KG) assessment, not scored subjects. Skill-checklist entry isn't
-          built into this screen yet - scored levels (Lower Primary, Upper Primary, JHS) are supported here today.
-        </div>
-      )}
 
       {classId && isScoredLevel && (
         <>
@@ -328,6 +489,115 @@ export function CloudAssessmentWorkspace() {
                               key={`${key}:exam:${cell.exam}`}
                               disabled={!editable || !subjectId}
                               onBlur={(e) => handleScoreBlur(student.id, "exam", e.target.value)}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {savingKey && <p className="text-muted small mt-2 mb-0">Saving…</p>}
+        </>
+      )}
+
+      {classId && isSkillLevel && (
+        <>
+          {classError && <div className="alert alert-danger">{classError}</div>}
+
+          {session && (
+            <div className="actrs-card p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted small">Assessment status:</span>
+                <span className={`badge ${STATUS_BADGE[session.status]}`}>{STATUS_LABEL[session.status]}</span>
+              </div>
+              <div className="d-flex gap-2">
+                {CloudAssessmentSessionService.nextStatusOptions(session.status).map((next) => (
+                  <button
+                    key={next}
+                    className={`btn btn-sm ${next === "DRAFT" ? "btn-outline-secondary" : "btn-primary"}`}
+                    disabled={statusBusy}
+                    onClick={() => handleStatusChange(next)}
+                  >
+                    {next === "DRAFT" ? "Reopen to draft" : `Mark as ${STATUS_LABEL[next]}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!editable && session && (
+            <div className="alert alert-warning py-2 small">
+              Ratings are locked while this assessment is {STATUS_LABEL[session.status].toLowerCase()}. Reopen it to
+              draft to make changes.
+            </div>
+          )}
+
+          <div className="actrs-card p-0">
+            <div className="table-responsive">
+              <table className="table table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th style={{ width: 220 }}>Rating</th>
+                    <th>Comment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingClass && (
+                    <tr>
+                      <td colSpan={3} className="text-center text-muted py-4">
+                        Loading…
+                      </td>
+                    </tr>
+                  )}
+                  {!loadingClass && students.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="text-center text-muted py-4">
+                        No students are currently enrolled in this class for this term.
+                      </td>
+                    </tr>
+                  )}
+                  {!loadingClass && students.length > 0 && !skillId && (
+                    <tr>
+                      <td colSpan={3} className="text-center text-muted py-4">
+                        Select a learning area and skill above to enter ratings.
+                      </td>
+                    </tr>
+                  )}
+                  {!loadingClass &&
+                    skillId &&
+                    students.map((student) => {
+                      const key = `${student.id}:${skillId}`;
+                      const cell = ratings.get(key) ?? { rating: null, comment: null };
+                      return (
+                        <tr key={student.id}>
+                          <td className="fw-medium">{fullNameOf(student)}</td>
+                          <td>
+                            <select
+                              className="form-select form-select-sm"
+                              defaultValue={cell.rating ?? ""}
+                              key={`${key}:rating:${cell.rating}`}
+                              disabled={!editable}
+                              onChange={(e) => handleRatingSelect(student.id, e.target.value)}
+                            >
+                              <option value="">Not rated</option>
+                              <option value="G">G — Gold (exceeds expectation)</option>
+                              <option value="S">S — Silver (meets expectation)</option>
+                              <option value="B">B — Bronze (approaching expectation)</option>
+                              <option value="X">X — Not assessed</option>
+                              <option value="O">O — Absent</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              defaultValue={cell.comment ?? ""}
+                              key={`${key}:comment:${cell.comment}`}
+                              disabled={!editable}
+                              onBlur={(e) => handleCommentBlur(student.id, e.target.value)}
                             />
                           </td>
                         </tr>
