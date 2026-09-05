@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { path: "/students", label: "Students", icon: "bi-people" },
   { path: "/students/register", label: "Register student", icon: "bi-person-plus" },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
+  { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
 ];
 
