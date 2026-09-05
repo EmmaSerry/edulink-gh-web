@@ -43,8 +43,15 @@ export async function generatePdfFromPages(pageElements: HTMLElement[], options:
   const pageHeight = pdf.internal.pageSize.getHeight();
 
   for (let i = 0; i < pageElements.length; i++) {
+    // scale: 2 (~192dpi-equivalent) is already crisp for a text/table
+    // page like a report card - scale: 3 was tried first but, combined
+    // with "NONE" compression below, produced 30MB+ files for a single
+    // page (real-world testing caught this; a scale-3 canvas is ~2.25x
+    // the pixel count of scale-2). compression: "MEDIUM" additionally
+    // lets jsPDF deflate-compress the embedded image within the PDF
+    // stream itself, rather than storing the raw PNG bytes verbatim.
     const canvas = await html2canvas(pageElements[i], {
-      scale: 3,
+      scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
       logging: false,
@@ -52,7 +59,7 @@ export async function generatePdfFromPages(pageElements: HTMLElement[], options:
     const imgData = canvas.toDataURL("image/png");
 
     if (i > 0) pdf.addPage(format, orientation);
-    pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pageHeight, undefined, "NONE");
+    pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pageHeight, undefined, "MEDIUM");
 
     if (pageElements.length > 1) {
       pdf.setFontSize(8);

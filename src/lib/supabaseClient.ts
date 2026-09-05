@@ -222,7 +222,12 @@ export const rest = {
     return (await res.json()) as T[];
   },
 
-  /** Calls a Postgres function exposed via PostgREST (`create function ... `). */
+  /** Calls a Postgres function exposed via PostgREST (`create function ... `).
+   *  A function declared `returns void` (e.g. record_report_print,
+   *  record_report_export, delete_student) sends back an empty body,
+   *  not JSON - reading it as text first and only parsing when there's
+   *  actually something there avoids "Unexpected end of JSON input" on
+   *  every one of those calls. */
   async rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${getSupabaseUrl()}/rest/v1/rpc/${fn}`, {
       method: "POST",
@@ -230,6 +235,7 @@ export const rest = {
       body: JSON.stringify(args),
     });
     if (!res.ok) throw new Error(await describeError(res));
-    return (await res.json()) as T;
+    const text = await res.text();
+    return (text ? JSON.parse(text) : undefined) as T;
   },
 };

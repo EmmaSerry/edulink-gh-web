@@ -219,7 +219,16 @@ export function CloudReportView() {
 
       {snapshot && templateSettings && (
         <div className="d-flex justify-content-center">
-          <ReportPrintSurface snapshots={[snapshot]} settings={templateSettings} onReady={handlePagesReady} />
+          {/* report-print.css's @media print rule hides every element on
+              the page EXCEPT one carrying this exact class (a common
+              "print only this" technique) - without it, window.print()
+              blanks the entire page, report included. */}
+          <ReportPrintSurface
+            snapshots={[snapshot]}
+            settings={templateSettings}
+            onReady={handlePagesReady}
+            className="actrs-report-print-area"
+          />
         </div>
       )}
     </div>
