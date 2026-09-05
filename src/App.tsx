@@ -5,6 +5,7 @@ import { CloudLogin } from "@pages/cloud/CloudLogin";
 import { CloudDashboard } from "@pages/cloud/CloudDashboard";
 import { CloudStudents } from "@pages/cloud/CloudStudents";
 import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
+import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace";
 import { RequireAuth } from "@components/RequireAuth";
 
 /**
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/" element={<CloudDashboard />} />
         <Route path="/students" element={<CloudStudents />} />
         <Route path="/students/register" element={<CloudStudentRegister />} />
+        <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
       </Route>
     </Routes>
   );
