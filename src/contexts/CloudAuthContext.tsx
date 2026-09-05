@@ -42,16 +42,34 @@ export function CloudAuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const existing = auth.currentSession();
-    if (!existing) {
-      setLoading(false);
-      return;
-    }
-    setSession(existing);
-    loadProfile(existing.user.id)
-      .then(setProfile)
-      .catch(() => setProfile(null))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    // getValidSession() (not currentSession()) so reopening the app
+    // after the access token has expired transparently refreshes it
+    // instead of leaving every page's first request to fail with "JWT
+    // expired".
+    auth
+      .getValidSession()
+      .then((existing) => {
+        if (cancelled) return null;
+        if (!existing) {
+          setLoading(false);
+          return null;
+        }
+        setSession(existing);
+        return loadProfile(existing.user.id);
+      })
+      .then((p) => {
+        if (!cancelled && p !== null) setProfile(p);
+      })
+      .catch(() => {
+        if (!cancelled) setProfile(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {

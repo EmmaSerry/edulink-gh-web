@@ -80,9 +80,60 @@ async function describeError(res: Response): Promise<string> {
   }
 }
 
-function authHeaders(): Record<string, string> {
-  const anonKey = getSupabaseAnonKey();
+function sessionFromTokenResponse(data: {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  user: { id: string; email?: string };
+}): AuthSession {
+  return {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    user: { id: data.user.id, email: data.user.email },
+    expires_at: Date.now() + data.expires_in * 1000,
+  };
+}
+
+/** Supabase access tokens are short-lived (about an hour) by design - a
+ *  page left open, or reopened later, will otherwise start failing
+ *  every request with "JWT expired". This refreshes the stored session
+ *  using its refresh_token whenever the access token is at or near
+ *  expiry (a 30s buffer avoids racing the exact expiry instant),
+ *  called before every authenticated request rather than on a timer,
+ *  so it works correctly even if the tab was asleep/backgrounded. If
+ *  the refresh token itself has also expired (e.g. the device was
+ *  offline for a very long time), the stored session is cleared so the
+ *  app falls back to the sign-in screen instead of looping on errors.
+ */
+async function ensureFreshSession(): Promise<AuthSession | null> {
   const session = loadSession();
+  if (!session) return null;
+  if (Date.now() < session.expires_at - 30_000) return session;
+
+  try {
+    const res = await fetch(`${getSupabaseUrl()}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { apikey: getSupabaseAnonKey(), "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: session.refresh_token }),
+    });
+    if (!res.ok) {
+      saveSession(null);
+      return null;
+    }
+    const refreshed = sessionFromTokenResponse(await res.json());
+    saveSession(refreshed);
+    return refreshed;
+  } catch {
+    // Network hiccup refreshing - keep the old (possibly still valid
+    // for a few more seconds) session rather than signing the user out
+    // over what may just be a dropped connection.
+    return session;
+  }
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const anonKey = getSupabaseAnonKey();
+  const session = await ensureFreshSession();
   return {
     apikey: anonKey,
     Authorization: `Bearer ${session?.access_token ?? anonKey}`,
@@ -92,21 +143,13 @@ function authHeaders(): Record<string, string> {
 export const auth = {
   /** Signs in an already-created Supabase Auth user (see Authentication -> Users). */
   async signInWithPassword(email: string, password: string): Promise<AuthSession> {
-    const SUPABASE_URL = getSupabaseUrl();
-    const SUPABASE_ANON_KEY = getSupabaseAnonKey();
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    const res = await fetch(`${getSupabaseUrl()}/auth/v1/token?grant_type=password`, {
       method: "POST",
-      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      headers: { apikey: getSupabaseAnonKey(), "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) throw new Error(await describeError(res));
-    const data = await res.json();
-    const session: AuthSession = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      user: { id: data.user.id, email: data.user.email },
-      expires_at: Date.now() + data.expires_in * 1000,
-    };
+    const session = sessionFromTokenResponse(await res.json());
     saveSession(session);
     return session;
   },
@@ -117,6 +160,14 @@ export const auth = {
 
   currentSession(): AuthSession | null {
     return loadSession();
+  },
+
+  /** Like currentSession(), but refreshes an expired/near-expired
+   *  session first - use this on app load instead of currentSession()
+   *  so reopening the app after the access token has expired doesn't
+   *  immediately fail every request. */
+  async getValidSession(): Promise<AuthSession | null> {
+    return ensureFreshSession();
   },
 };
 
@@ -145,7 +196,7 @@ function buildQuery(options: RestQueryOptions = {}): string {
 export const rest = {
   async select<T>(table: string, options?: RestQueryOptions): Promise<T[]> {
     const res = await fetch(`${getSupabaseUrl()}/rest/v1/${table}${buildQuery(options)}`, {
-      headers: authHeaders(),
+      headers: await authHeaders(),
     });
     if (!res.ok) throw new Error(await describeError(res));
     return (await res.json()) as T[];
@@ -154,7 +205,7 @@ export const rest = {
   async insert<T>(table: string, row: Partial<T> | Array<Partial<T>>): Promise<T[]> {
     const res = await fetch(`${getSupabaseUrl()}/rest/v1/${table}`, {
       method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json", Prefer: "return=representation" },
+      headers: { ...(await authHeaders()), "Content-Type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify(row),
     });
     if (!res.ok) throw new Error(await describeError(res));
@@ -164,7 +215,7 @@ export const rest = {
   async update<T>(table: string, filters: Record<string, string>, patch: Partial<T>): Promise<T[]> {
     const res = await fetch(`${getSupabaseUrl()}/rest/v1/${table}${buildQuery({ filters })}`, {
       method: "PATCH",
-      headers: { ...authHeaders(), "Content-Type": "application/json", Prefer: "return=representation" },
+      headers: { ...(await authHeaders()), "Content-Type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify(patch),
     });
     if (!res.ok) throw new Error(await describeError(res));
@@ -175,7 +226,7 @@ export const rest = {
   async rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${getSupabaseUrl()}/rest/v1/rpc/${fn}`, {
       method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
       body: JSON.stringify(args),
     });
     if (!res.ok) throw new Error(await describeError(res));
