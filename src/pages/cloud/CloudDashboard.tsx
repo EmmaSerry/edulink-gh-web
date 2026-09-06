@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
 import { CloudStudentService } from "@services/cloud/StudentService";
-import type { SchoolRow, StudentRow } from "@/types/database";
+import { CloudAcademicStandardsService } from "@services/cloud/AcademicStandardsService";
+import { AcademicStandardsPanel } from "@components/AcademicStandardsPanel";
+import type { SchoolRow, StudentRow, SchoolAcademicStandards } from "@/types/database";
 
 /**
  * First real cloud page: proves the whole stack end to end - Supabase
@@ -17,6 +19,7 @@ export function CloudDashboard() {
   const { profile } = useCloudAuth();
   const [school, setSchool] = useState<SchoolRow | null>(null);
   const [students, setStudents] = useState<StudentRow[] | null>(null);
+  const [standards, setStandards] = useState<SchoolAcademicStandards | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,10 +33,18 @@ export function CloudDashboard() {
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not load dashboard data.");
       });
+    if (profile?.role !== "district_admin") {
+      CloudAcademicStandardsService.getForSchool()
+        .then((data) => !cancelled && setStandards(data))
+        .catch(() => {
+          /* academic standards are a bonus panel - a load failure here
+             shouldn't block the rest of the dashboard from rendering */
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [profile?.role]);
 
   const activeCount = students?.filter((s) => s.status === "ACTIVE").length ?? null;
 
@@ -79,6 +90,14 @@ export function CloudDashboard() {
           </div>
         </div>
       </div>
+
+      {standards && (
+        <AcademicStandardsPanel
+          subjectLevelStats={standards.subjectLevelStats}
+          kgSkillStats={standards.kgSkillStats}
+          termName={standards.termName}
+        />
+      )}
 
       <div className="actrs-card p-3">
         <div className="d-flex align-items-center justify-content-between mb-2">

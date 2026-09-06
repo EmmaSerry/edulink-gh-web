@@ -64,6 +64,28 @@ class CloudStudentServiceImpl {
     });
   }
 
+  /** Same as register(), but for a district/platform admin registering
+   *  into a DIFFERENT school than their own - see
+   *  edulink_gh_phase0t_district_registration.sql. Same payload shape,
+   *  routed to the definer RPC that carries its own district check
+   *  instead of relying on ordinary tenant-isolation RLS. */
+  async registerForDistrict(values: StudentRegistration): Promise<StudentRow> {
+    return rest.rpc<StudentRow>("register_student_for_district", {
+      p_school_id: values.schoolId,
+      p_first_name: values.firstName,
+      p_last_name: values.lastName,
+      p_gender: values.gender,
+      p_date_of_birth: values.dateOfBirth,
+      p_academic_year_id: values.academicYearId,
+      p_term_id: values.termId,
+      p_level_id: values.levelId,
+      p_class_id: values.classId,
+      p_guardian_name: values.guardianFullName,
+      p_guardian_relationship: values.guardianRelationship,
+      p_guardian_phone: values.guardianPhone,
+    });
+  }
+
   /** Lists students. RLS already limits results to the caller's own
    *  school (or, for a district admin, schools in their district) - no
    *  school_id filter needs to be added here by hand. */

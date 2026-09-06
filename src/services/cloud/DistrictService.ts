@@ -8,11 +8,18 @@
  * RequireDistrictAdmin check.
  */
 import { rest } from "@/lib/supabaseClient";
-import type { DistrictSchoolOverviewRow } from "@/types/database";
+import type { DistrictSchoolOverviewRow, SchoolRegistrationContext } from "@/types/database";
 
 class CloudDistrictServiceImpl {
   async getSchoolsOverview(): Promise<DistrictSchoolOverviewRow[]> {
     return rest.rpc<DistrictSchoolOverviewRow[]>("get_district_schools_overview", {});
+  }
+
+  /** Another school's levels/classes/terms/academic years, for the
+   *  district-admin registration screen's dropdowns - see
+   *  edulink_gh_phase0t_district_registration.sql. */
+  async getSchoolRegistrationContext(schoolId: string): Promise<SchoolRegistrationContext> {
+    return rest.rpc<SchoolRegistrationContext>("get_school_registration_context", { p_school_id: schoolId });
   }
 }
 

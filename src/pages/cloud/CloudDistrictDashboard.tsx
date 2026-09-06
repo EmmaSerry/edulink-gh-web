@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { CloudDistrictService } from "@services/cloud/DistrictService";
+import { CloudAcademicStandardsService } from "@services/cloud/AcademicStandardsService";
+import { AcademicStandardsPanel, SchoolBreakdownPanel } from "@components/AcademicStandardsPanel";
 import { downloadCsv } from "@/lib/csvExport";
-import type { DistrictSchoolOverviewRow } from "@/types/database";
+import type { DistrictSchoolOverviewRow, DistrictAcademicStandards } from "@/types/database";
 
 function SummaryCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -25,6 +27,7 @@ function SummaryCard({ label, value }: { label: string; value: number | string }
  */
 export function CloudDistrictDashboard() {
   const [rows, setRows] = useState<DistrictSchoolOverviewRow[] | null>(null);
+  const [standards, setStandards] = useState<DistrictAcademicStandards | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
@@ -33,6 +36,12 @@ export function CloudDistrictDashboard() {
     CloudDistrictService.getSchoolsOverview()
       .then((data) => !cancelled && setRows(data))
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : "Could not load the district overview."));
+    CloudAcademicStandardsService.getForDistrict()
+      .then((data) => !cancelled && setStandards(data))
+      .catch(() => {
+        /* academic standards are a bonus panel - a load failure here
+           shouldn't block the rest of the dashboard from rendering */
+      });
     return () => {
       cancelled = true;
     };
@@ -122,6 +131,13 @@ export function CloudDistrictDashboard() {
             <SummaryCard label="Finalized assessments" value={totals.finalized} />
             <SummaryCard label="Not yet started" value={totals.notStarted} />
           </div>
+
+          {standards && (
+            <>
+              <AcademicStandardsPanel subjectLevelStats={standards.districtGrid} kgSkillStats={standards.kgSkillStats} />
+              <SchoolBreakdownPanel schools={standards.schoolBreakdown} />
+            </>
+          )}
 
           <div className="mb-3" style={{ maxWidth: 320 }}>
             <input

@@ -14,6 +14,7 @@ import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
 import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
 import { CloudStaffPage } from "@pages/cloud/CloudStaffPage";
 import { CloudPromoteClass } from "@pages/cloud/CloudPromoteClass";
+import { CloudUserDirectory } from "@pages/cloud/CloudUserDirectory";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireAdmin } from "@components/RequireAdmin";
@@ -89,6 +90,14 @@ export default function App() {
             element={
               <RequireAdmin>
                 <CloudPromoteClass />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/accounts"
+            element={
+              <RequireAdmin roles="district">
+                <CloudUserDirectory />
               </RequireAdmin>
             }
           />

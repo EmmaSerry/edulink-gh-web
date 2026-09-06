@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
+import { CloudCircuitService } from "@services/cloud/CircuitService";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
-import type { SchoolRow } from "@/types/database";
+import type { SchoolRow, CircuitRow } from "@/types/database";
 
 type FormState = {
   name: string;
@@ -69,6 +70,7 @@ export function SettingsSchool() {
   const [school, setSchool] = useState<SchoolRow | null>(null);
   const [form, setForm] = useState<FormState>(BLANK);
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [circuits, setCircuits] = useState<CircuitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -79,11 +81,15 @@ export function SettingsSchool() {
   useEffect(() => {
     let cancelled = false;
     CloudSchoolService.getProfile()
-      .then((row) => {
+      .then(async (row) => {
         if (cancelled || !row) return;
         setSchool(row);
         setForm(rowToForm(row));
         setLogoDataUrl(row.logo_data_url);
+        if (row.district_id) {
+          const circuitRows = await CloudCircuitService.list(row.district_id);
+          if (!cancelled) setCircuits(circuitRows);
+        }
       })
       .catch((err) => !cancelled && setLoadError(err instanceof Error ? err.message : "Could not load school profile."))
       .finally(() => !cancelled && setLoading(false));
@@ -185,7 +191,25 @@ export function SettingsSchool() {
           </div>
           <div className="col-md-3">
             <label className="form-label small">Circuit</label>
-            <input className="form-control" {...field("circuit")} />
+            {circuits.length > 0 ? (
+              <select
+                className="form-select"
+                value={form.circuit}
+                onChange={(e) => setForm((f) => ({ ...f, circuit: e.target.value }))}
+              >
+                <option value="">Select…</option>
+                {form.circuit && !circuits.some((c) => c.name === form.circuit) && (
+                  <option value={form.circuit}>{form.circuit} (not in the managed list)</option>
+                )}
+                {circuits.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input className="form-control" {...field("circuit")} />
+            )}
           </div>
           <div className="col-md-6">
             <label className="form-label small">Region</label>

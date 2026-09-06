@@ -6,27 +6,31 @@ import { CloudTermService } from "@services/cloud/TermService";
 import { CloudLevelService } from "@services/cloud/LevelService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudStudentService } from "@services/cloud/StudentService";
+import { CloudDistrictService } from "@services/cloud/DistrictService";
 import { PhotoPickerField } from "@components/PhotoPickerField";
-import type { AcademicYearRow, TermRow, LevelRow, ClassRow } from "@/types/database";
+import type { AcademicYearRow, TermRow, LevelRow, ClassRow, DistrictSchoolOverviewRow } from "@/types/database";
 
 const RELATIONSHIPS = ["Mother", "Father", "Guardian", "Grandparent", "Sibling", "Other"];
 
 /**
  * First data-entry screen in the cloud app - registers a student and
- * their initial class placement in one atomic step via
- * CloudStudentService.register() (register_student() RPC). Everything
- * downstream (assessment entry, report generation) depends on a student
- * having a current enrollment, so this is the natural starting point
- * for actually exercising the report pipeline with real data.
+ * their initial class placement in one atomic step. For a school_admin
+ * or teacher this is always their own school (register_student()); for
+ * a district/platform admin, a "choose a school" step comes first, and
+ * submission goes through register_student_for_district() instead - see
+ * edulink_gh_phase0t_district_registration.sql. Everything downstream
+ * (assessment entry, report generation) depends on a student having a
+ * current enrollment, so this is the natural starting point for
+ * actually exercising the report pipeline with real data.
  *
- * The academic year and term are auto-selected (whichever the school
- * has marked current/active) rather than asked for - a school only
- * ever registers students into "now," and Settings screens to change
- * which year/term is current are future work, not this form's job.
+ * The academic year and term are auto-selected (whichever the target
+ * school has marked current/active) rather than asked for - nobody
+ * registers a student into anything but "now."
  */
 export function CloudStudentRegister() {
   const navigate = useNavigate();
   const { profile } = useCloudAuth();
+  const isDistrictLevel = profile?.role === "district_admin" || profile?.role === "platform_admin";
 
   const [academicYear, setAcademicYear] = useState<AcademicYearRow | null>(null);
   const [term, setTerm] = useState<TermRow | null>(null);
@@ -35,6 +39,11 @@ export function CloudStudentRegister() {
   const [allClasses, setAllClasses] = useState<ClassRow[]>([]);
   const [loadingContext, setLoadingContext] = useState(true);
   const [contextError, setContextError] = useState<string | null>(null);
+
+  const [districtSchools, setDistrictSchools] = useState<DistrictSchoolOverviewRow[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+  const [districtClasses, setDistrictClasses] = useState<ClassRow[]>([]);
+  const [loadingSchoolSetup, setLoadingSchoolSetup] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -54,34 +63,72 @@ export function CloudStudentRegister() {
     null
   );
 
+  // Own-school setup (school_admin/teacher), or the district/platform
+  // admin's list of schools to choose from - never both.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      CloudAcademicYearService.getCurrent(),
-      CloudTermService.getActive(),
-      CloudLevelService.list(),
-      CloudClassService.list(),
-    ])
-      .then(([year, activeTerm, levelRows, classRows]) => {
-        if (cancelled) return;
-        setAcademicYear(year);
-        setTerm(activeTerm);
-        setLevels(levelRows);
-        setAllClasses(classRows);
-      })
-      .catch((err) => {
-        if (!cancelled) setContextError(err instanceof Error ? err.message : "Could not load setup data.");
-      })
-      .finally(() => !cancelled && setLoadingContext(false));
+    if (isDistrictLevel) {
+      CloudDistrictService.getSchoolsOverview()
+        .then((rows) => !cancelled && setDistrictSchools(rows))
+        .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load schools."))
+        .finally(() => !cancelled && setLoadingContext(false));
+    } else {
+      Promise.all([
+        CloudAcademicYearService.getCurrent(),
+        CloudTermService.getActive(),
+        CloudLevelService.list(),
+        CloudClassService.list(),
+      ])
+        .then(([year, activeTerm, levelRows, classRows]) => {
+          if (cancelled) return;
+          setAcademicYear(year);
+          setTerm(activeTerm);
+          setLevels(levelRows);
+          setAllClasses(classRows);
+        })
+        .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load setup data."))
+        .finally(() => !cancelled && setLoadingContext(false));
+    }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isDistrictLevel]);
+
+  // Once a district/platform admin picks a school, pull ITS levels,
+  // classes, current academic year and active term in one call - the
+  // ordinary per-service reads only ever see the caller's own school.
+  useEffect(() => {
+    if (!isDistrictLevel || !selectedSchoolId) return;
+    let cancelled = false;
+    setLoadingSchoolSetup(true);
+    setContextError(null);
+    CloudDistrictService.getSchoolRegistrationContext(selectedSchoolId)
+      .then((ctx) => {
+        if (cancelled) return;
+        setLevels(ctx.levels);
+        setDistrictClasses(ctx.classes);
+        setAcademicYear(ctx.academicYears.find((y) => y.is_current) ?? ctx.academicYears[0] ?? null);
+        setTerm(ctx.terms.find((t) => t.is_active) ?? ctx.terms[0] ?? null);
+        setLevelId("");
+        setClassId("");
+      })
+      .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load that school's setup."))
+      .finally(() => !cancelled && setLoadingSchoolSetup(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [isDistrictLevel, selectedSchoolId]);
 
   useEffect(() => {
     if (!levelId) {
       setClasses([]);
       setClassId("");
+      return;
+    }
+    if (isDistrictLevel) {
+      const scoped = districtClasses.filter((c) => c.level_id === levelId);
+      setClasses(scoped);
+      setClassId((current) => (scoped.some((c) => c.id === current) ? current : ""));
       return;
     }
     let cancelled = false;
@@ -94,7 +141,7 @@ export function CloudStudentRegister() {
     return () => {
       cancelled = true;
     };
-  }, [levelId]);
+  }, [levelId, isDistrictLevel, districtClasses]);
 
   const isTeacher = profile?.role === "teacher";
   const teacherClasses = useMemo(
@@ -116,6 +163,7 @@ export function CloudStudentRegister() {
 
   const readyToSubmit = useMemo(
     () =>
+      (!isDistrictLevel || !!selectedSchoolId) &&
       !!academicYear &&
       !!term &&
       !!classId &&
@@ -125,17 +173,18 @@ export function CloudStudentRegister() {
       dateOfBirth.length > 0 &&
       guardianFullName.trim().length > 0 &&
       guardianPhone.trim().length > 0,
-    [academicYear, term, classId, levelId, firstName, lastName, dateOfBirth, guardianFullName, guardianPhone]
+    [isDistrictLevel, selectedSchoolId, academicYear, term, classId, levelId, firstName, lastName, dateOfBirth, guardianFullName, guardianPhone]
   );
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!profile?.school_id || !academicYear || !term) return;
+    const schoolId = isDistrictLevel ? selectedSchoolId : profile?.school_id;
+    if (!schoolId || !academicYear || !term) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const student = await CloudStudentService.register({
-        schoolId: profile.school_id,
+      const payload = {
+        schoolId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         gender,
@@ -147,7 +196,10 @@ export function CloudStudentRegister() {
         guardianFullName: guardianFullName.trim(),
         guardianRelationship,
         guardianPhone: guardianPhone.trim(),
-      });
+      };
+      const student = isDistrictLevel
+        ? await CloudStudentService.registerForDistrict(payload)
+        : await CloudStudentService.register(payload);
 
       // The photo is saved as a second step (register_student() doesn't
       // take one) rather than blocking registration itself on it - a
@@ -204,12 +256,47 @@ export function CloudStudentRegister() {
     );
   }
 
+  const selectedSchool = districtSchools.find((s) => s.school_id === selectedSchoolId);
+
+  if (isDistrictLevel && !selectedSchoolId) {
+    return (
+      <div>
+        <h1 className="h4 mb-1">Register a student</h1>
+        <p className="text-muted mb-4">Choose which school in your district this pupil is being admitted to.</p>
+        <div className="actrs-card p-4" style={{ maxWidth: 520 }}>
+          <label className="form-label small">School</label>
+          <select className="form-select" value={selectedSchoolId} onChange={(e) => setSelectedSchoolId(e.target.value)}>
+            <option value="">Select a school…</option>
+            {districtSchools.map((s) => (
+              <option key={s.school_id} value={s.school_id}>
+                {s.school_name}
+              </option>
+            ))}
+          </select>
+          {districtSchools.length === 0 && (
+            <p className="text-muted small mb-0 mt-2">No schools found in your district yet.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (isDistrictLevel && loadingSchoolSetup) {
+    return <p className="text-muted">Loading {selectedSchool?.school_name ?? "school"}'s setup…</p>;
+  }
+
   if (!academicYear || !term) {
     return (
       <div className="alert alert-warning" role="alert">
-        Your school doesn't have a current academic year and active term set up yet, so students can't be registered
-        until that's configured. (This will move into a Settings screen - for now, ask your platform admin to set
-        one via the database.)
+        {isDistrictLevel ? selectedSchool?.school_name ?? "This school" : "Your school"} doesn't have a current
+        academic year and active term set up yet, so students can't be registered there until that's configured.
+        {isDistrictLevel && (
+          <div className="mt-2">
+            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSelectedSchoolId("")}>
+              Choose a different school
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -242,6 +329,19 @@ export function CloudStudentRegister() {
     <div>
       <h1 className="h4 mb-1">Register a student</h1>
       <p className="text-muted mb-4">
+        {isDistrictLevel && (
+          <>
+            <strong>{selectedSchool?.school_name}</strong> ·{" "}
+            <button
+              type="button"
+              className="btn btn-link btn-sm p-0 align-baseline"
+              onClick={() => setSelectedSchoolId("")}
+            >
+              change school
+            </button>{" "}
+            ·{" "}
+          </>
+        )}
         {academicYear.label} &middot; {term.term_name}
       </p>
 

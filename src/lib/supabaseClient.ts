@@ -198,6 +198,27 @@ export const auth = {
   },
 };
 
+/** Calls a Supabase Edge Function (see supabase/functions/ in this
+ *  project) - used for the one action that genuinely needs the
+ *  service_role key, which can only ever run server-side, never in
+ *  this browser code. Sends the caller's own session token, same as
+ *  every other authenticated request here; the function itself is
+ *  responsible for checking that caller is actually allowed to do
+ *  whatever it's asking for. */
+export const edgeFunctions = {
+  async invoke<T>(name: string, body: unknown): Promise<T> {
+    const res = await fetch(`${getSupabaseUrl()}/functions/v1/${name}`, {
+      method: "POST",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error(data?.error ?? `Request to ${name} failed.`);
+    return data as T;
+  },
+};
+
 export interface RestQueryOptions {
   /** PostgREST column selection, e.g. "id,name" or "*,school:schools(name)". */
   select?: string;

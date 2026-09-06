@@ -20,6 +20,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { path: "/dashboard", label: "Dashboard", icon: "bi-speedometer2" },
   { path: "/district", label: "District overview", icon: "bi-diagram-3", districtOnly: true },
+  { path: "/accounts", label: "Accounts", icon: "bi-people-fill", districtOnly: true },
   { path: "/students", label: "Students", icon: "bi-people" },
   { path: "/staff", label: "Staff", icon: "bi-person-badge", adminOnly: true },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },

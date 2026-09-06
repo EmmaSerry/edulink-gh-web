@@ -161,6 +161,26 @@ export interface EnrollmentRow {
   remarks: string | null;
 }
 
+export interface UserDirectoryRow {
+  id: string;
+  full_name: string;
+  role: UserRole;
+  school_id: string | null;
+  school_name: string | null;
+  is_active: boolean;
+  phone: string | null;
+  email: string | null;
+  created_at: string;
+}
+
+export interface CircuitRow {
+  id: string;
+  district_id: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export type PromotionOutcome = "PROMOTED" | "REPEATED" | "GRADUATED" | "TRANSFERRED";
 
 export interface PromotionHistoryRow {
@@ -362,6 +382,39 @@ export interface AuditLogRow {
   term_name: string | null;
 }
 
+export interface SubjectLevelStat {
+  subject_name: string;
+  level_group: ReportTemplateCode;
+  avg_total: number;
+  pct_at_least_50: number;
+  participant_count: number;
+}
+
+export interface KgSkillStat {
+  level_group: ReportTemplateCode;
+  rating: string;
+  rating_count: number;
+}
+
+export interface SchoolAcademicStandards {
+  termName: string | null;
+  subjectLevelStats: SubjectLevelStat[];
+  kgSkillStats: KgSkillStat[];
+}
+
+export interface SchoolBreakdownStat {
+  school_id: string;
+  school_name: string;
+  avg_total: number | null;
+  participant_count: number;
+}
+
+export interface DistrictAcademicStandards {
+  districtGrid: SubjectLevelStat[];
+  schoolBreakdown: SchoolBreakdownStat[];
+  kgSkillStats: KgSkillStat[];
+}
+
 export interface DistrictSchoolOverviewRow {
   school_id: string;
   school_name: string;
@@ -375,6 +428,13 @@ export interface DistrictSchoolOverviewRow {
   assessment_completed_count: number;
   assessment_verified_count: number;
   assessment_finalized_count: number;
+}
+
+export interface SchoolRegistrationContext {
+  levels: LevelRow[];
+  classes: ClassRow[];
+  academicYears: AcademicYearRow[];
+  terms: TermRow[];
 }
 
 export type ReportTemplateCode = "KG" | "LOWER_PRIMARY" | "UPPER_PRIMARY" | "JHS";
