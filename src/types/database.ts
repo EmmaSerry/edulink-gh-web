@@ -161,6 +161,17 @@ export interface EnrollmentRow {
   remarks: string | null;
 }
 
+export interface DistrictOption {
+  id: string;
+  name: string;
+  region: string | null;
+}
+
+export interface CircuitOption {
+  id: string;
+  name: string;
+}
+
 export interface UserDirectoryRow {
   id: string;
   full_name: string;

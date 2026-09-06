@@ -185,6 +185,38 @@ export const auth = {
     return { id };
   },
 
+  /**
+   * Public self-service signup (a brand-new school registering itself)
+   * - unlike signUpWithoutSession() above, this one DOES want the new
+   * session: there's no existing admin to keep signed in here, the
+   * person filling out this form IS the account being created, and the
+   * follow-up call (register_school_self_service()) needs to run AS
+   * them so auth.uid() inside that function resolves correctly.
+   * GoTrue's plain signup endpoint returns a full session directly in
+   * its response as long as "Confirm email" is off project-wide (the
+   * same setting every staff-creation flow already depends on) - if
+   * it's back on, there's no session to use here and the caller needs
+   * to tell the person to check their email instead.
+   */
+  async signUpAndSignIn(email: string, password: string): Promise<AuthSession> {
+    const res = await fetch(`${getSupabaseUrl()}/auth/v1/signup`, {
+      method: "POST",
+      headers: { apikey: getSupabaseAnonKey(), "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error(await describeError(res));
+    const data = await res.json();
+    if (!data?.access_token) {
+      throw new Error(
+        "Your account was created, but couldn't be signed in automatically - this project may require email " +
+          "confirmation. Check your inbox for a confirmation link, then sign in normally."
+      );
+    }
+    const session = sessionFromTokenResponse(data);
+    saveSession(session);
+    return session;
+  },
+
   currentSession(): AuthSession | null {
     return loadSession();
   },

@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 
 /**
  * Real email/password sign-in against Supabase Auth (see
- * src/lib/supabaseClient.ts). Accounts themselves are created by a
- * platform/district/school admin (Authentication -> Users in Supabase,
- * for now - a self-service "create your school" flow is a later piece);
- * this screen only signs an already-created user in.
+ * src/lib/supabaseClient.ts). Most accounts are created by a school
+ * admin (Settings -> Staff) or a district/platform admin - a brand-new
+ * SCHOOL, though, registers itself via /signup (see
+ * edulink_gh_phase0w_school_self_signup.sql) rather than needing me to
+ * set it up by hand; this screen only signs an already-created user in.
  */
 export function CloudLogin() {
   const navigate = useNavigate();
@@ -68,6 +69,10 @@ export function CloudLogin() {
       <button className="btn btn-primary w-100" type="submit" disabled={submitting}>
         {submitting ? "Signing in…" : "Sign in"}
       </button>
+
+      <p className="text-center small text-muted mt-3 mb-0">
+        New school? <Link to="/signup">Register it here</Link>
+      </p>
     </form>
   );
 }

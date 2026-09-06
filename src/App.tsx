@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import { CloudAuthLayout } from "@layouts/CloudAuthLayout";
 import { CloudAppLayout } from "@layouts/CloudAppLayout";
 import { CloudLogin } from "@pages/cloud/CloudLogin";
+import { CloudSchoolSignup } from "@pages/cloud/CloudSchoolSignup";
 import { CloudDashboard } from "@pages/cloud/CloudDashboard";
 import { CloudStudents } from "@pages/cloud/CloudStudents";
 import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
@@ -37,6 +38,7 @@ export default function App() {
 
         <Route element={<CloudAuthLayout />}>
           <Route path="/login" element={<CloudLogin />} />
+          <Route path="/signup" element={<CloudSchoolSignup />} />
         </Route>
 
         <Route
