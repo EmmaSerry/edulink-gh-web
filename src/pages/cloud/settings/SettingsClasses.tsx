@@ -30,7 +30,7 @@ export function SettingsClasses() {
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
 
-  const teachers = useMemo(() => staff.filter((s) => s.role === "teacher"), [staff]);
+  const teachers = useMemo(() => staff.filter((s) => s.role === "teacher" && s.is_active), [staff]);
   const levelName = (id: string) => levels.find((l) => l.id === id)?.name ?? "Unknown level";
 
   function load() {

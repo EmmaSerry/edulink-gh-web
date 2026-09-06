@@ -41,6 +41,18 @@ class CloudStaffServiceImpl {
     return rest.rpc<UserProfileRow[]>("list_school_staff", {});
   }
 
+  /** Blocks the staff member from every pupil-facing table (see
+   *  edulink_gh_phase0p_staff_archiving.sql) - does not disable their
+   *  actual sign-in credential, which needs Supabase's admin API and is
+   *  deliberately out of scope for a browser-side app. */
+  async archive(userId: string): Promise<UserProfileRow> {
+    return rest.rpc<UserProfileRow>("archive_staff", { p_user_id: userId });
+  }
+
+  async reactivate(userId: string): Promise<UserProfileRow> {
+    return rest.rpc<UserProfileRow>("reactivate_staff", { p_user_id: userId });
+  }
+
   async create(input: CreateStaffInput): Promise<CreateStaffResult> {
     const tempPassword = generateTempPassword();
     const { id } = await auth.signUpWithoutSession(input.email, tempPassword);

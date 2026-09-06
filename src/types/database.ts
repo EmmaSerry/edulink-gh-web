@@ -56,6 +56,7 @@ export interface UserProfileRow {
   school_id: string | null;
   district_id: string | null;
   phone: string | null;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -345,6 +346,21 @@ export interface AuditLogRow {
   class_name: string | null;
   term_id: string | null;
   term_name: string | null;
+}
+
+export interface DistrictSchoolOverviewRow {
+  school_id: string;
+  school_name: string;
+  school_code: string | null;
+  circuit: string | null;
+  region: string | null;
+  active_student_count: number;
+  current_term_id: string | null;
+  current_term_name: string | null;
+  assessment_draft_count: number;
+  assessment_completed_count: number;
+  assessment_verified_count: number;
+  assessment_finalized_count: number;
 }
 
 export type ReportTemplateCode = "KG" | "LOWER_PRIMARY" | "UPPER_PRIMARY" | "JHS";

@@ -5,6 +5,7 @@ import { CloudLogin } from "@pages/cloud/CloudLogin";
 import { CloudDashboard } from "@pages/cloud/CloudDashboard";
 import { CloudStudents } from "@pages/cloud/CloudStudents";
 import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
+import { CloudStudentEdit } from "@pages/cloud/CloudStudentEdit";
 import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace";
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
@@ -54,6 +55,7 @@ export default function App() {
             }
           />
           <Route path="/students/register" element={<CloudStudentRegister />} />
+          <Route path="/students/:id/edit" element={<CloudStudentEdit />} />
           <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
           <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
           <Route path="/reports" element={<CloudReportView />} />

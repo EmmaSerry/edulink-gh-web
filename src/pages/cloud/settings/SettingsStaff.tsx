@@ -29,6 +29,9 @@ export function SettingsStaff() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<{ email: string; tempPassword: string } | null>(null);
 
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   function load() {
     setLoading(true);
     setLoadError(null);
@@ -63,6 +66,32 @@ export function SettingsStaff() {
     }
   }
 
+  async function handleArchive(id: string) {
+    setActionId(id);
+    setActionError(null);
+    try {
+      await CloudStaffService.archive(id);
+      load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not archive this staff member.");
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function handleReactivate(id: string) {
+    setActionId(id);
+    setActionError(null);
+    try {
+      await CloudStaffService.reactivate(id);
+      load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not reactivate this staff member.");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   return (
     <div>
       {justCreated && (
@@ -87,6 +116,7 @@ export function SettingsStaff() {
 
       {loadError && <div className="alert alert-danger py-2">{loadError}</div>}
       {createError && <div className="alert alert-danger py-2">{createError}</div>}
+      {actionError && <div className="alert alert-danger py-2">{actionError}</div>}
 
       {showForm && (
         <form onSubmit={handleCreate} className="actrs-card p-3 mb-3">
@@ -151,16 +181,46 @@ export function SettingsStaff() {
                 <th>Name</th>
                 <th>Role</th>
                 <th>Phone</th>
+                <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {staff.map((s) => (
-                <tr key={s.id}>
+                <tr key={s.id} className={s.is_active ? "" : "opacity-75"}>
                   <td>{s.full_name}</td>
                   <td>
                     <span className="badge text-bg-secondary">{ROLE_LABEL[s.role as StaffRole] ?? s.role}</span>
                   </td>
                   <td className="text-muted">{s.phone ?? "—"}</td>
+                  <td>
+                    {s.is_active ? (
+                      <span className="badge text-bg-success">Active</span>
+                    ) : (
+                      <span className="badge text-bg-secondary">Archived</span>
+                    )}
+                  </td>
+                  <td className="text-end">
+                    {s.is_active ? (
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm"
+                        disabled={actionId === s.id}
+                        onClick={() => handleArchive(s.id)}
+                      >
+                        Archive
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm"
+                        disabled={actionId === s.id}
+                        onClick={() => handleReactivate(s.id)}
+                      >
+                        Reactivate
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
