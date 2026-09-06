@@ -35,6 +35,17 @@
      on a background that doesn't also switch with the theme. */
   --actrs-surface: #ffffff;
 
+  /* Glassmorphism tokens - a separate pair from --actrs-surface on
+     purpose. --actrs-surface stays fully opaque because the assessment
+     grid's sticky frozen column/header relies on it being solid to stay
+     legible while the table scrolls underneath it; a translucent sticky
+     column would smear into the scrolling cells. Everything else
+     "raised" (cards, the topbar) uses these instead, semi-transparent +
+     blurred over the blob background below, so the frosted-glass effect
+     actually has something colourful behind it to blur. */
+  --actrs-glass: rgba(255, 255, 255, 0.62);
+  --actrs-glass-border: rgba(255, 255, 255, 0.5);
+
   --actrs-gradient-chrome: linear-gradient(180deg, var(--actrs-blue-black) 0%, var(--actrs-navy) 55%, var(--actrs-seablue) 100%);
   --actrs-gradient-accent: linear-gradient(90deg, var(--actrs-blue) 0%, var(--actrs-seablue) 60%, var(--actrs-yellow) 100%);
   --actrs-gradient-button: linear-gradient(135deg, var(--actrs-navy) 0%, var(--actrs-seablue) 100%);
@@ -59,17 +70,58 @@
   --bs-body-bg: #0c0f13;
   --actrs-surface: #161d29;
   --actrs-blue-light: #16283d;
+  --actrs-glass: rgba(22, 29, 41, 0.58);
+  --actrs-glass-border: rgba(255, 255, 255, 0.08);
 }
 
 body {
   font-family: var(--actrs-font);
+  /* Bootstrap's own reboot paints --bs-body-bg directly onto body as a
+     solid colour, which (via the HTML canvas-background-propagation
+     rule) would otherwise sit behind everything including the fixed
+     blob layer below and hide it completely. body::before supplies the
+     actual visible page background now (its own gradient stack ends in
+     the same --actrs-grey-light as a fallback), so body's own paint is
+     turned off here rather than left to race with it. */
+  background: transparent;
+}
+
+/* Soft blurred colour blobs, fixed behind all page content - the
+   backdrop the glass panels below need in order to actually read as
+   "frosted glass" rather than just a plain translucent grey (blurring a
+   flat single-colour background is invisible). Uses the app's own
+   palette (blue/sea-blue/gold/navy) at low opacity so it stays
+   decorative rather than distracting, and sits at z-index -1 so it
+   never intercepts clicks or scroll. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.32), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(14, 165, 196, 0.28), transparent 46%),
+    radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.16), transparent 42%),
+    radial-gradient(circle at 15% 88%, rgba(18, 51, 99, 0.22), transparent 46%),
+    var(--actrs-grey-light);
+}
+
+[data-bs-theme="dark"] body::before {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.22), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(14, 165, 196, 0.2), transparent 46%),
+    radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.1), transparent 42%),
+    radial-gradient(circle at 15% 88%, rgba(31, 111, 235, 0.16), transparent 46%),
+    var(--actrs-grey-light);
 }
 
 .actrs-card {
-  border: 1px solid var(--actrs-grey-border);
+  border: 1px solid var(--actrs-glass-border);
   border-radius: var(--actrs-radius);
   box-shadow: var(--actrs-shadow);
-  background: var(--actrs-surface);
+  background: var(--actrs-glass);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
 }
 
 /* Shared "raised surface" treatment for anything that used to hardcode
@@ -80,12 +132,22 @@ body {
    This class keeps them visually raised above the page in both themes
    without ever going invisible against it. */
 .actrs-surface {
-  background-color: var(--actrs-surface) !important;
+  background-color: var(--actrs-glass) !important;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
   color: var(--actrs-text);
 }
 
 .actrs-sidebar {
-  background: var(--actrs-gradient-chrome);
+  /* A tinted-glass variant of --actrs-gradient-chrome (kept as its own
+     rule rather than making that shared variable translucent, since a
+     fully solid gradient is still the right choice anywhere else it
+     might get used later) - slightly translucent stops plus a blur of
+     whatever's behind it, so the sidebar reads as coloured frosted
+     glass rather than a flat gradient fill. */
+  background: linear-gradient(180deg, rgba(11, 26, 48, 0.92) 0%, rgba(18, 51, 99, 0.9) 55%, rgba(14, 165, 196, 0.88) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: #fff;
   min-height: 100vh;
 }
@@ -122,8 +184,10 @@ body {
 }
 
 .actrs-topbar {
-  background: var(--actrs-surface);
-  border-bottom: 1px solid var(--actrs-grey-border);
+  background: var(--actrs-glass);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border-bottom: 1px solid var(--actrs-glass-border);
   position: relative;
 }
 
