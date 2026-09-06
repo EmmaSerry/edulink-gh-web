@@ -9,6 +9,7 @@ import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace"
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
 import { RequireAuth } from "@components/RequireAuth";
+import { ThemeProvider } from "@contexts/ThemeContext";
 
 /**
  * EduLink GH cloud app routes. Deliberately small right now - Dashboard
@@ -20,25 +21,27 @@ import { RequireAuth } from "@components/RequireAuth";
  */
 export default function App() {
   return (
-    <Routes>
-      <Route element={<CloudAuthLayout />}>
-        <Route path="/login" element={<CloudLogin />} />
-      </Route>
+    <ThemeProvider>
+      <Routes>
+        <Route element={<CloudAuthLayout />}>
+          <Route path="/login" element={<CloudLogin />} />
+        </Route>
 
-      <Route
-        element={
-          <RequireAuth>
-            <CloudAppLayout />
-          </RequireAuth>
-        }
-      >
-        <Route path="/" element={<CloudDashboard />} />
-        <Route path="/students" element={<CloudStudents />} />
-        <Route path="/students/register" element={<CloudStudentRegister />} />
-        <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
-        <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
-        <Route path="/reports" element={<CloudReportView />} />
-      </Route>
-    </Routes>
+        <Route
+          element={
+            <RequireAuth>
+              <CloudAppLayout />
+            </RequireAuth>
+          }
+        >
+          <Route path="/" element={<CloudDashboard />} />
+          <Route path="/students" element={<CloudStudents />} />
+          <Route path="/students/register" element={<CloudStudentRegister />} />
+          <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
+          <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
+          <Route path="/reports" element={<CloudReportView />} />
+        </Route>
+      </Routes>
+    </ThemeProvider>
   );
 }
