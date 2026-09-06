@@ -7,6 +7,31 @@ function fullNameOf(s: StudentRow): string {
   return [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" ");
 }
 
+/** Thumbnail if the student has a photo (stored as a small data URL -
+ *  see PassportPhotoCropper), otherwise a plain initials circle so the
+ *  column stays useful even for the majority of students without one
+ *  yet, rather than an empty gap. */
+function StudentThumb({ student }: { student: StudentRow }) {
+  if (student.photo_url) {
+    return (
+      <img
+        src={student.photo_url}
+        alt=""
+        style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }}
+      />
+    );
+  }
+  const initial = student.first_name.trim().charAt(0).toUpperCase();
+  return (
+    <div
+      className="d-flex align-items-center justify-content-center text-white"
+      style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--actrs-navy)", fontSize: "0.8rem" }}
+    >
+      {initial}
+    </div>
+  );
+}
+
 const STATUS_BADGE: Record<StudentRow["status"], string> = {
   ACTIVE: "text-bg-success",
   TRANSFERRED_OUT: "text-bg-secondary",
@@ -70,6 +95,7 @@ export function CloudStudents() {
           <table className="table table-hover align-middle mb-0">
             <thead>
               <tr>
+                <th style={{ width: 48 }}></th>
                 <th>Student ID</th>
                 <th>Name</th>
                 <th>Gender</th>
@@ -80,20 +106,23 @@ export function CloudStudents() {
             <tbody>
               {students === null && (
                 <tr>
-                  <td colSpan={5} className="text-center text-muted py-4">
+                  <td colSpan={6} className="text-center text-muted py-4">
                     Loading…
                   </td>
                 </tr>
               )}
               {students !== null && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-muted py-4">
+                  <td colSpan={6} className="text-center text-muted py-4">
                     {students.length === 0 ? "No students registered yet." : "No students match your search."}
                   </td>
                 </tr>
               )}
               {filtered.map((s) => (
                 <tr key={s.id}>
+                  <td>
+                    <StudentThumb student={s} />
+                  </td>
                   <td className="text-muted">{s.student_id}</td>
                   <td className="fw-medium">{fullNameOf(s)}</td>
                   <td>{s.gender === "M" ? "Male" : "Female"}</td>

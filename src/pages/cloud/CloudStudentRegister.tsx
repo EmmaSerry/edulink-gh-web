@@ -6,6 +6,7 @@ import { CloudTermService } from "@services/cloud/TermService";
 import { CloudLevelService } from "@services/cloud/LevelService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudStudentService } from "@services/cloud/StudentService";
+import { PhotoPickerField } from "@components/PhotoPickerField";
 import type { AcademicYearRow, TermRow, LevelRow, ClassRow } from "@/types/database";
 
 const RELATIONSHIPS = ["Mother", "Father", "Guardian", "Grandparent", "Sibling", "Other"];
@@ -44,10 +45,13 @@ export function CloudStudentRegister() {
   const [guardianFullName, setGuardianFullName] = useState("");
   const [guardianRelationship, setGuardianRelationship] = useState(RELATIONSHIPS[0]);
   const [guardianPhone, setGuardianPhone] = useState("");
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [registered, setRegistered] = useState<{ studentId: string; fullName: string } | null>(null);
+  const [registered, setRegistered] = useState<{ studentId: string; fullName: string; photoWarning: string | null } | null>(
+    null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -118,9 +122,27 @@ export function CloudStudentRegister() {
         guardianRelationship,
         guardianPhone: guardianPhone.trim(),
       });
+
+      // The photo is saved as a second step (register_student() doesn't
+      // take one) rather than blocking registration itself on it - a
+      // school record with no photo yet is fine; one that silently
+      // failed to register because of a photo problem would not be.
+      let photoWarning: string | null = null;
+      if (photoDataUrl) {
+        try {
+          await CloudStudentService.updateStudent(student.id, { photo_url: photoDataUrl });
+        } catch (photoErr) {
+          photoWarning =
+            "The student was registered, but the photo couldn't be saved: " +
+            (photoErr instanceof Error ? photoErr.message : "unknown error") +
+            ". You can try adding it again from the student's profile.";
+        }
+      }
+
       setRegistered({
         studentId: student.student_id,
         fullName: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+        photoWarning,
       });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Could not register this student.");
@@ -140,6 +162,7 @@ export function CloudStudentRegister() {
     setGuardianFullName("");
     setGuardianRelationship(RELATIONSHIPS[0]);
     setGuardianPhone("");
+    setPhotoDataUrl(null);
     setRegistered(null);
   }
 
@@ -175,7 +198,8 @@ export function CloudStudentRegister() {
         <p className="mb-1">
           <strong>{registered.fullName}</strong> has been registered.
         </p>
-        <p className="text-muted small mb-4">Student ID: {registered.studentId}</p>
+        <p className="text-muted small mb-3">Student ID: {registered.studentId}</p>
+        {registered.photoWarning && <div className="alert alert-warning small py-2 mb-3">{registered.photoWarning}</div>}
         <div className="d-flex gap-2">
           <button className="btn btn-primary" onClick={resetForm}>
             Register another
@@ -202,6 +226,11 @@ export function CloudStudentRegister() {
       )}
 
       <form onSubmit={handleSubmit} className="actrs-card p-4" style={{ maxWidth: 720 }}>
+        <h2 className="h6 mb-3">Student photo (optional)</h2>
+        <div className="mb-4">
+          <PhotoPickerField value={photoDataUrl} onChange={setPhotoDataUrl} />
+        </div>
+
         <h2 className="h6 mb-3">Student details</h2>
         <div className="row g-3 mb-4">
           <div className="col-md-4">
