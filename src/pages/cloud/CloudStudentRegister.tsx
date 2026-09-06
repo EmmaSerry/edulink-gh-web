@@ -32,6 +32,7 @@ export function CloudStudentRegister() {
   const [term, setTerm] = useState<TermRow | null>(null);
   const [levels, setLevels] = useState<LevelRow[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [allClasses, setAllClasses] = useState<ClassRow[]>([]);
   const [loadingContext, setLoadingContext] = useState(true);
   const [contextError, setContextError] = useState<string | null>(null);
 
@@ -55,12 +56,18 @@ export function CloudStudentRegister() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([CloudAcademicYearService.getCurrent(), CloudTermService.getActive(), CloudLevelService.list()])
-      .then(([year, activeTerm, levelRows]) => {
+    Promise.all([
+      CloudAcademicYearService.getCurrent(),
+      CloudTermService.getActive(),
+      CloudLevelService.list(),
+      CloudClassService.list(),
+    ])
+      .then(([year, activeTerm, levelRows, classRows]) => {
         if (cancelled) return;
         setAcademicYear(year);
         setTerm(activeTerm);
         setLevels(levelRows);
+        setAllClasses(classRows);
       })
       .catch((err) => {
         if (!cancelled) setContextError(err instanceof Error ? err.message : "Could not load setup data.");
@@ -88,6 +95,24 @@ export function CloudStudentRegister() {
       cancelled = true;
     };
   }, [levelId]);
+
+  const isTeacher = profile?.role === "teacher";
+  const teacherClasses = useMemo(
+    () => CloudClassService.forRole(allClasses, profile),
+    [allClasses, profile]
+  );
+
+  // A teacher (almost always assigned to exactly one class) skips the
+  // level-then-class cascade entirely - it picks itself. See phase0l's
+  // teacher-scoped RLS: this UI narrowing matches what the server would
+  // reject anyway, so there's no point offering a choice that can't
+  // actually be submitted.
+  useEffect(() => {
+    if (!isTeacher || teacherClasses.length !== 1) return;
+    const only = teacherClasses[0];
+    setLevelId((current) => current || only.level_id);
+    setClassId((current) => current || only.id);
+  }, [isTeacher, teacherClasses]);
 
   const readyToSubmit = useMemo(
     () =>
@@ -267,34 +292,73 @@ export function CloudStudentRegister() {
 
         <h2 className="h6 mb-3">Class placement</h2>
         <div className="row g-3 mb-4">
-          <div className="col-md-6">
-            <label className="form-label small">Level</label>
-            <select className="form-select" value={levelId} onChange={(e) => setLevelId(e.target.value)} required>
-              <option value="">Select a level…</option>
-              {levels.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-md-6">
-            <label className="form-label small">Class</label>
-            <select
-              className="form-select"
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              disabled={!levelId}
-              required
-            >
-              <option value="">{levelId ? "Select a class…" : "Choose a level first"}</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isTeacher ? (
+            teacherClasses.length === 0 ? (
+              <div className="col-12">
+                <div className="alert alert-warning py-2 mb-0">
+                  You haven't been assigned to a class yet - ask your school admin to assign you one under
+                  Settings → Classes before registering students.
+                </div>
+              </div>
+            ) : teacherClasses.length === 1 ? (
+              <div className="col-md-6">
+                <label className="form-label small">Class</label>
+                <input className="form-control" value={teacherClasses[0].name} disabled readOnly />
+              </div>
+            ) : (
+              <div className="col-md-6">
+                <label className="form-label small">Class</label>
+                <select
+                  className="form-select"
+                  value={classId}
+                  onChange={(e) => {
+                    const picked = teacherClasses.find((c) => c.id === e.target.value);
+                    setClassId(picked?.id ?? "");
+                    setLevelId(picked?.level_id ?? "");
+                  }}
+                  required
+                >
+                  <option value="">Select a class…</option>
+                  {teacherClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )
+          ) : (
+            <>
+              <div className="col-md-6">
+                <label className="form-label small">Level</label>
+                <select className="form-select" value={levelId} onChange={(e) => setLevelId(e.target.value)} required>
+                  <option value="">Select a level…</option>
+                  {levels.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-md-6">
+                <label className="form-label small">Class</label>
+                <select
+                  className="form-select"
+                  value={classId}
+                  onChange={(e) => setClassId(e.target.value)}
+                  disabled={!levelId}
+                  required
+                >
+                  <option value="">{levelId ? "Select a class…" : "Choose a level first"}</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
         <h2 className="h6 mb-3">Parent / guardian</h2>
