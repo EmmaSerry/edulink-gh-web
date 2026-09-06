@@ -1,18 +1,33 @@
 import { NavLink } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
+import type { UserRole } from "@/types/database";
 
-const NAV_ITEMS = [
+const ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
+
+interface NavItem {
+  path: string;
+  label: string;
+  icon: string;
+  /** Hidden from the 'teacher' role - see edulink_gh_phase0l_role_access.sql,
+   *  which enforces the same boundary server-side. */
+  adminOnly?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { path: "/dashboard", label: "Dashboard", icon: "bi-speedometer2" },
   { path: "/students", label: "Students", icon: "bi-people" },
   { path: "/students/register", label: "Register student", icon: "bi-person-plus" },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
-  { path: "/settings", label: "Settings", icon: "bi-gear" },
+  { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
+  { path: "/settings", label: "Settings", icon: "bi-gear", adminOnly: true },
 ];
 
 export function CloudSidebar() {
   const { profile } = useCloudAuth();
+  const isAdmin = !!profile && ADMIN_ROLES.includes(profile.role);
+  const items = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <aside className="actrs-sidebar d-flex flex-column p-3" style={{ width: 260 }}>
@@ -27,7 +42,7 @@ export function CloudSidebar() {
       </div>
       <nav className="flex-grow-1">
         <ul className="nav nav-pills flex-column">
-          {NAV_ITEMS.map((item) => (
+          {items.map((item) => (
             <li className="nav-item" key={item.path}>
               <NavLink
                 to={item.path}

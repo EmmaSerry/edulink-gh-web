@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudLevelService } from "@services/cloud/LevelService";
@@ -45,13 +46,15 @@ export function CloudReportRemarksEntry() {
   const [classError, setClassError] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
+  const { profile } = useCloudAuth();
+
   useEffect(() => {
     let cancelled = false;
     Promise.all([CloudTermService.getActive(), CloudClassService.list(), CloudLevelService.list()])
       .then(([activeTerm, classRows, levelRows]) => {
         if (cancelled) return;
         setTerm(activeTerm);
-        setClasses(classRows);
+        setClasses(CloudClassService.forRole(classRows, profile));
         setLevels(levelRows);
       })
       .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load setup data."))

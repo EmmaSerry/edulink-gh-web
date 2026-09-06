@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CloudStudentService } from "@services/cloud/StudentService";
+import { downloadCsv } from "@/lib/csvExport";
 import type { StudentRow } from "@/types/database";
 
 function fullNameOf(s: StudentRow): string {
@@ -64,6 +65,14 @@ export function CloudStudents() {
     );
   }, [students, query]);
 
+  function handleExport() {
+    downloadCsv(
+      "students.csv",
+      ["Student ID", "First name", "Middle name", "Last name", "Gender", "Date of birth", "Status"],
+      filtered.map((s) => [s.student_id, s.first_name, s.middle_name ?? "", s.last_name, s.gender, s.date_of_birth, s.status])
+    );
+  }
+
   return (
     <div>
       <div className="d-flex align-items-center justify-content-between mb-3 gap-3">
@@ -77,6 +86,15 @@ export function CloudStudents() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <button
+            type="button"
+            className="btn btn-outline-secondary text-nowrap"
+            onClick={handleExport}
+            disabled={!students || filtered.length === 0}
+          >
+            <i className="bi bi-download me-1" />
+            Export CSV
+          </button>
           <Link to="/students/register" className="btn btn-primary text-nowrap">
             <i className="bi bi-person-plus me-1" />
             Register student

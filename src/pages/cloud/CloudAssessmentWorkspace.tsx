@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudLevelService } from "@services/cloud/LevelService";
@@ -10,6 +11,7 @@ import { CloudEnrollmentService } from "@services/cloud/EnrollmentService";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudScoreRecordService } from "@services/cloud/ScoreRecordService";
 import { CloudAssessmentSessionService } from "@services/cloud/AssessmentSessionService";
+import { downloadCsv } from "@/lib/csvExport";
 import type {
   TermRow,
   ClassRow,
@@ -91,13 +93,15 @@ export function CloudAssessmentWorkspace() {
   const [statusBusy, setStatusBusy] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
+  const { profile } = useCloudAuth();
+
   useEffect(() => {
     let cancelled = false;
     Promise.all([CloudTermService.getActive(), CloudClassService.list(), CloudLevelService.list()])
       .then(([activeTerm, classRows, levelRows]) => {
         if (cancelled) return;
         setTerm(activeTerm);
-        setClasses(classRows);
+        setClasses(CloudClassService.forRole(classRows, profile));
         setLevels(levelRows);
       })
       .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load setup data."))
@@ -414,6 +418,25 @@ export function CloudAssessmentWorkspace() {
                 <span className={`badge ${STATUS_BADGE[session.status]}`}>{STATUS_LABEL[session.status]}</span>
               </div>
               <div className="d-flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={students.length === 0}
+                  onClick={() => {
+                    const subjectName = subjects.find((s) => s.id === subjectId)?.name ?? "subject";
+                    downloadCsv(
+                      `${selectedClass?.name ?? "class"}-${subjectName}-scores.csv`,
+                      ["Student ID", "Student name", "SBA (50)", "Exam (50)"],
+                      students.map((student) => {
+                        const cell = scores.get(`${student.id}:${subjectId}`) ?? { sba: null, exam: null };
+                        return [student.student_id, fullNameOf(student), cell.sba ?? "", cell.exam ?? ""];
+                      })
+                    );
+                  }}
+                >
+                  <i className="bi bi-download me-1" />
+                  Export CSV
+                </button>
                 {CloudAssessmentSessionService.nextStatusOptions(session.status).map((next) => (
                   <button
                     key={next}
@@ -513,6 +536,25 @@ export function CloudAssessmentWorkspace() {
                 <span className={`badge ${STATUS_BADGE[session.status]}`}>{STATUS_LABEL[session.status]}</span>
               </div>
               <div className="d-flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={students.length === 0}
+                  onClick={() => {
+                    const skillName = skills.find((s) => s.id === skillId)?.description ?? "skill";
+                    downloadCsv(
+                      `${selectedClass?.name ?? "class"}-${skillName}-ratings.csv`,
+                      ["Student ID", "Student name", "Rating", "Comment"],
+                      students.map((student) => {
+                        const cell = ratings.get(`${student.id}:${skillId}`) ?? { rating: null, comment: null };
+                        return [student.student_id, fullNameOf(student), cell.rating ?? "", cell.comment ?? ""];
+                      })
+                    );
+                  }}
+                >
+                  <i className="bi bi-download me-1" />
+                  Export CSV
+                </button>
                 {CloudAssessmentSessionService.nextStatusOptions(session.status).map((next) => (
                   <button
                     key={next}

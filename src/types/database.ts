@@ -332,6 +332,21 @@ export interface TemplateSettingsRow {
   updated_at: string;
 }
 
+export interface AuditLogRow {
+  id: string;
+  school_id: string;
+  assessment_session_id: string;
+  action: "STATUS_CHANGE" | "FINALIZED" | "REOPENED";
+  performed_by: string | null;
+  performed_by_name: string | null;
+  detail: string | null;
+  performed_at: string;
+  class_id: string | null;
+  class_name: string | null;
+  term_id: string | null;
+  term_name: string | null;
+}
+
 export type ReportTemplateCode = "KG" | "LOWER_PRIMARY" | "UPPER_PRIMARY" | "JHS";
 
 export interface ReportTemplateRow {

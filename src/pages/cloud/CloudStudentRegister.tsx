@@ -80,8 +80,9 @@ export function CloudStudentRegister() {
     let cancelled = false;
     CloudClassService.list(levelId).then((rows) => {
       if (cancelled) return;
-      setClasses(rows);
-      setClassId((current) => (rows.some((c) => c.id === current) ? current : ""));
+      const scoped = CloudClassService.forRole(rows, profile);
+      setClasses(scoped);
+      setClassId((current) => (scoped.some((c) => c.id === current) ? current : ""));
     });
     return () => {
       cancelled = true;

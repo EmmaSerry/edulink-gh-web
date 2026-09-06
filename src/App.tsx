@@ -9,8 +9,10 @@ import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace"
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
+import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
+import { RequireAdmin } from "@components/RequireAdmin";
 import { ThemeProvider } from "@contexts/ThemeContext";
 
 /**
@@ -45,7 +47,22 @@ export default function App() {
           <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
           <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
           <Route path="/reports" element={<CloudReportView />} />
-          <Route path="/settings" element={<CloudSettings />} />
+          <Route
+            path="/settings"
+            element={
+              <RequireAdmin>
+                <CloudSettings />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/audit-log"
+            element={
+              <RequireAdmin>
+                <CloudAuditLog />
+              </RequireAdmin>
+            }
+          />
         </Route>
       </Routes>
     </ThemeProvider>
