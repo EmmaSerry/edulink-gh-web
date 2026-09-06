@@ -8,6 +8,7 @@ import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
 import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace";
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
+import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { ThemeProvider } from "@contexts/ThemeContext";
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
           <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
           <Route path="/reports" element={<CloudReportView />} />
+          <Route path="/settings" element={<CloudSettings />} />
         </Route>
       </Routes>
     </ThemeProvider>

@@ -1,15 +1,12 @@
 /**
  * Cloud (Supabase-backed) replacement for src/services/AcademicYearService.ts.
  *
- * Deliberately much smaller than the offline version: the offline
- * service is a full CRUD repository (create/update/delete academic
- * years, with delete-safety checks). Nothing in the cloud app needs to
- * manage academic years yet - the seed data already created the
- * school's first academic year - so this file only covers what
- * Student Registration (and future screens) actually need right now:
- * listing them, and finding the one marked current. A full
- * settings/CRUD screen can extend this file later without touching the
- * read side used here.
+ * Read side (list/getCurrent) is what Student Registration and other
+ * screens need. create()/setCurrent()/update() back the Settings ->
+ * Academic Years screen - create() and setCurrent() call RPCs
+ * (edulink_gh_phase0k_settings.sql) so "only one year can be current"
+ * stays true even when two people edit at once; update() is a plain
+ * PATCH since editing a label doesn't touch that invariant.
  */
 import { rest } from "@/lib/supabaseClient";
 import type { AcademicYearRow } from "@/types/database";
@@ -25,6 +22,23 @@ class CloudAcademicYearServiceImpl {
       limit: 1,
     });
     return rows[0] ?? null;
+  }
+
+  async create(schoolId: string, label: string, makeCurrent: boolean): Promise<AcademicYearRow> {
+    return rest.rpc<AcademicYearRow>("create_academic_year", {
+      p_school_id: schoolId,
+      p_label: label,
+      p_make_current: makeCurrent,
+    });
+  }
+
+  async setCurrent(academicYearId: string): Promise<void> {
+    await rest.rpc<void>("set_current_academic_year", { p_academic_year_id: academicYearId });
+  }
+
+  async update(academicYearId: string, label: string): Promise<AcademicYearRow> {
+    const rows = await rest.update<AcademicYearRow>("academic_years", { id: `eq.${academicYearId}` }, { label });
+    return rows[0];
   }
 }
 

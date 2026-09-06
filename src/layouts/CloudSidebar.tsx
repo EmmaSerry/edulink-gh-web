@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
+  { path: "/settings", label: "Settings", icon: "bi-gear" },
 ];
 
 export function CloudSidebar() {
