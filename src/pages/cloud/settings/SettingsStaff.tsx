@@ -1,0 +1,172 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { CloudStaffService, type StaffRole } from "@services/cloud/StaffService";
+import type { UserProfileRow } from "@/types/database";
+
+const ROLE_LABEL: Record<StaffRole, string> = {
+  teacher: "Teacher",
+  bursar: "Bursar",
+  school_admin: "School admin",
+};
+
+const BLANK = { email: "", fullName: "", role: "teacher" as StaffRole, phone: "" };
+
+/**
+ * Settings -> Staff. Lets a school admin create teacher/bursar/admin
+ * accounts themselves instead of me creating every one by hand in
+ * Supabase Studio - see edulink_gh_phase0o_staff_and_classes.sql. A
+ * newly created teacher still needs to be assigned to a class from
+ * Settings -> Classes before the class-scoped RLS gives them anything
+ * to actually see.
+ */
+export function SettingsStaff() {
+  const [staff, setStaff] = useState<UserProfileRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(BLANK);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [justCreated, setJustCreated] = useState<{ email: string; tempPassword: string } | null>(null);
+
+  function load() {
+    setLoading(true);
+    setLoadError(null);
+    CloudStaffService.list()
+      .then(setStaff)
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load staff."))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, []);
+
+  async function handleCreate(e: FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    setCreateError(null);
+    setJustCreated(null);
+    try {
+      const { tempPassword } = await CloudStaffService.create({
+        email: form.email.trim(),
+        fullName: form.fullName.trim(),
+        role: form.role,
+        phone: form.phone.trim() || null,
+      });
+      setJustCreated({ email: form.email.trim(), tempPassword });
+      setForm(BLANK);
+      setShowForm(false);
+      load();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Could not create this staff account.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div>
+      {justCreated && (
+        <div className="alert alert-success">
+          <div className="fw-semibold mb-1">Account created for {justCreated.email}</div>
+          <div>
+            Temporary password: <code className="fs-6">{justCreated.tempPassword}</code>
+          </div>
+          <div className="small text-muted mt-1">
+            Share this with them directly (SMS, WhatsApp, in person) - it won't be shown again. If they can't sign
+            in, check that "Confirm email" is switched off under Authentication → Providers → Email in Supabase.
+          </div>
+        </div>
+      )}
+
+      <div className="d-flex align-items-center justify-content-between mb-3">
+        <h2 className="h6 fw-bold mb-0">Staff accounts</h2>
+        <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => setShowForm((s) => !s)}>
+          {showForm ? "Cancel" : "Add staff"}
+        </button>
+      </div>
+
+      {loadError && <div className="alert alert-danger py-2">{loadError}</div>}
+      {createError && <div className="alert alert-danger py-2">{createError}</div>}
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="actrs-card p-3 mb-3">
+          <div className="row g-2">
+            <div className="col-md-6">
+              <label className="form-label small">Full name</label>
+              <input
+                className="form-control form-control-sm"
+                value={form.fullName}
+                onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="form-label small">Email</label>
+              <input
+                type="email"
+                className="form-control form-control-sm"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="form-label small">Role</label>
+              <select
+                className="form-select form-select-sm"
+                value={form.role}
+                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as StaffRole }))}
+              >
+                {(Object.keys(ROLE_LABEL) as StaffRole[]).map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-6">
+              <label className="form-label small">Phone (optional)</label>
+              <input
+                className="form-control form-control-sm"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
+            </div>
+          </div>
+          <button className="btn btn-primary btn-sm mt-3" type="submit" disabled={creating}>
+            {creating ? "Creating…" : "Create account"}
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <p className="text-muted small mb-0">Loading…</p>
+      ) : staff.length === 0 ? (
+        <p className="text-muted small mb-0">No staff added yet.</p>
+      ) : (
+        <div className="actrs-card p-0">
+          <table className="table mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {staff.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.full_name}</td>
+                  <td>
+                    <span className="badge text-bg-secondary">{ROLE_LABEL[s.role as StaffRole] ?? s.role}</span>
+                  </td>
+                  <td className="text-muted">{s.phone ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

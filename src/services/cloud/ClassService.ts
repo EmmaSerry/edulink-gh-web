@@ -1,10 +1,19 @@
 /**
  * Cloud (Supabase-backed) replacement for the offline app's class
- * lookup. Read-only, same reasoning as the other lookup services in
- * this batch (AcademicYearService, TermService, LevelService).
+ * lookup. list()/forRole() are read-only, used everywhere a class
+ * picker appears. create()/assignTeacher() back the new Settings ->
+ * Classes screen - see edulink_gh_phase0o_staff_and_classes.sql.
  */
 import { rest } from "@/lib/supabaseClient";
 import type { ClassRow, UserProfileRow } from "@/types/database";
+
+export interface CreateClassInput {
+  schoolId: string;
+  levelId: string;
+  name: string;
+  code: string;
+  capacity: number | null;
+}
 
 class CloudClassServiceImpl {
   async list(levelId?: string): Promise<ClassRow[]> {
@@ -26,6 +35,24 @@ class CloudClassServiceImpl {
   forRole(classes: ClassRow[], profile: UserProfileRow | null): ClassRow[] {
     if (!profile || profile.role !== "teacher") return classes;
     return classes.filter((c) => c.class_teacher_id === profile.id);
+  }
+
+  async create(input: CreateClassInput): Promise<ClassRow> {
+    return rest.rpc<ClassRow>("create_class", {
+      p_school_id: input.schoolId,
+      p_level_id: input.levelId,
+      p_name: input.name,
+      p_code: input.code,
+      p_capacity: input.capacity,
+    });
+  }
+
+  /** Pass teacherUserId = null to unassign a class's teacher. */
+  async assignTeacher(classId: string, teacherUserId: string | null): Promise<ClassRow> {
+    return rest.rpc<ClassRow>("assign_class_teacher", {
+      p_class_id: classId,
+      p_teacher_user_id: teacherUserId,
+    });
   }
 }
 

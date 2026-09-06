@@ -158,6 +158,33 @@ export const auth = {
     saveSession(null);
   },
 
+  /**
+   * Creates a brand-new Supabase Auth user (email + password) WITHOUT
+   * touching the calling browser's own stored session - used by
+   * Settings -> Staff so a school admin can create a teacher/bursar
+   * account without being signed out of their own. GoTrue's plain
+   * signup endpoint only needs the anon key (no admin/service_role key
+   * involved, which must never be in the browser), and its response is
+   * simply never passed to saveSession() here.
+   *
+   * If the Supabase project has "Confirm email" switched on
+   * (Authentication -> Providers -> Email), the new account can't sign
+   * in until that confirmation link is clicked - worth turning off for
+   * staff created this way, since there's no one else to click it.
+   */
+  async signUpWithoutSession(email: string, password: string): Promise<{ id: string }> {
+    const res = await fetch(`${getSupabaseUrl()}/auth/v1/signup`, {
+      method: "POST",
+      headers: { apikey: getSupabaseAnonKey(), "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error(await describeError(res));
+    const data = await res.json();
+    const id = data?.user?.id ?? data?.id;
+    if (!id) throw new Error("Account was created but no user id was returned - please check Supabase Auth.");
+    return { id };
+  },
+
   currentSession(): AuthSession | null {
     return loadSession();
   },
