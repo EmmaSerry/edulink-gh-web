@@ -22,7 +22,7 @@ export function CloudLogin() {
     setSubmitting(true);
     try {
       await signIn(email, password);
-      const redirectTo = (location.state as { from?: string } | null)?.from ?? "/";
+      const redirectTo = (location.state as { from?: string } | null)?.from ?? "/dashboard";
       navigate(redirectTo, { replace: true });
     } catch {
       // error is already surfaced via useCloudAuth().error

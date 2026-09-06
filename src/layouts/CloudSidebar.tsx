@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 
 const NAV_ITEMS = [
-  { path: "/", label: "Dashboard", icon: "bi-speedometer2" },
+  { path: "/dashboard", label: "Dashboard", icon: "bi-speedometer2" },
   { path: "/students", label: "Students", icon: "bi-people" },
   { path: "/students/register", label: "Register student", icon: "bi-person-plus" },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
