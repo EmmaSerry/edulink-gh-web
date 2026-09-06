@@ -21,7 +21,7 @@ interface CloudAuthContextValue {
   /** True while the initial session/profile check on page load is still running. */
   loading: boolean;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<UserProfileRow | null>;
   signOut: () => void;
 }
 
@@ -79,6 +79,7 @@ export function CloudAuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       const p = await loadProfile(newSession.user.id);
       setProfile(p);
+      return p;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
       throw err;

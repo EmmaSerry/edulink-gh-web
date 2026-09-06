@@ -21,8 +21,9 @@ export function CloudLogin() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await signIn(email, password);
-      const redirectTo = (location.state as { from?: string } | null)?.from ?? "/dashboard";
+      const signedInProfile = await signIn(email, password);
+      const fallback = signedInProfile?.role === "district_admin" ? "/district" : "/dashboard";
+      const redirectTo = (location.state as { from?: string } | null)?.from ?? fallback;
       navigate(redirectTo, { replace: true });
     } catch {
       // error is already surfaced via useCloudAuth().error
