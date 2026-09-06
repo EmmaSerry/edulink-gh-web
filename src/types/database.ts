@@ -161,6 +161,20 @@ export interface EnrollmentRow {
   remarks: string | null;
 }
 
+export type PromotionOutcome = "PROMOTED" | "REPEATED" | "GRADUATED" | "TRANSFERRED";
+
+export interface PromotionHistoryRow {
+  id: string;
+  school_id: string;
+  student_id: string;
+  from_class_id: string | null;
+  to_class_id: string | null;
+  academic_year_id: string | null;
+  outcome: string;
+  decided_at: string;
+  decided_by: string | null;
+}
+
 export type AssessmentSessionStatus = "DRAFT" | "COMPLETED" | "VERIFIED" | "FINALIZED";
 
 export interface AssessmentSessionRow {

@@ -23,6 +23,16 @@ class CloudClassServiceImpl {
     });
   }
 
+  /** Includes inactive classes too - unlike list(), a promotion/history
+   *  screen still needs to resolve a class that's since been archived. */
+  async getById(classId: string): Promise<ClassRow | null> {
+    const rows = await rest.select<ClassRow>("classes", {
+      filters: { id: `eq.${classId}` },
+      limit: 1,
+    });
+    return rows[0] ?? null;
+  }
+
   /**
    * A teacher only ever needs to pick from the class(es) they're
    * actually assigned to (class_teacher_id) - everyone else (school

@@ -13,6 +13,7 @@ import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
 import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
 import { CloudStaffPage } from "@pages/cloud/CloudStaffPage";
+import { CloudPromoteClass } from "@pages/cloud/CloudPromoteClass";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireAdmin } from "@components/RequireAdmin";
@@ -80,6 +81,14 @@ export default function App() {
             element={
               <RequireAdmin roles="district">
                 <CloudDistrictDashboard />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/classes/:classId/promote"
+            element={
+              <RequireAdmin>
+                <CloudPromoteClass />
               </RequireAdmin>
             }
           />

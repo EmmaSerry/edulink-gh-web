@@ -1,10 +1,22 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudGuardianService } from "@services/cloud/GuardianService";
+import { CloudEnrollmentService } from "@services/cloud/EnrollmentService";
+import { CloudClassService } from "@services/cloud/ClassService";
+import { CloudLevelService } from "@services/cloud/LevelService";
+import { CloudPromotionService } from "@services/cloud/PromotionService";
 import { PhotoPickerField } from "@components/PhotoPickerField";
-import type { StudentRow, StudentStatus, GuardianRow } from "@/types/database";
+import type {
+  StudentRow,
+  StudentStatus,
+  GuardianRow,
+  EnrollmentRow,
+  ClassRow,
+  LevelRow,
+  PromotionHistoryRow,
+} from "@/types/database";
 
 const RELATIONSHIPS = ["Mother", "Father", "Guardian", "Grandparent", "Sibling", "Other"];
 
@@ -73,11 +85,15 @@ function toGuardianForm(g: GuardianRow | null): GuardianForm {
 /**
  * Edit an existing student's bio-data, photo, guardian contact, and
  * status (the "archive a student" control - status away from ACTIVE is
- * a soft-delete, same as the offline app; CloudStudentService already
- * had updateStudent()/updateStatus() wired to REST, this screen was the
- * only missing piece). Deliberately does NOT touch class/term placement
- * - moving a student between classes or promoting a whole class is a
- * bigger workflow of its own, not a field on this form.
+ * a soft-delete, same as the offline app), plus - since
+ * edulink_gh_phase0r_promotion.sql - a "Class placement" card for
+ * moving this one pupil to a different class right now. Bulk-promoting
+ * a whole class at year end is its own screen (CloudPromoteClass),
+ * reached from Settings -> Classes; this one always acts on the
+ * CURRENT term/academic year (a correction, not a new enrollment
+ * period), and saves immediately rather than waiting for the big form's
+ * "Save changes" button below, since it's a structurally different kind
+ * of write (bulk_promote_class(), not a plain student/guardian PATCH).
  */
 export function CloudStudentEdit() {
   const { id } = useParams<{ id: string }>();
@@ -94,16 +110,38 @@ export function CloudStudentEdit() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const [enrollment, setEnrollment] = useState<EnrollmentRow | null>(null);
+  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [levels, setLevels] = useState<LevelRow[]>([]);
+  const [history, setHistory] = useState<PromotionHistoryRow[]>([]);
+  const [moveLevelId, setMoveLevelId] = useState("");
+  const [moveClassId, setMoveClassId] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [moveSaved, setMoveSaved] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    Promise.all([CloudStudentService.getById(id), CloudGuardianService.getByStudentId(id)])
-      .then(([s, g]) => {
+    Promise.all([
+      CloudStudentService.getById(id),
+      CloudGuardianService.getByStudentId(id),
+      CloudEnrollmentService.getCurrentEnrollment(id),
+      CloudClassService.list(),
+      CloudLevelService.list(),
+      CloudPromotionService.getHistoryForStudent(id),
+    ])
+      .then(([s, g, enr, classRows, levelRows, historyRows]) => {
         if (cancelled || !s) return;
         setStudent(s);
         setBio(toBioForm(s));
         setGuardian(toGuardianForm(g));
         setPhotoDataUrl(s.photo_url);
+        setEnrollment(enr);
+        setClasses(classRows);
+        setLevels(levelRows);
+        setHistory(historyRows);
+        if (enr) setMoveLevelId(enr.level_id);
       })
       .catch((err) => !cancelled && setLoadError(err instanceof Error ? err.message : "Could not load this student."))
       .finally(() => !cancelled && setLoading(false));
@@ -111,6 +149,43 @@ export function CloudStudentEdit() {
       cancelled = true;
     };
   }, [id]);
+
+  const classById = useMemo(() => new Map(classes.map((c) => [c.id, c])), [classes]);
+  const levelById = useMemo(() => new Map(levels.map((l) => [l.id, l])), [levels]);
+  const classesForMoveLevel = useMemo(
+    () => classes.filter((c) => c.level_id === moveLevelId),
+    [classes, moveLevelId]
+  );
+
+  async function handleMoveClass() {
+    if (!id || !enrollment || !moveClassId) return;
+    setMoving(true);
+    setMoveError(null);
+    setMoveSaved(false);
+    try {
+      const [result] = await CloudPromotionService.bulkPromote({
+        fromClassId: enrollment.class_id,
+        studentIds: [id],
+        outcome: "TRANSFERRED",
+        toClassId: moveClassId,
+        toAcademicYearId: enrollment.academic_year_id,
+        toTermId: enrollment.term_id,
+      });
+      if (!result.ok) throw new Error(result.message ?? "Could not move this pupil.");
+      const [newEnrollment, newHistory] = await Promise.all([
+        CloudEnrollmentService.getCurrentEnrollment(id),
+        CloudPromotionService.getHistoryForStudent(id),
+      ]);
+      setEnrollment(newEnrollment);
+      setHistory(newHistory);
+      setMoveClassId("");
+      setMoveSaved(true);
+    } catch (err) {
+      setMoveError(err instanceof Error ? err.message : "Could not move this pupil.");
+    } finally {
+      setMoving(false);
+    }
+  }
 
   function setBioField<K extends keyof BioForm>(key: K, value: BioForm[K]) {
     setBio((f) => f && { ...f, [key]: value });
@@ -174,10 +249,7 @@ export function CloudStudentEdit() {
           Back to Students
         </Link>
       </div>
-      <p className="text-muted mb-4">
-        {student.student_id} - class/term placement isn't editable here; that's part of the upcoming
-        promotion/transfer feature.
-      </p>
+      <p className="text-muted mb-4">{student.student_id}</p>
 
       <form onSubmit={handleSubmit}>
         {saveError && <div className="alert alert-danger py-2">{saveError}</div>}
@@ -284,6 +356,91 @@ export function CloudStudentEdit() {
               />
             </div>
           </div>
+        </div>
+
+        <div className="actrs-card p-4 mb-3">
+          <h2 className="h6 fw-bold mb-3">Class placement</h2>
+          {enrollment ? (
+            <>
+              <p className="mb-3">
+                Currently in <strong>{classById.get(enrollment.class_id)?.name ?? "an unknown class"}</strong> (
+                {levelById.get(enrollment.level_id)?.name ?? "unknown level"}).
+              </p>
+              {moveError && <div className="alert alert-danger py-2">{moveError}</div>}
+              {moveSaved && (
+                <div className="alert alert-success py-2" role="status">
+                  Moved to the new class.
+                </div>
+              )}
+              <div className="row g-3 align-items-end">
+                <div className="col-md-4">
+                  <label className="form-label small">Move to level</label>
+                  <select
+                    className="form-select"
+                    value={moveLevelId}
+                    onChange={(e) => {
+                      setMoveLevelId(e.target.value);
+                      setMoveClassId("");
+                    }}
+                  >
+                    {levels.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-4">
+                  <label className="form-label small">Move to class</label>
+                  <select
+                    className="form-select"
+                    value={moveClassId}
+                    onChange={(e) => setMoveClassId(e.target.value)}
+                  >
+                    <option value="">Select…</option>
+                    {classesForMoveLevel.map((c) => (
+                      <option key={c.id} value={c.id} disabled={c.id === enrollment.class_id}>
+                        {c.name}
+                        {c.id === enrollment.class_id ? " (current)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-4">
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary"
+                    disabled={!moveClassId || moving}
+                    onClick={handleMoveClass}
+                  >
+                    {moving ? "Moving…" : "Move class"}
+                  </button>
+                </div>
+              </div>
+              <p className="text-muted small mb-0 mt-2">
+                This corrects placement for the current term right away. To promote a whole class to a new
+                academic year, use Settings → Classes → Promote instead.
+              </p>
+            </>
+          ) : (
+            <p className="text-muted small mb-0">
+              This pupil has no current class placement (they may already be inactive).
+            </p>
+          )}
+          {history.length > 0 && (
+            <div className="mt-3 pt-3 border-top">
+              <h3 className="h6 small fw-bold text-muted mb-2">Promotion history</h3>
+              <ul className="list-unstyled small mb-0">
+                {history.map((h) => (
+                  <li key={h.id} className="mb-1">
+                    {new Date(h.decided_at).toLocaleDateString()} —{" "}
+                    {classById.get(h.from_class_id ?? "")?.name ?? "—"} →{" "}
+                    {classById.get(h.to_class_id ?? "")?.name ?? "—"} ({h.outcome.toLowerCase()})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="actrs-card p-4 mb-3">

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudLevelService } from "@services/cloud/LevelService";
@@ -170,6 +171,7 @@ export function SettingsClasses() {
                 <th>Class</th>
                 <th>Level</th>
                 <th style={{ width: 260 }}>Class teacher</th>
+                <th style={{ width: 120 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -194,6 +196,11 @@ export function SettingsClasses() {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td>
+                    <Link to={`/classes/${c.id}/promote`} className="btn btn-outline-secondary btn-sm">
+                      Promote
+                    </Link>
                   </td>
                 </tr>
               ))}
