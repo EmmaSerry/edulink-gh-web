@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { CloudStaffService, type StaffRole } from "@services/cloud/StaffService";
+import { CloudStaffService, type StaffRole, type UpdateStaffInput } from "@services/cloud/StaffService";
 import type { UserProfileRow } from "@/types/database";
 
 const ROLE_LABEL: Record<StaffRole, string> = {
@@ -31,6 +31,10 @@ export function SettingsStaff() {
 
   const [actionId, setActionId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<UpdateStaffInput | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   function load() {
     setLoading(true);
@@ -89,6 +93,28 @@ export function SettingsStaff() {
       setActionError(err instanceof Error ? err.message : "Could not reactivate this staff member.");
     } finally {
       setActionId(null);
+    }
+  }
+
+  function startEdit(s: UserProfileRow) {
+    setEditingId(s.id);
+    setEditForm({ fullName: s.full_name, role: (s.role as StaffRole) ?? "teacher", phone: s.phone });
+    setActionError(null);
+  }
+
+  async function handleSaveEdit(id: string) {
+    if (!editForm) return;
+    setSavingEdit(true);
+    setActionError(null);
+    try {
+      await CloudStaffService.update(id, editForm);
+      setEditingId(null);
+      setEditForm(null);
+      load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not save changes.");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -186,43 +212,114 @@ export function SettingsStaff() {
               </tr>
             </thead>
             <tbody>
-              {staff.map((s) => (
-                <tr key={s.id} className={s.is_active ? "" : "opacity-75"}>
-                  <td>{s.full_name}</td>
-                  <td>
-                    <span className="badge text-bg-secondary">{ROLE_LABEL[s.role as StaffRole] ?? s.role}</span>
-                  </td>
-                  <td className="text-muted">{s.phone ?? "—"}</td>
-                  <td>
-                    {s.is_active ? (
-                      <span className="badge text-bg-success">Active</span>
-                    ) : (
-                      <span className="badge text-bg-secondary">Archived</span>
-                    )}
-                  </td>
-                  <td className="text-end">
-                    {s.is_active ? (
-                      <button
-                        type="button"
-                        className="btn btn-outline-danger btn-sm"
-                        disabled={actionId === s.id}
-                        onClick={() => handleArchive(s.id)}
+              {staff.map((s) =>
+                editingId === s.id && editForm ? (
+                  <tr key={s.id}>
+                    <td>
+                      <input
+                        className="form-control form-control-sm"
+                        value={editForm.fullName}
+                        onChange={(e) => setEditForm((f) => f && { ...f, fullName: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="form-select form-select-sm"
+                        value={editForm.role}
+                        onChange={(e) => setEditForm((f) => f && { ...f, role: e.target.value as StaffRole })}
                       >
-                        Archive
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm"
-                        disabled={actionId === s.id}
-                        onClick={() => handleReactivate(s.id)}
-                      >
-                        Reactivate
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        {(Object.keys(ROLE_LABEL) as StaffRole[]).map((r) => (
+                          <option key={r} value={r}>
+                            {ROLE_LABEL[r]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="form-control form-control-sm"
+                        value={editForm.phone ?? ""}
+                        onChange={(e) => setEditForm((f) => f && { ...f, phone: e.target.value || null })}
+                      />
+                    </td>
+                    <td>
+                      {s.is_active ? (
+                        <span className="badge text-bg-success">Active</span>
+                      ) : (
+                        <span className="badge text-bg-secondary">Archived</span>
+                      )}
+                    </td>
+                    <td className="text-end">
+                      <div className="d-flex gap-2 justify-content-end">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={savingEdit}
+                          onClick={() => handleSaveEdit(s.id)}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary btn-sm"
+                          onClick={() => {
+                            setEditingId(null);
+                            setEditForm(null);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={s.id} className={s.is_active ? "" : "opacity-75"}>
+                    <td>{s.full_name}</td>
+                    <td>
+                      <span className="badge text-bg-secondary">{ROLE_LABEL[s.role as StaffRole] ?? s.role}</span>
+                    </td>
+                    <td className="text-muted">{s.phone ?? "—"}</td>
+                    <td>
+                      {s.is_active ? (
+                        <span className="badge text-bg-success">Active</span>
+                      ) : (
+                        <span className="badge text-bg-secondary">Archived</span>
+                      )}
+                    </td>
+                    <td className="text-end">
+                      <div className="d-flex gap-2 justify-content-end">
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-sm"
+                          disabled={actionId === s.id}
+                          onClick={() => startEdit(s)}
+                        >
+                          Edit
+                        </button>
+                        {s.is_active ? (
+                          <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm"
+                            disabled={actionId === s.id}
+                            onClick={() => handleArchive(s.id)}
+                          >
+                            Archive
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary btn-sm"
+                            disabled={actionId === s.id}
+                            onClick={() => handleReactivate(s.id)}
+                          >
+                            Reactivate
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         </div>

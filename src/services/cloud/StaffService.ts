@@ -25,6 +25,12 @@ export interface CreateStaffResult {
   tempPassword: string;
 }
 
+export interface UpdateStaffInput {
+  fullName: string;
+  role: StaffRole;
+  phone: string | null;
+}
+
 /** A random, easy-to-read-aloud temporary password - handed to the
  *  admin once on screen so they can share it with the new staff member
  *  (e.g. by SMS or in person). Avoids visually ambiguous characters
@@ -55,7 +61,19 @@ class CloudStaffServiceImpl {
 
   async create(input: CreateStaffInput): Promise<CreateStaffResult> {
     const tempPassword = generateTempPassword();
-    const { id } = await auth.signUpWithoutSession(input.email, tempPassword);
+    let id: string;
+    try {
+      id = (await auth.signUpWithoutSession(input.email, tempPassword)).id;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      if (/already registered/i.test(message)) {
+        throw new Error(
+          `${input.email} already has a sign-in account, most likely left over from an earlier attempt that ` +
+            "didn't finish. In Supabase, go to Authentication -> Users, delete that account, then try again here."
+        );
+      }
+      throw err;
+    }
     const profile = await rest.rpc<UserProfileRow>("create_staff_profile", {
       p_user_id: id,
       p_full_name: input.fullName,
@@ -63,6 +81,17 @@ class CloudStaffServiceImpl {
       p_phone: input.phone,
     });
     return { profile, tempPassword };
+  }
+
+  /** Name/role/phone only - email isn't editable here, see
+   *  edulink_gh_phase0q_staff_edit.sql for why. */
+  async update(userId: string, input: UpdateStaffInput): Promise<UserProfileRow> {
+    return rest.rpc<UserProfileRow>("update_staff_profile", {
+      p_user_id: userId,
+      p_full_name: input.fullName,
+      p_role: input.role,
+      p_phone: input.phone,
+    });
   }
 }
 
