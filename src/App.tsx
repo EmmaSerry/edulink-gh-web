@@ -10,6 +10,8 @@ import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
+import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
+import { CloudStaffPage } from "@pages/cloud/CloudStaffPage";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireAdmin } from "@components/RequireAdmin";
@@ -43,6 +45,14 @@ export default function App() {
         >
           <Route path="/dashboard" element={<CloudDashboard />} />
           <Route path="/students" element={<CloudStudents />} />
+          <Route
+            path="/staff"
+            element={
+              <RequireAdmin>
+                <CloudStaffPage />
+              </RequireAdmin>
+            }
+          />
           <Route path="/students/register" element={<CloudStudentRegister />} />
           <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
           <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
@@ -60,6 +70,14 @@ export default function App() {
             element={
               <RequireAdmin>
                 <CloudAuditLog />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/district"
+            element={
+              <RequireAdmin roles="district">
+                <CloudDistrictDashboard />
               </RequireAdmin>
             }
           />
