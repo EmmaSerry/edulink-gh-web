@@ -145,6 +145,45 @@ export interface GuardianRow {
   sms_opt_in: boolean;
 }
 
+export interface SmsRecipient {
+  student_id: string;
+  student_name: string;
+  class_id: string;
+  class_name: string;
+  guardian_id: string;
+  guardian_name: string | null;
+  phone: string | null;
+  sms_opt_in: boolean;
+}
+
+export interface SmsSkipped {
+  guardianId: string;
+  reason: string;
+}
+
+export interface SmsSendResult {
+  sent: number;
+  skipped: SmsSkipped[];
+}
+
+export type SmsLogStatus = "sent" | "failed";
+
+export interface SmsLogRow {
+  id: string;
+  school_id: string;
+  class_id: string | null;
+  student_id: string | null;
+  guardian_id: string | null;
+  guardian_name: string | null;
+  phone: string;
+  message: string;
+  purpose: string;
+  status: SmsLogStatus;
+  error_message: string | null;
+  sent_by: string | null;
+  sent_at: string;
+}
+
 export type EnrollmentStatus = "ACTIVE" | "TRANSFERRED" | "ENDED";
 
 export interface EnrollmentRow {

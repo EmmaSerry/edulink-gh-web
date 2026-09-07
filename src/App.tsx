@@ -16,6 +16,7 @@ import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
 import { CloudStaffPage } from "@pages/cloud/CloudStaffPage";
 import { CloudPromoteClass } from "@pages/cloud/CloudPromoteClass";
 import { CloudUserDirectory } from "@pages/cloud/CloudUserDirectory";
+import { CloudSmsToParents } from "@pages/cloud/CloudSmsToParents";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireAdmin } from "@components/RequireAdmin";
@@ -103,6 +104,7 @@ export default function App() {
               </RequireAdmin>
             }
           />
+          <Route path="/sms" element={<CloudSmsToParents />} />
         </Route>
       </Routes>
     </ThemeProvider>
