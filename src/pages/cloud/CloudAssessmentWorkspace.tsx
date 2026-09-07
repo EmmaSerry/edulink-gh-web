@@ -97,7 +97,7 @@ export function CloudAssessmentWorkspace() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([CloudTermService.getActive(), CloudClassService.list(), CloudLevelService.list()])
+    Promise.all([CloudTermService.getActive(profile?.school_id), CloudClassService.list(undefined, profile?.school_id), CloudLevelService.list(profile?.school_id)])
       .then(([activeTerm, classRows, levelRows]) => {
         if (cancelled) return;
         setTerm(activeTerm);

@@ -9,11 +9,12 @@ import { rest } from "@/lib/supabaseClient";
 import type { LevelRow } from "@/types/database";
 
 class CloudLevelServiceImpl {
-  async list(): Promise<LevelRow[]> {
-    return rest.select<LevelRow>("levels", {
-      filters: { is_active: "eq.true" },
-      order: "sort_order.asc",
-    });
+  /** schoolId matters once more than one school exists - see the same
+   *  note on ClassService.list(). Always pass profile.school_id. */
+  async list(schoolId?: string | null): Promise<LevelRow[]> {
+    const filters: Record<string, string> = { is_active: "eq.true" };
+    if (schoolId) filters.school_id = `eq.${schoolId}`;
+    return rest.select<LevelRow>("levels", { filters, order: "sort_order.asc" });
   }
 }
 

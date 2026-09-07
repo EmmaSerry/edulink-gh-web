@@ -19,6 +19,7 @@ import { CloudUserDirectory } from "@pages/cloud/CloudUserDirectory";
 import { CloudSmsToParents } from "@pages/cloud/CloudSmsToParents";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
+import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
 import { RequireAdmin } from "@components/RequireAdmin";
 import { ThemeProvider } from "@contexts/ThemeContext";
 
@@ -45,7 +46,9 @@ export default function App() {
         <Route
           element={
             <RequireAuth>
-              <CloudAppLayout />
+              <RequireApprovedSchool>
+                <CloudAppLayout />
+              </RequireApprovedSchool>
             </RequireAuth>
           }
         >

@@ -12,15 +12,19 @@ import { rest } from "@/lib/supabaseClient";
 import type { AcademicYearRow } from "@/types/database";
 
 class CloudAcademicYearServiceImpl {
-  async list(): Promise<AcademicYearRow[]> {
-    return rest.select<AcademicYearRow>("academic_years", { order: "label.desc" });
+  /** schoolId matters once more than one school exists - see the same
+   *  note on ClassService.list(). Always pass profile.school_id. */
+  async list(schoolId?: string | null): Promise<AcademicYearRow[]> {
+    return rest.select<AcademicYearRow>("academic_years", {
+      filters: schoolId ? { school_id: `eq.${schoolId}` } : undefined,
+      order: "label.desc",
+    });
   }
 
-  async getCurrent(): Promise<AcademicYearRow | null> {
-    const rows = await rest.select<AcademicYearRow>("academic_years", {
-      filters: { is_current: "eq.true" },
-      limit: 1,
-    });
+  async getCurrent(schoolId?: string | null): Promise<AcademicYearRow | null> {
+    const filters: Record<string, string> = { is_current: "eq.true" };
+    if (schoolId) filters.school_id = `eq.${schoolId}`;
+    const rows = await rest.select<AcademicYearRow>("academic_years", { filters, limit: 1 });
     return rows[0] ?? null;
   }
 

@@ -9,9 +9,15 @@ import type { SmsRecipient, SmsSendResult, SmsLogRow } from "@/types/database";
 
 export interface SendSmsInput {
   guardianIds: string[];
+  /** May contain {guardian_name}, {student_name}, {school_name} - each
+   *  recipient gets their own filled-in copy, see send-parent-sms. */
   message: string;
   purpose?: string;
   classId?: string;
+  termId?: string;
+  /** Appends each pupil's current-term subject scores/grades to THEIR
+   *  message - see get_student_term_report_summary(). */
+  includeReportSummary?: boolean;
 }
 
 class CloudSmsServiceImpl {
@@ -30,6 +36,8 @@ class CloudSmsServiceImpl {
       message: input.message,
       purpose: input.purpose ?? "general",
       classId: input.classId ?? null,
+      termId: input.termId ?? null,
+      includeReportSummary: input.includeReportSummary ?? false,
     });
   }
 

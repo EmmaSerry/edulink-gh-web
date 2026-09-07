@@ -16,11 +16,25 @@ export interface CreateClassInput {
 }
 
 class CloudClassServiceImpl {
-  async list(levelId?: string): Promise<ClassRow[]> {
-    return rest.select<ClassRow>("classes", {
-      filters: levelId ? { is_active: "eq.true", level_id: `eq.${levelId}` } : { is_active: "eq.true" },
-      order: "name.asc",
-    });
+  /**
+   * schoolId matters more than it looks - this table has no per-school
+   * filter baked in anywhere else, so without it the query relies
+   * entirely on row-level security to narrow the result to "your
+   * school". That's fine for a school_admin/teacher/bursar (their own
+   * school is all RLS ever lets them see), but a district_admin or
+   * platform_admin's RLS is deliberately broader (they're allowed to
+   * see every school), so on a single-school screen like Settings ->
+   * Classes or SMS to parents, omitting schoolId used to silently
+   * return every school's classes mixed together once more than one
+   * school existed - two schools sharing the same default class names
+   * (Basic 1, JHS 1, etc.) then looked like each class appearing
+   * "twice". Always pass the caller's own profile.school_id here.
+   */
+  async list(levelId?: string, schoolId?: string | null): Promise<ClassRow[]> {
+    const filters: Record<string, string> = { is_active: "eq.true" };
+    if (levelId) filters.level_id = `eq.${levelId}`;
+    if (schoolId) filters.school_id = `eq.${schoolId}`;
+    return rest.select<ClassRow>("classes", { filters, order: "name.asc" });
   }
 
   /** Includes inactive classes too - unlike list(), a promotion/history

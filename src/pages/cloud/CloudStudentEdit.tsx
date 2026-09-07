@@ -127,8 +127,8 @@ export function CloudStudentEdit() {
       CloudStudentService.getById(id),
       CloudGuardianService.getByStudentId(id),
       CloudEnrollmentService.getCurrentEnrollment(id),
-      CloudClassService.list(),
-      CloudLevelService.list(),
+      CloudClassService.list(undefined, profile?.school_id),
+      CloudLevelService.list(profile?.school_id),
       CloudPromotionService.getHistoryForStudent(id),
     ])
       .then(([s, g, enr, classRows, levelRows, historyRows]) => {
@@ -148,7 +148,7 @@ export function CloudStudentEdit() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, profile?.school_id]);
 
   const classById = useMemo(() => new Map(classes.map((c) => [c.id, c])), [classes]);
   const levelById = useMemo(() => new Map(levels.map((l) => [l.id, l])), [levels]);

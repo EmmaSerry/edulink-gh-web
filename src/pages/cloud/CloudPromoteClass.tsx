@@ -55,15 +55,26 @@ export function CloudPromoteClass() {
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    Promise.all([
-      CloudClassService.getById(classId),
-      CloudLevelService.list(),
-      CloudClassService.list(),
-      CloudAcademicYearService.list(),
-      CloudTermService.getActive(),
-    ])
-      .then(async ([cls, levelRows, classRows, yearRows, activeTerm]) => {
-        if (cancelled) return;
+    // Resolve the class being promoted FIRST, then scope the
+    // destination-class list to ITS school - not the caller's own
+    // profile.school_id, which is unset/irrelevant for a district or
+    // platform admin. Fetching classes without a school filter used to
+    // silently return every school's classes mixed together once more
+    // than one school existed on the platform.
+    CloudClassService.getById(classId)
+      .then(async (cls) => {
+        if (cancelled) return null;
+        const [levelRows, classRows, yearRows, activeTerm] = await Promise.all([
+          CloudLevelService.list(cls?.school_id),
+          CloudClassService.list(undefined, cls?.school_id),
+          CloudAcademicYearService.list(cls?.school_id),
+          CloudTermService.getActive(cls?.school_id),
+        ]);
+        return { cls, levelRows, classRows, yearRows, activeTerm };
+      })
+      .then(async (result) => {
+        if (cancelled || !result) return;
+        const { cls, levelRows, classRows, yearRows, activeTerm } = result;
         setFromClass(cls);
         setLevels(levelRows);
         setClasses(classRows);

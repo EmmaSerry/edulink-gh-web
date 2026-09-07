@@ -51,7 +51,7 @@ export function CloudReportView() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      CloudTermService.getActive(),
+      CloudTermService.getActive(profile?.school_id),
       CloudStudentService.list({ status: "ACTIVE" }),
       profile?.school_id ? CloudTemplateSettingsService.get(profile.school_id) : Promise.resolve(null),
     ])

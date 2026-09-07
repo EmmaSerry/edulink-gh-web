@@ -7,16 +7,22 @@ import type { ClassRow, SmsLogRow, SmsRecipient, SmsSendResult } from "@/types/d
 const QUICK_TEMPLATES: Array<{ label: string; text: string }> = [
   {
     label: "Report ready for pickup",
-    text: "Dear parent/guardian, your ward's report for this term is ready for pickup at the school office. Thank you.",
+    text: "Dear {guardian_name}, {student_name}'s report for this term is ready for pickup at {school_name}. Thank you.",
   },
   {
     label: "School closing / reopening",
-    text: "Dear parent/guardian, please note the school will be closing on [date] and reopening on [date]. Thank you.",
+    text: "Dear {guardian_name}, please note {school_name} will be closing on [date] and reopening on [date]. Thank you.",
   },
   {
     label: "General reminder",
-    text: "Dear parent/guardian, this is a reminder from the school. Please contact the office for details.",
+    text: "Dear {guardian_name}, this is a reminder from {school_name} regarding {student_name}. Please contact the office for details.",
   },
+];
+
+const PLACEHOLDERS: Array<{ token: string; label: string }> = [
+  { token: "{guardian_name}", label: "Guardian name" },
+  { token: "{student_name}", label: "Pupil name" },
+  { token: "{school_name}", label: "School name" },
 ];
 
 const MAX_MESSAGE_LENGTH = 480;
@@ -25,7 +31,9 @@ const MAX_MESSAGE_LENGTH = 480;
  * SMS-to-parents - see edulink_gh_phase0x_sms.sql and the
  * send-parent-sms Edge Function. Pick a class, review who will
  * actually be messaged (opted-in guardians with a phone number on
- * file), write or pick a message, and send. A teacher only ever sees
+ * file), write or pick a message - optionally with {guardian_name} /
+ * {student_name} / {school_name} placeholders and each pupil's
+ * current-term grades appended - and send. A teacher only ever sees
  * their own class(es) here, same restriction as everywhere else - see
  * CloudClassService.forRole().
  */
@@ -39,6 +47,7 @@ export function CloudSmsToParents() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const [message, setMessage] = useState("");
+  const [includeReportSummary, setIncludeReportSummary] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<SmsSendResult | null>(null);
@@ -46,7 +55,7 @@ export function CloudSmsToParents() {
   const [history, setHistory] = useState<SmsLogRow[] | null>(null);
 
   useEffect(() => {
-    CloudClassService.list().then((rows) => setClasses(CloudClassService.forRole(rows, profile)));
+    CloudClassService.list(undefined, profile?.school_id).then((rows) => setClasses(CloudClassService.forRole(rows, profile)));
   }, [profile]);
 
   useEffect(() => {
@@ -90,6 +99,10 @@ export function CloudSmsToParents() {
     setSelected((prev) => (prev.size === eligible.length ? new Set() : new Set(eligible.map((r) => r.guardian_id))));
   }
 
+  function insertPlaceholder(token: string) {
+    setMessage((prev) => (prev ? `${prev} ${token}` : token));
+  }
+
   const canSend = selected.size > 0 && message.trim().length > 0 && message.length <= MAX_MESSAGE_LENGTH && !sending;
 
   async function handleSend() {
@@ -103,6 +116,7 @@ export function CloudSmsToParents() {
         guardianIds: Array.from(selected),
         message: message.trim(),
         classId: classId || undefined,
+        includeReportSummary,
       });
       setSendResult(result);
     } catch (err) {
@@ -190,11 +204,37 @@ export function CloudSmsToParents() {
               maxLength={MAX_MESSAGE_LENGTH}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type your message…"
+              placeholder="Type your message… you can use {guardian_name}, {student_name}, {school_name}"
             />
-            <div className="text-muted small mt-1 text-end">
-              {message.length} / {MAX_MESSAGE_LENGTH}
+            <div className="d-flex align-items-center justify-content-between mt-1 flex-wrap gap-2">
+              <div className="d-flex align-items-center gap-1 flex-wrap">
+                <span className="text-muted small">Insert:</span>
+                {PLACEHOLDERS.map((p) => (
+                  <button key={p.token} type="button" className="btn btn-outline-secondary btn-sm py-0 px-2" onClick={() => insertPlaceholder(p.token)}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="text-muted small">
+                {message.length} / {MAX_MESSAGE_LENGTH}
+              </div>
             </div>
+            <div className="form-check mt-3">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                id="includeReportSummary"
+                checked={includeReportSummary}
+                onChange={(e) => setIncludeReportSummary(e.target.checked)}
+              />
+              <label className="form-check-label small" htmlFor="includeReportSummary">
+                Include this term's subject scores and grades for each pupil (added automatically to their own message)
+              </label>
+            </div>
+            <p className="text-muted small mb-0 mt-2">
+              Placeholders and the grades option personalize each guardian's copy - each message actually sent may
+              differ slightly per pupil, even though you're only writing it once.
+            </p>
           </div>
 
           {sendError && <div className="alert alert-danger py-2">{sendError}</div>}

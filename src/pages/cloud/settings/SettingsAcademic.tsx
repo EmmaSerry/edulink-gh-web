@@ -60,7 +60,7 @@ export function SettingsAcademic() {
   function loadYears() {
     setLoadingYears(true);
     setYearsError(null);
-    CloudAcademicYearService.list()
+    CloudAcademicYearService.list(profile?.school_id)
       .then((rows) => {
         setYears(rows);
         setSelectedYearId((prev) => prev ?? rows.find((y) => y.is_current)?.id ?? rows[0]?.id ?? null);

@@ -3,7 +3,7 @@ import { CloudDistrictService } from "@services/cloud/DistrictService";
 import { CloudAcademicStandardsService } from "@services/cloud/AcademicStandardsService";
 import { AcademicStandardsPanel, SchoolBreakdownPanel } from "@components/AcademicStandardsPanel";
 import { downloadCsv } from "@/lib/csvExport";
-import type { DistrictSchoolOverviewRow, DistrictAcademicStandards } from "@/types/database";
+import type { DistrictSchoolOverviewRow, DistrictAcademicStandards, PendingSchoolRow } from "@/types/database";
 
 function SummaryCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -30,6 +30,35 @@ export function CloudDistrictDashboard() {
   const [standards, setStandards] = useState<DistrictAcademicStandards | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  const [pending, setPending] = useState<PendingSchoolRow[] | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [approveWarning, setApproveWarning] = useState<string | null>(null);
+
+  function loadPending() {
+    CloudDistrictService.getPendingSchools()
+      .then(setPending)
+      .catch(() => setPending([]));
+  }
+
+  useEffect(loadPending, []);
+
+  async function handleApprove(school: PendingSchoolRow) {
+    if (!confirm(`Approve ${school.name}? Their head teacher will be texted that the school is live.`)) return;
+    setApprovingId(school.id);
+    setApproveError(null);
+    setApproveWarning(null);
+    try {
+      const result = await CloudDistrictService.approveSchool(school.id);
+      if (result.warning) setApproveWarning(result.warning);
+      loadPending();
+    } catch (err) {
+      setApproveError(err instanceof Error ? err.message : "Could not approve this school.");
+    } finally {
+      setApprovingId(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +154,47 @@ export function CloudDistrictDashboard() {
         <p className="text-muted">Loading…</p>
       ) : (
         <>
+          {pending && pending.length > 0 && (
+            <div className="actrs-card p-0 mb-4">
+              <div className="p-3 border-bottom">
+                <h2 className="h6 fw-bold mb-0">
+                  Pending school signups ({pending.length})
+                </h2>
+              </div>
+              {approveError && <div className="alert alert-danger py-2 m-3">{approveError}</div>}
+              {approveWarning && <div className="alert alert-warning py-2 m-3">{approveWarning}</div>}
+              <table className="table mb-0 align-middle">
+                <tbody>
+                  {pending.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <div className="fw-semibold">{s.name}</div>
+                        <div className="text-muted small">
+                          {s.circuit ?? "No circuit"} · {s.region ?? "No region"}
+                        </div>
+                      </td>
+                      <td className="text-muted small">
+                        {s.requested_by_name ?? "Unknown"}
+                        <br />
+                        {s.requested_by_phone ?? "—"}
+                      </td>
+                      <td className="text-end">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={approvingId === s.id}
+                          onClick={() => handleApprove(s)}
+                        >
+                          {approvingId === s.id ? "Approving…" : "Approve"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           <div className="row g-3 mb-4">
             <SummaryCard label="Schools" value={totals.schools} />
             <SummaryCard label="Active students" value={totals.students} />

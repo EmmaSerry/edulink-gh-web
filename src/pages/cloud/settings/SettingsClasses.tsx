@@ -37,7 +37,7 @@ export function SettingsClasses() {
   function load() {
     setLoading(true);
     setLoadError(null);
-    Promise.all([CloudClassService.list(), CloudLevelService.list(), CloudStaffService.list()])
+    Promise.all([CloudClassService.list(undefined, profile?.school_id), CloudLevelService.list(profile?.school_id), CloudStaffService.list()])
       .then(([classRows, levelRows, staffRows]) => {
         setClasses(classRows);
         setLevels(levelRows);

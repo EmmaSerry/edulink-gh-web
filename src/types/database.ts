@@ -45,8 +45,20 @@ export interface SchoolRow {
   report_footer: string | null;
   subscription_tier: string;
   subscription_status: string;
+  approval_status: "pending" | "approved";
   created_at: string;
   updated_at: string;
+}
+
+export interface PendingSchoolRow {
+  id: string;
+  name: string;
+  region: string | null;
+  circuit: string | null;
+  is_private: boolean;
+  requested_by_name: string | null;
+  requested_by_phone: string | null;
+  created_at: string;
 }
 
 export interface UserProfileRow {

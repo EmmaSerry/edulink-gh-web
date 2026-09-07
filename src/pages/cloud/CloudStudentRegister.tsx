@@ -74,10 +74,10 @@ export function CloudStudentRegister() {
         .finally(() => !cancelled && setLoadingContext(false));
     } else {
       Promise.all([
-        CloudAcademicYearService.getCurrent(),
-        CloudTermService.getActive(),
-        CloudLevelService.list(),
-        CloudClassService.list(),
+        CloudAcademicYearService.getCurrent(profile?.school_id),
+        CloudTermService.getActive(profile?.school_id),
+        CloudLevelService.list(profile?.school_id),
+        CloudClassService.list(undefined, profile?.school_id),
       ])
         .then(([year, activeTerm, levelRows, classRows]) => {
           if (cancelled) return;
@@ -92,7 +92,7 @@ export function CloudStudentRegister() {
     return () => {
       cancelled = true;
     };
-  }, [isDistrictLevel]);
+  }, [isDistrictLevel, profile?.school_id]);
 
   // Once a district/platform admin picks a school, pull ITS levels,
   // classes, current academic year and active term in one call - the
@@ -132,7 +132,7 @@ export function CloudStudentRegister() {
       return;
     }
     let cancelled = false;
-    CloudClassService.list(levelId).then((rows) => {
+    CloudClassService.list(levelId, profile?.school_id).then((rows) => {
       if (cancelled) return;
       const scoped = CloudClassService.forRole(rows, profile);
       setClasses(scoped);
@@ -141,7 +141,7 @@ export function CloudStudentRegister() {
     return () => {
       cancelled = true;
     };
-  }, [levelId, isDistrictLevel, districtClasses]);
+  }, [levelId, isDistrictLevel, districtClasses, profile?.school_id]);
 
   const isTeacher = profile?.role === "teacher";
   const teacherClasses = useMemo(

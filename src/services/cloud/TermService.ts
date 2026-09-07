@@ -34,18 +34,20 @@ export interface UpdateTermInput {
 }
 
 class CloudTermServiceImpl {
-  async list(academicYearId?: string): Promise<TermRow[]> {
-    return rest.select<TermRow>("terms", {
-      filters: academicYearId ? { academic_year_id: `eq.${academicYearId}` } : undefined,
-      order: "term_number.asc",
-    });
+  /** schoolId only strictly needed when academicYearId is omitted -
+   *  see the same note on ClassService.list(). Always pass
+   *  profile.school_id when you have one. */
+  async list(academicYearId?: string, schoolId?: string | null): Promise<TermRow[]> {
+    const filters: Record<string, string> = {};
+    if (academicYearId) filters.academic_year_id = `eq.${academicYearId}`;
+    if (schoolId) filters.school_id = `eq.${schoolId}`;
+    return rest.select<TermRow>("terms", { filters, order: "term_number.asc" });
   }
 
-  async getActive(): Promise<TermRow | null> {
-    const rows = await rest.select<TermRow>("terms", {
-      filters: { is_active: "eq.true" },
-      limit: 1,
-    });
+  async getActive(schoolId?: string | null): Promise<TermRow | null> {
+    const filters: Record<string, string> = { is_active: "eq.true" };
+    if (schoolId) filters.school_id = `eq.${schoolId}`;
+    const rows = await rest.select<TermRow>("terms", { filters, limit: 1 });
     return rows[0] ?? null;
   }
 
