@@ -126,7 +126,7 @@
 
 .actrs-report-header .school-meta {
   font-size: 0.82em;
-  color: #4a5464;
+  color: #333c48;
 }
 
 /* Gradient divider between the branding header and the report title -
@@ -188,7 +188,7 @@
 }
 
 .actrs-report-info-grid .label {
-  color: #55606f;
+  color: #3d4652;
   font-weight: 700;
   display: inline-block;
   min-width: 128px;
@@ -273,7 +273,7 @@
 
 .actrs-report-summary-line {
   font-size: 0.86em;
-  color: #55606f;
+  color: #3d4652;
   margin: -4px 0 10px;
   font-weight: 600;
 }
@@ -390,7 +390,7 @@
   font-size: 0.86em;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: #7a8494 !important;
+  color: #5c6674 !important;
 }
 
 /* ---------- Footer ---------- */
@@ -401,7 +401,7 @@
   border-top: 2px solid;
   border-image: linear-gradient(90deg, var(--report-primary), var(--report-secondary)) 1;
   font-size: 0.74em;
-  color: #666;
+  color: #555;
   text-align: center;
 }
 
@@ -485,7 +485,7 @@
 
 .kg-cover-header .form-subtitle {
   font-size: 0.86em;
-  color: #55606f;
+  color: #3d4652;
   margin-top: 2px;
 }
 
@@ -508,7 +508,7 @@
   font-size: 0.72em;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #7a8494;
+  color: #5c6674;
   font-weight: 700;
 }
 
@@ -583,7 +583,7 @@
 
 .kg-cover-info-grid .label {
   font-weight: 700;
-  color: #55606f;
+  color: #3d4652;
 }
 
 /* ---------- KG skill table: Gold / Silver / Bronze checkmark columns --------- */
@@ -599,12 +599,16 @@
   width: 58px;
 }
 
-.kg-skill-table th.col-comment,
+.kg-skill-table th.col-comment {
+  width: 22%;
+  text-align: left;
+}
+
 .kg-skill-table td.col-comment {
   width: 22%;
   text-align: left;
   font-size: 0.94em;
-  color: #4a5464;
+  color: #333c48;
 }
 
 .kg-skill-table td.col-rating .check {
@@ -629,11 +633,11 @@
 .kg-skill-table td.col-status {
   font-size: 0.82em;
   font-style: italic;
-  color: #7a8494;
+  color: #5c6674;
 }
 
 .kg-comments-box {
-  min-height: 46mm;
+  min-height: 20mm;
   border: 1px solid #dbe1e8;
   border-radius: 6px;
   padding: 10px 14px;

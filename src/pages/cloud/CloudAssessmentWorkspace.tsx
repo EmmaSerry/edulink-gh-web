@@ -44,6 +44,15 @@ const DEFAULT_SKILL_COMMENT: Record<string, string> = {
   B: "More room for improvement",
 };
 
+/** Every phrase this app has ever auto-filled - used to tell "the
+ *  teacher typed their own note" apart from "this is still whatever we
+ *  last auto-filled" so correcting a rating can safely replace the
+ *  comment instead of only filling it in when blank (see
+ *  handleRatingSelect below - this was the actual bug behind "when I
+ *  change the level again for the same skill... the old comment still
+ *  remains"). */
+const KNOWN_DEFAULT_COMMENTS = new Set(Object.values(DEFAULT_SKILL_COMMENT));
+
 const STATUS_BADGE: Record<AssessmentSessionStatus, string> = {
   DRAFT: "text-bg-secondary",
   COMPLETED: "text-bg-info",
@@ -341,11 +350,21 @@ export function CloudAssessmentWorkspace() {
     const rating = (raw === "" ? null : raw) as SkillRating | null;
     if (existing.rating === rating) return;
     // Item 12 of the KG redesign: Gold/Silver/Bronze each have a
-    // standard quick-fill comment. Only applied when the teacher
-    // hasn't already written something of their own in that cell -
-    // this never overwrites an existing comment, and never fires for
-    // X (not assessed) or O (absent), which have no such mapping.
-    const comment = existing.comment && existing.comment.trim() !== "" ? existing.comment : DEFAULT_SKILL_COMMENT[rating ?? ""] ?? existing.comment;
+    // standard quick-fill comment. Applied whenever the comment cell
+    // is empty OR still holds a previous auto-fill (KNOWN_DEFAULT_
+    // COMMENTS) - so correcting a mis-picked rating (Gold -> Silver,
+    // say) updates the comment to match instead of leaving the old
+    // rating's default behind. A comment the teacher actually typed
+    // themselves is never touched.
+    const existingIsBlankOrDefault =
+      !existing.comment || existing.comment.trim() === "" || KNOWN_DEFAULT_COMMENTS.has(existing.comment.trim());
+    // X (not assessed) and O (absent) have no default comment of their
+    // own - if the cell only held a leftover default from an earlier
+    // G/S/B pick, clear it rather than show it next to "Not assessed"/
+    // "Absent" on the printed report.
+    const comment = existingIsBlankOrDefault
+      ? DEFAULT_SKILL_COMMENT[rating ?? ""] ?? null
+      : existing.comment;
     void saveSkillRating(studentId, rating, comment);
   }
 

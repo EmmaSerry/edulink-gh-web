@@ -7,44 +7,42 @@ import { KgLegend } from "../KgLegend";
 import { formatDateForDisplay } from "@utils/dateUtils";
 
 /**
- * KG (Kindergarten) report - Module 15b redesign.
+ * KG (Kindergarten) report - Module 15b redesign, revised to a fixed
+ * 3-page layout matching the sample the school sent (KG REPORT
+ * FORMAT.pdf) - the first version of this redesign used 9 pages (one
+ * per section) and printing that many pages per learner was judged too
+ * costly. Same content as before, just grouped onto three pages
+ * instead of spread across nine - nothing about WHAT is shown changed,
+ * only how it's paginated:
  *
- * Rebuilt from scratch against the official NaCCA "Learner's Report
- * Form" (KG1 and KG2 - see docs handed over with this redesign) rather
- * than reusing the Lower/Upper Primary/JHS scored layout: KG has no
- * scores, grades, or subject positions at all, just a Gold/Silver/
- * Bronze/Not-assessed/Absent rating per skill and one General Comments
- * box, so the report is a fixed sequence of purpose-built pages instead
- * of one dense page:
+ *   1. Cover + Learner Information - district logo (replaces the old
+ *      NaCCA logo entirely), a slot for the school's own logo, a slot
+ *      for the learner's photo with their name printed boldly beneath
+ *      it, the District/School/Learner identification, AND (new in
+ *      this revision, combined onto the same page) the bio-data/
+ *      attendance grid plus the official G/S/B/X/O legend. Deliberately
+ *      carries no NaCCA/copyright notice of any kind.
+ *   2. The first three learning areas (Language and Literacy, Numeracy,
+ *      Creative Arts).
+ *   3. The remaining learning areas (Our World and Our People, Socio-
+ *      Emotional Learning), General Comments, and School Information
+ *      (vacation/reopening dates, progression, private-school fees,
+ *      signatures).
  *
- *   1. Cover - district logo (replaces the old NaCCA logo entirely),
- *      a slot for the school's own logo, a slot for the learner's
- *      photo with their name printed boldly beneath it, and the
- *      District/School/Learner identification the redesign asked for.
- *      Deliberately carries no NaCCA/copyright notice of any kind.
- *   2. Learner information - the same bio-data/attendance grid every
- *      other template uses, plus the official G/S/B/X/O legend.
- *   3-7. One page per official learning area (Language and Literacy,
- *      Numeracy, Creative Arts, Our World and Our People, Socio-
- *      Emotional Learning) - always all five, in this fixed order, so
- *      the report's shape matches the paper form a parent already
- *      knows, even on a term where a teacher has hidden every skill in
- *      one area (see ReportDataService's report_skill_selection
- *      filtering - `skills` here is already just whatever survived
- *      that filter).
- *   8. General Comments - the form's one combined comments box (see
- *      ReportSnapshotKgRemarks), not the old four-part remarks.
- *   9. School information - vacation/reopening dates, progression,
- *      the private-school fees section, and signatures.
+ * The 3-way area split (first three vs. the rest) assumes the seeded
+ * five-area order (edulink_gh_phase1c_kg_report_redesign.sql) - if a
+ * school ever has a different number of learning areas this still
+ * degrades reasonably (page 2 gets up to three, page 3 gets whatever's
+ * left plus the fixed sections below it) rather than breaking.
  *
- * Exactly 9 pages, matching the redesign's "9 pages maximum" limit -
- * every page above is always rendered (nothing here can push the count
- * higher). Each `ReportPage` below is one physical page; only the very
- * last one passes through the batch's real `isLastPage` so
- * report-print.css's page-break-after rule only stops between
- * different students' reports, never partway through one student's
- * own 9 pages - see ReportPage.tsx / report-print.css for how that
- * class is used.
+ * Each `ReportPage` below is one physical page in the export/print
+ * pipeline (see PdfService.ts, which rasterizes one `.actrs-report-
+ * page` node per PDF page and scales it to fill that page - a page
+ * with a bit more content than usual just renders slightly smaller,
+ * nothing is ever cropped). Only the very last one passes through the
+ * batch's real `isLastPage` so report-print.css's page-break-after
+ * rule only stops between different students' reports, never partway
+ * through one student's own 3 pages.
  */
 
 const AREA_ACCENTS = ["teal", "plum", "rose", "green", "amber"] as const;
@@ -68,10 +66,10 @@ function IdentLine({ snapshot }: { snapshot: ReportSnapshot }) {
 }
 
 /** One skill's row in the G/S/B checkmark table - item 11 of the
- *  redesign: the selected proficiency level gets a bold check mark
- *  under its own column, nothing under the other two. X (not assessed)
- *  and O (absent) aren't proficiency levels, so instead of three empty
- *  columns they get one merged status note. */
+ *  original redesign: the selected proficiency level gets a bold check
+ *  mark under its own column, nothing under the other two. X (not
+ *  assessed) and O (absent) aren't proficiency levels, so instead of
+ *  three empty columns they get one merged status note. */
 function SkillRow({ skill }: { skill: ReportSnapshotSkillRating }) {
   const rating = skill.rating;
   if (rating === "X" || rating === "O") {
@@ -104,20 +102,15 @@ function SkillRow({ skill }: { skill: ReportSnapshotSkillRating }) {
   );
 }
 
-function LearningAreaPage({
-  snapshot,
-  settings,
+function LearningAreaBlock({
   area,
   accent,
 }: {
-  snapshot: ReportSnapshot;
-  settings: TemplateSettings;
   area: ReportSnapshotLearningArea;
   accent: (typeof AREA_ACCENTS)[number];
 }) {
   return (
-    <ReportPage settings={settings} school={snapshot.school} isLastPage={false}>
-      <IdentLine snapshot={snapshot} />
+    <div className="mb-3">
       <div className={`actrs-report-remarks accent-${accent} mb-2`}>
         <span className="remark-label">{area.name}</span>
       </div>
@@ -142,7 +135,7 @@ function LearningAreaPage({
           </tbody>
         </table>
       )}
-    </ReportPage>
+    </div>
   );
 }
 
@@ -151,10 +144,12 @@ export function KGReportTemplate({ snapshot, settings, isLastPage }: {
 }) {
   const { school, student, term, attendance, learningAreas, kgRemarks, feeSummary } = snapshot;
   const areas = learningAreas ?? [];
+  const firstAreas = areas.slice(0, 3);
+  const restAreas = areas.slice(3);
 
   return (
     <>
-      {/* ---------------- Page 1: Cover ---------------- */}
+      {/* ---------------- Page 1: Cover + Learner Information ---------------- */}
       <ReportPage settings={settings} school={school} isLastPage={false}>
         <div className="kg-cover-header">
           {school.districtLogoDataUrl && (
@@ -195,26 +190,6 @@ export function KGReportTemplate({ snapshot, settings, isLastPage }: {
 
         <div className="kg-cover-learner-name">{student.fullName}</div>
 
-        <div className="kg-cover-info-grid">
-          <span className="label">District:</span>
-          <span>{school.district || "-"}</span>
-          <span className="label">School:</span>
-          <span>{school.name || "-"}</span>
-          <span className="label">Class:</span>
-          <span>{student.className}</span>
-          <span className="label">Term:</span>
-          <span>
-            {term.termName}, {term.academicYearLabel}
-          </span>
-        </div>
-      </ReportPage>
-
-      {/* ---------------- Page 2: Learner information ---------------- */}
-      <ReportPage settings={settings} school={school} isLastPage={false}>
-        <IdentLine snapshot={snapshot} />
-        <div className="actrs-report-remarks accent-teal mb-2">
-          <span className="remark-label">Learner Information</span>
-        </div>
         <div className="actrs-report-info-grid">
           <div>
             <span className="label">Learner's Name:</span> {student.fullName}
@@ -247,34 +222,36 @@ export function KGReportTemplate({ snapshot, settings, isLastPage }: {
             <span className="label">Contact:</span> {student.guardianPhone || "-"}
           </div>
         </div>
-        <div className="mt-3">
+
+        <div className="mt-2">
           <KgLegend />
         </div>
       </ReportPage>
 
-      {/* ---------------- Pages 3-7: the five learning areas ---------------- */}
-      {areas.map((area, i) => (
-        <LearningAreaPage
-          key={area.learningAreaId}
-          snapshot={snapshot}
-          settings={settings}
-          area={area}
-          accent={AREA_ACCENTS[i % AREA_ACCENTS.length]}
-        />
-      ))}
-
-      {/* ---------------- Page 8: General Comments ---------------- */}
+      {/* ---------------- Page 2: first three learning areas ---------------- */}
       <ReportPage settings={settings} school={school} isLastPage={false}>
         <IdentLine snapshot={snapshot} />
+        {firstAreas.map((area, i) => (
+          <LearningAreaBlock key={area.learningAreaId} area={area} accent={AREA_ACCENTS[i % AREA_ACCENTS.length]} />
+        ))}
+      </ReportPage>
+
+      {/* ---------------- Page 3: remaining learning areas + comments + school info ---------------- */}
+      <ReportPage settings={settings} school={school} isLastPage={isLastPage}>
+        <IdentLine snapshot={snapshot} />
+        {restAreas.map((area, i) => (
+          <LearningAreaBlock
+            key={area.learningAreaId}
+            area={area}
+            accent={AREA_ACCENTS[(i + firstAreas.length) % AREA_ACCENTS.length]}
+          />
+        ))}
+
         <div className="actrs-report-remarks accent-plum mb-2">
           <span className="remark-label">General Comments</span>
         </div>
-        <div className="kg-comments-box">{kgRemarks?.generalComment || "-"}</div>
-      </ReportPage>
+        <div className="kg-comments-box mb-3">{kgRemarks?.generalComment || "-"}</div>
 
-      {/* ---------------- Page 9: School information, fees, signatures ---------------- */}
-      <ReportPage settings={settings} school={school} isLastPage={isLastPage}>
-        <IdentLine snapshot={snapshot} />
         <div className="actrs-report-remarks accent-amber mb-3">
           <span className="remark-label">School Information</span>
         </div>

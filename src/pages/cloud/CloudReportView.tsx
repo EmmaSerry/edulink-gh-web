@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudStudentService } from "@services/cloud/StudentService";
@@ -157,7 +158,10 @@ export function CloudReportView() {
     <div>
       <div className="no-print">
         <h1 className="h4 mb-1">Reports</h1>
-        <p className="text-muted mb-4">{term.term_name}</p>
+        <p className="text-muted mb-1">{term.term_name}</p>
+        <p className="text-muted small mb-4">
+          <Link to="/reports/batch">Generate for a whole class →</Link>
+        </p>
 
         <div className="actrs-card p-3 mb-4">
           <label className="form-label small">Student</label>
