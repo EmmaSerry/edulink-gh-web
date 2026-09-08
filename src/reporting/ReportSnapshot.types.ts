@@ -132,6 +132,15 @@ export interface ReportSnapshotKgRemarks {
   classTeacherName?: string;
   headTeacherName?: string;
   progression?: string;
+  /** Kept for the offline app's own KG remarks screen/report template
+   *  (src/services/ReportDataService.ts, src/pages/assessments/
+   *  TeacherRemarksPanel.tsx, src/models/Report.ts) and its sample
+   *  data generator (SampleReportService.ts), which still use the
+   *  older four-part remarks. Not populated by the cloud app - see
+   *  services/cloud/ReportDataService.ts - and not read by the
+   *  redesigned KGReportTemplate.tsx, which shows generalComment only. */
+  areasForImprovement?: string;
+  teacherRecommendation?: string;
 }
 
 /** One fee component row on a private school's report card - see
