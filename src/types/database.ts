@@ -521,3 +521,58 @@ export interface ReportTemplateRow {
   component_version: number;
   is_active: boolean;
 }
+
+export type FeePaymentMethod = "cash" | "mobile_money" | "bank_transfer" | "cheque" | "paystack" | "other";
+
+export interface FeeStructureRow {
+  id: string;
+  school_id: string;
+  academic_year_id: string;
+  term_id: string;
+  level_id: string | null;
+  name: string;
+  amount: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudentFeeSummaryRow {
+  student_fee_id: string;
+  fee_structure_id: string;
+  fee_name: string;
+  term_id: string;
+  amount_due: number;
+  amount_paid: number;
+  balance: number;
+}
+
+export interface ClassFeeOverviewRow {
+  student_id: string;
+  student_name: string;
+  total_due: number;
+  total_paid: number;
+  balance: number;
+}
+
+export interface SchoolFeeOverviewRow {
+  class_id: string;
+  class_name: string;
+  student_count: number;
+  total_due: number;
+  total_paid: number;
+  balance: number;
+}
+
+export interface FeePaymentRow {
+  id: string;
+  school_id: string;
+  student_fee_id: string;
+  amount: number;
+  method: FeePaymentMethod;
+  reference: string | null;
+  notes: string | null;
+  recorded_by: string | null;
+  paid_at: string;
+  created_at: string;
+}

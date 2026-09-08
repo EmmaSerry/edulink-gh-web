@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
+import { CloudSchoolService } from "@services/cloud/SchoolService";
 import type { UserRole } from "@/types/database";
 
 const SCHOOL_ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
 const DISTRICT_ADMIN_ROLES: UserRole[] = ["district_admin", "platform_admin"];
+const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin", "platform_admin"];
 
 interface NavItem {
   path: string;
@@ -15,6 +18,11 @@ interface NavItem {
    *  edulink_gh_phase0n_district_dashboard.sql. A school_admin doesn't
    *  see this even though they otherwise see every admin-only item. */
   districtOnly?: boolean;
+  /** Hidden from everyone except bursar/school_admin/district_admin/
+   *  platform_admin, and further hidden from a school_admin/bursar
+   *  whose own school isn't private - see edulink_gh_phase1a_fees.sql.
+   *  Public schools don't collect fees through this screen. */
+  feesOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -27,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
   { path: "/sms", label: "SMS to parents", icon: "bi-chat-dots" },
+  { path: "/fees", label: "Fees", icon: "bi-cash-coin", feesOnly: true },
   { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
   { path: "/settings", label: "Settings", icon: "bi-gear", adminOnly: true },
 ];
@@ -35,8 +44,30 @@ export function CloudSidebar() {
   const { profile } = useCloudAuth();
   const isSchoolAdmin = !!profile && SCHOOL_ADMIN_ROLES.includes(profile.role);
   const isDistrictAdmin = !!profile && DISTRICT_ADMIN_ROLES.includes(profile.role);
+  const isFeeManager = !!profile && FEE_MANAGER_ROLES.includes(profile.role);
+
+  // Only a school_admin/bursar's own school needs checking - a
+  // district_admin/platform_admin has no single school in the sidebar
+  // context, so they see "Fees" like every other admin-only item and
+  // the page itself handles the rest.
+  const [schoolIsPrivate, setSchoolIsPrivate] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!profile?.school_id || !["school_admin", "bursar"].includes(profile.role)) {
+      setSchoolIsPrivate(null);
+      return;
+    }
+    CloudSchoolService.getProfile()
+      .then((s) => setSchoolIsPrivate(s?.is_private ?? false))
+      .catch(() => setSchoolIsPrivate(false));
+  }, [profile?.school_id, profile?.role]);
+
   const items = NAV_ITEMS.filter((item) => {
     if (item.districtOnly) return isDistrictAdmin;
+    if (item.feesOnly) {
+      if (!isFeeManager) return false;
+      if (["school_admin", "bursar"].includes(profile?.role ?? "")) return schoolIsPrivate !== false;
+      return true;
+    }
     if (item.adminOnly) return isSchoolAdmin;
     return true;
   });

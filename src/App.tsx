@@ -17,6 +17,7 @@ import { CloudStaffPage } from "@pages/cloud/CloudStaffPage";
 import { CloudPromoteClass } from "@pages/cloud/CloudPromoteClass";
 import { CloudUserDirectory } from "@pages/cloud/CloudUserDirectory";
 import { CloudSmsToParents } from "@pages/cloud/CloudSmsToParents";
+import { CloudFees } from "@pages/cloud/CloudFees";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -108,6 +109,14 @@ export default function App() {
             }
           />
           <Route path="/sms" element={<CloudSmsToParents />} />
+          <Route
+            path="/fees"
+            element={
+              <RequireAdmin roles="fees">
+                <CloudFees />
+              </RequireAdmin>
+            }
+          />
         </Route>
       </Routes>
     </ThemeProvider>
