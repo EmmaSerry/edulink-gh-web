@@ -38,6 +38,7 @@ export function CloudSchoolSignup() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -62,14 +63,17 @@ export function CloudSchoolSignup() {
     });
   }, [districtId]);
 
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
   const readyToSubmit = useMemo(
     () =>
       schoolName.trim().length > 0 &&
       districtId.length > 0 &&
       fullName.trim().length > 0 &&
+      phone.trim().length > 0 &&
       email.trim().length > 0 &&
-      password.length >= 6,
-    [schoolName, districtId, fullName, email, password]
+      password.length >= 6 &&
+      passwordsMatch,
+    [schoolName, districtId, fullName, phone, email, password, passwordsMatch]
   );
 
   async function handleSubmit(e: FormEvent) {
@@ -177,12 +181,20 @@ export function CloudSchoolSignup() {
       <hr className="my-4" />
 
       <div className="mb-3">
-        <label className="form-label small">Your full name</label>
+        <label className="form-label small">Head teacher's full name</label>
         <input className="form-control" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+        <div className="form-text">This is the person signing up - you, as the school's head teacher.</div>
       </div>
       <div className="mb-3">
-        <label className="form-label small">Your phone (optional)</label>
-        <input className="form-control" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <label className="form-label small">Head teacher's phone number</label>
+        <input
+          type="tel"
+          className="form-control"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="e.g. 0241234567"
+          required
+        />
       </div>
       <div className="mb-3">
         <label className="form-label small">Email</label>
@@ -207,6 +219,21 @@ export function CloudSchoolSignup() {
           required
         />
         <div className="form-text">At least 6 characters.</div>
+      </div>
+      <div className="mb-3">
+        <label className="form-label small">Confirm password</label>
+        <input
+          type="password"
+          className="form-control"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          autoComplete="new-password"
+          minLength={6}
+          required
+        />
+        {confirmPassword.length > 0 && !passwordsMatch && (
+          <div className="form-text text-danger">Passwords do not match.</div>
+        )}
       </div>
 
       <button className="btn btn-primary w-100" type="submit" disabled={!readyToSubmit || submitting}>

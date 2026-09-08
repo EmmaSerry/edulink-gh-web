@@ -67,7 +67,11 @@ export function RequireApprovedSchool({ children }: { children: ReactNode }) {
             office. You'll be able to sign in normally as soon as it's approved - there's nothing else to do on your
             end.
           </p>
-          <button type="button" className="btn btn-outline-secondary btn-sm" onClick={signOut}>
+          <p className="text-muted mb-3">
+            Look out for an SMS on the phone number you registered with - it will let you know as soon as your
+            account is ready and confirm how to sign in.
+          </p>
+          <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => signOut()}>
             Sign out
           </button>
         </div>

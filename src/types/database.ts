@@ -50,6 +50,15 @@ export interface SchoolRow {
   updated_at: string;
 }
 
+export interface IdleTimeoutSettings {
+  effectiveMinutes: number;
+  platformDefaultMinutes: number;
+  districtOverrideMinutes: number | null;
+  districtId: string | null;
+  canSetPlatform: boolean;
+  canSetDistrict: boolean;
+}
+
 export interface PendingSchoolRow {
   id: string;
   name: string;

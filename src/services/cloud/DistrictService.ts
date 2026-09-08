@@ -8,7 +8,7 @@
  * RequireDistrictAdmin check.
  */
 import { rest, edgeFunctions } from "@/lib/supabaseClient";
-import type { DistrictSchoolOverviewRow, SchoolRegistrationContext, PendingSchoolRow } from "@/types/database";
+import type { DistrictSchoolOverviewRow, SchoolRegistrationContext, PendingSchoolRow, IdleTimeoutSettings } from "@/types/database";
 
 class CloudDistrictServiceImpl {
   async getSchoolsOverview(): Promise<DistrictSchoolOverviewRow[]> {
@@ -43,6 +43,25 @@ class CloudDistrictServiceImpl {
     } catch (err) {
       return { notified: false, warning: err instanceof Error ? err.message : "Could not send the approval SMS." };
     }
+  }
+
+  /** The caller's effective idle-session timeout plus what they're
+   *  allowed to change - see get_idle_timeout_settings() in
+   *  edulink_gh_phase0z_idle_timeout_and_signup_fix.sql. Used both by
+   *  CloudAuthContext (to know when to sign the person out) and by
+   *  this dashboard's own "Session timeout" panel. */
+  async getIdleTimeoutSettings(): Promise<IdleTimeoutSettings> {
+    return rest.rpc<IdleTimeoutSettings>("get_idle_timeout_settings", {});
+  }
+
+  async setPlatformIdleTimeout(minutes: number): Promise<void> {
+    await rest.rpc<void>("set_platform_idle_timeout", { p_minutes: minutes });
+  }
+
+  /** Pass `minutes: null` to clear a district's own override and fall
+   *  back to the platform-wide default. */
+  async setDistrictIdleTimeout(districtId: string, minutes: number | null): Promise<void> {
+    await rest.rpc<void>("set_district_idle_timeout", { p_district_id: districtId, p_minutes: minutes });
   }
 }
 

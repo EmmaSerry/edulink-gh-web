@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CloudDistrictService } from "@services/cloud/DistrictService";
 import { CloudAcademicStandardsService } from "@services/cloud/AcademicStandardsService";
 import { AcademicStandardsPanel, SchoolBreakdownPanel } from "@components/AcademicStandardsPanel";
 import { downloadCsv } from "@/lib/csvExport";
-import type { DistrictSchoolOverviewRow, DistrictAcademicStandards, PendingSchoolRow } from "@/types/database";
+import type { DistrictSchoolOverviewRow, DistrictAcademicStandards, PendingSchoolRow, IdleTimeoutSettings } from "@/types/database";
 
 function SummaryCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -12,6 +12,151 @@ function SummaryCard({ label, value }: { label: string; value: number | string }
         <div className="text-muted small mb-1">{label}</div>
         <div className="h3 mb-0">{value}</div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * "Give district and system admin the right to set" the idle-session
+ * timeout - see get_idle_timeout_settings() in
+ * edulink_gh_phase0z_idle_timeout_and_signup_fix.sql. A district admin
+ * only ever sees/edits their own district's override; a platform admin
+ * additionally sees/edits the platform-wide default every district
+ * without its own override falls back to. Enforcement itself lives in
+ * CloudAuthContext, not here - this is just the control panel.
+ */
+function SessionTimeoutPanel() {
+  const [settings, setSettings] = useState<IdleTimeoutSettings | null>(null);
+  const [platformMinutes, setPlatformMinutes] = useState("");
+  const [districtMinutes, setDistrictMinutes] = useState("");
+  const [useDistrictOverride, setUseDistrictOverride] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  function load() {
+    CloudDistrictService.getIdleTimeoutSettings()
+      .then((s) => {
+        setSettings(s);
+        setPlatformMinutes(String(s.platformDefaultMinutes));
+        setUseDistrictOverride(s.districtOverrideMinutes !== null);
+        setDistrictMinutes(String(s.districtOverrideMinutes ?? s.platformDefaultMinutes));
+      })
+      .catch(() => setSettings(null));
+  }
+
+  useEffect(load, []);
+
+  async function saveDistrict(e: FormEvent) {
+    e.preventDefault();
+    if (!settings?.districtId) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      if (useDistrictOverride) {
+        const minutes = Number(districtMinutes);
+        if (!Number.isFinite(minutes) || minutes < 1 || minutes > 480) {
+          throw new Error("Choose a timeout between 1 and 480 minutes.");
+        }
+        await CloudDistrictService.setDistrictIdleTimeout(settings.districtId, minutes);
+      } else {
+        await CloudDistrictService.setDistrictIdleTimeout(settings.districtId, null);
+      }
+      setSuccess("Session timeout updated.");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the session timeout.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePlatform(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const minutes = Number(platformMinutes);
+      if (!Number.isFinite(minutes) || minutes < 1 || minutes > 480) {
+        throw new Error("Choose a timeout between 1 and 480 minutes.");
+      }
+      await CloudDistrictService.setPlatformIdleTimeout(minutes);
+      setSuccess("Platform-wide session timeout updated.");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the session timeout.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!settings || (!settings.canSetDistrict && !settings.canSetPlatform)) return null;
+
+  return (
+    <div className="actrs-card p-4 mb-4">
+      <h2 className="h6 fw-bold mb-1">Session timeout</h2>
+      <p className="text-muted small mb-3">
+        Signs a device out automatically after this many minutes of inactivity - also helps stop a device from
+        staying signed in unattended. Currently applying <strong>{settings.effectiveMinutes} minutes</strong>.
+      </p>
+
+      {success && <div className="alert alert-success py-2">{success}</div>}
+      {error && <div className="alert alert-danger py-2">{error}</div>}
+
+      {settings.canSetDistrict && (
+        <form className="d-flex flex-wrap align-items-end gap-3 mb-3" onSubmit={saveDistrict}>
+          <div className="form-check">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              id="useDistrictOverride"
+              checked={useDistrictOverride}
+              onChange={(e) => setUseDistrictOverride(e.target.checked)}
+            />
+            <label className="form-check-label small" htmlFor="useDistrictOverride">
+              Set a timeout just for my district
+            </label>
+          </div>
+          <div>
+            <label className="form-label small mb-1">Minutes</label>
+            <input
+              type="number"
+              min={1}
+              max={480}
+              className="form-control form-control-sm"
+              style={{ width: 100 }}
+              value={districtMinutes}
+              disabled={!useDistrictOverride}
+              onChange={(e) => setDistrictMinutes(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn btn-outline-primary btn-sm" disabled={saving}>
+            {saving ? "Saving…" : "Save district timeout"}
+          </button>
+        </form>
+      )}
+
+      {settings.canSetPlatform && (
+        <form className="d-flex flex-wrap align-items-end gap-3" onSubmit={savePlatform}>
+          <div>
+            <label className="form-label small mb-1">Platform-wide default (minutes)</label>
+            <input
+              type="number"
+              min={1}
+              max={480}
+              className="form-control form-control-sm"
+              style={{ width: 100 }}
+              value={platformMinutes}
+              onChange={(e) => setPlatformMinutes(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn btn-outline-primary btn-sm" disabled={saving}>
+            {saving ? "Saving…" : "Save platform default"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
@@ -35,6 +180,7 @@ export function CloudDistrictDashboard() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [approveWarning, setApproveWarning] = useState<string | null>(null);
+  const [approveSuccess, setApproveSuccess] = useState<string | null>(null);
 
   function loadPending() {
     CloudDistrictService.getPendingSchools()
@@ -49,14 +195,20 @@ export function CloudDistrictDashboard() {
     setApprovingId(school.id);
     setApproveError(null);
     setApproveWarning(null);
+    setApproveSuccess(null);
     try {
       const result = await CloudDistrictService.approveSchool(school.id);
-      if (result.warning) setApproveWarning(result.warning);
+      if (result.warning) {
+        setApproveWarning(result.warning);
+      } else {
+        setApproveSuccess(`${school.name} approved. Their head teacher has been texted with sign-in instructions.`);
+      }
       loadPending();
     } catch (err) {
       setApproveError(err instanceof Error ? err.message : "Could not approve this school.");
     } finally {
       setApprovingId(null);
+      window.setTimeout(() => setApproveSuccess(null), 6000);
     }
   }
 
@@ -154,13 +306,16 @@ export function CloudDistrictDashboard() {
         <p className="text-muted">Loading…</p>
       ) : (
         <>
-          {pending && pending.length > 0 && (
+          <SessionTimeoutPanel />
+
+          {((pending && pending.length > 0) || approveSuccess || approveError || approveWarning) && (
             <div className="actrs-card p-0 mb-4">
               <div className="p-3 border-bottom">
                 <h2 className="h6 fw-bold mb-0">
-                  Pending school signups ({pending.length})
+                  Pending school signups ({pending?.length ?? 0})
                 </h2>
               </div>
+              {approveSuccess && <div className="alert alert-success py-2 m-3">{approveSuccess}</div>}
               {approveError && <div className="alert alert-danger py-2 m-3">{approveError}</div>}
               {approveWarning && <div className="alert alert-warning py-2 m-3">{approveWarning}</div>}
               <table className="table mb-0 align-middle">
