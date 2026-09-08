@@ -54,6 +54,10 @@ export function CloudFees() {
   const [newAmount, setNewAmount] = useState("");
   const [newLevelId, setNewLevelId] = useState("");
   const [savingStructure, setSavingStructure] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +133,40 @@ export function CloudFees() {
   async function toggleStructure(row: FeeStructureRow) {
     await CloudFeeService.updateStructure(row.id, { is_active: !row.is_active });
     loadStructures();
+  }
+
+  function startEdit(row: FeeStructureRow) {
+    setEditingId(row.id);
+    setEditName(row.name);
+    setEditAmount(String(row.amount));
+    setError(null);
+  }
+
+  async function saveEdit(e: FormEvent, id: string) {
+    e.preventDefault();
+    if (!editName.trim() || !editAmount) return;
+    setError(null);
+    try {
+      await CloudFeeService.updateStructure(id, { name: editName.trim(), amount: Number(editAmount) });
+      setEditingId(null);
+      loadStructures();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update this fee.");
+    }
+  }
+
+  async function handleDeleteStructure(row: FeeStructureRow) {
+    if (!confirm(`Remove "${row.name}"? This can't be undone.`)) return;
+    setDeletingId(row.id);
+    setError(null);
+    try {
+      await CloudFeeService.deleteStructure(row.id);
+      loadStructures();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove this fee.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleGenerate() {
@@ -247,18 +285,69 @@ export function CloudFees() {
                   </tr>
                 </thead>
                 <tbody>
-                  {structures.map((s) => (
-                    <tr key={s.id} className={s.is_active ? "" : "text-muted"}>
-                      <td>{s.name}</td>
-                      <td>{levelName(s.level_id)}</td>
-                      <td className="text-end">{money(s.amount)}</td>
-                      <td className="text-end">
-                        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => toggleStructure(s)}>
-                          {s.is_active ? "Deactivate" : "Activate"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {structures.map((s) =>
+                    editingId === s.id ? (
+                      <tr key={s.id}>
+                        <td colSpan={4}>
+                          <form className="d-flex flex-wrap align-items-end gap-2 py-1" onSubmit={(e) => saveEdit(e, s.id)}>
+                            <div>
+                              <label className="form-label small mb-1">Fee name</label>
+                              <input
+                                className="form-control form-control-sm"
+                                style={{ width: 180 }}
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="form-label small mb-1">Amount (GHS)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                className="form-control form-control-sm"
+                                style={{ width: 120 }}
+                                value={editAmount}
+                                onChange={(e) => setEditAmount(e.target.value)}
+                                required
+                              />
+                            </div>
+                            <button type="submit" className="btn btn-primary btn-sm">
+                              Save
+                            </button>
+                            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setEditingId(null)}>
+                              Cancel
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={s.id} className={s.is_active ? "" : "text-muted"}>
+                        <td>{s.name}</td>
+                        <td>{levelName(s.level_id)}</td>
+                        <td className="text-end">{money(s.amount)}</td>
+                        <td className="text-end">
+                          <div className="d-flex gap-1 justify-content-end">
+                            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => startEdit(s)}>
+                              Edit
+                            </button>
+                            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => toggleStructure(s)}>
+                              {s.is_active ? "Deactivate" : "Activate"}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-outline-danger btn-sm"
+                              disabled={deletingId === s.id}
+                              onClick={() => handleDeleteStructure(s)}
+                            >
+                              {deletingId === s.id ? "Removing…" : "Remove"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             )}

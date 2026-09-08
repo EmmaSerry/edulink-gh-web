@@ -37,6 +37,7 @@ import type {
   ReportSnapshot,
   ReportSnapshotSubjectRow,
   ReportSnapshotLearningArea,
+  ReportSnapshotFeeSummary,
 } from "@reporting/ReportSnapshot.types";
 import type {
   StudentRow,
@@ -235,6 +236,59 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
     reportRecords.filter((r) => studentIds.includes(r.student_id)).map((r) => [r.student_id, r])
   );
 
+  // Fee summary per student, private schools only - see
+  // edulink_gh_phase1a_fees.sql. Fetched once for the whole class
+  // (not per student) the same way scores/report records are above.
+  // A public school, or a private school that hasn't generated this
+  // term's fees yet, ends up with an empty map here - feeSummary is
+  // simply left undefined on those snapshots and ReportFeesSection
+  // renders nothing.
+  const feeSummaryByStudent = new Map<string, ReportSnapshotFeeSummary>();
+  if (school?.is_private && studentIds.length > 0) {
+    const studentFeeRows = await rest.select<{
+      id: string;
+      student_id: string;
+      amount_due: number;
+      fee_structures: { name: string } | null;
+    }>("student_fees", {
+      select: "id,student_id,amount_due,fee_structures(name)",
+      filters: { term_id: `eq.${termId}`, student_id: inList(studentIds) },
+    });
+
+    const studentFeeIds = studentFeeRows.map((r) => r.id);
+    const paymentRows =
+      studentFeeIds.length > 0
+        ? await rest.select<{ student_fee_id: string; amount: number }>("fee_payments", {
+            select: "student_fee_id,amount",
+            filters: { student_fee_id: inList(studentFeeIds) },
+          })
+        : [];
+    const paidByStudentFee = new Map<string, number>();
+    for (const p of paymentRows) {
+      paidByStudentFee.set(p.student_fee_id, (paidByStudentFee.get(p.student_fee_id) ?? 0) + p.amount);
+    }
+
+    for (const row of studentFeeRows) {
+      const paid = paidByStudentFee.get(row.id) ?? 0;
+      const existing = feeSummaryByStudent.get(row.student_id) ?? {
+        items: [],
+        totalDue: 0,
+        totalPaid: 0,
+        totalBalance: 0,
+      };
+      existing.items.push({
+        name: row.fee_structures?.name ?? "Fee",
+        amountDue: row.amount_due,
+        amountPaid: paid,
+        balance: row.amount_due - paid,
+      });
+      existing.totalDue += row.amount_due;
+      existing.totalPaid += paid;
+      existing.totalBalance += row.amount_due - paid;
+      feeSummaryByStudent.set(row.student_id, existing);
+    }
+  }
+
   const schoolInfo = {
     name: school?.name ?? "",
     schoolCode: school?.school_code ?? "",
@@ -345,6 +399,7 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
           headTeacherName: reportRecord?.head_teacher_name ?? school?.head_teacher_name ?? undefined,
           progression: reportRecord?.progression ?? undefined,
         },
+        feeSummary: feeSummaryByStudent.get(student.id),
       });
     }
 
@@ -478,6 +533,7 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
         headTeacherName: reportRecord?.head_teacher_name ?? school?.head_teacher_name ?? undefined,
         promotion: reportRecord?.progression ?? undefined,
       },
+      feeSummary: feeSummaryByStudent.get(studentId),
     });
   }
 

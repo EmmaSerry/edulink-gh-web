@@ -59,6 +59,13 @@ class CloudFeeServiceImpl {
     return rows[0];
   }
 
+  /** Blocked with a friendly message if this fee has already been
+   *  generated for students - see delete_fee_structure() in
+   *  edulink_gh_phase1b_fee_edits_and_sms.sql. */
+  async deleteStructure(id: string): Promise<void> {
+    await rest.rpc<void>("delete_fee_structure", { p_id: id });
+  }
+
   /** Creates a student_fees row for every enrolled student against
    *  every active fee structure that applies to them - safe to run
    *  more than once, already-generated rows are skipped. */

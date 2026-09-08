@@ -122,6 +122,24 @@ export interface ReportSnapshotKgRemarks {
   progression?: string;
 }
 
+/** One fee component row on a private school's report card - see
+ *  edulink_gh_phase1a_fees.sql. Absent entirely for a public school
+ *  (schools.is_private = false), so every template's fees section
+ *  simply renders nothing there - see ReportFeesSection.tsx. */
+export interface ReportSnapshotFeeItem {
+  name: string;
+  amountDue: number;
+  amountPaid: number;
+  balance: number;
+}
+
+export interface ReportSnapshotFeeSummary {
+  items: ReportSnapshotFeeItem[];
+  totalDue: number;
+  totalPaid: number;
+  totalBalance: number;
+}
+
 export interface ReportSnapshot {
   templateCode: ReportTemplateCode;
   school: ReportSnapshotSchoolInfo;
@@ -137,4 +155,7 @@ export interface ReportSnapshot {
   // KG only:
   learningAreas?: ReportSnapshotLearningArea[];
   kgRemarks?: ReportSnapshotKgRemarks;
+
+  // Private schools only - see ReportSnapshotFeeSummary above.
+  feeSummary?: ReportSnapshotFeeSummary;
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudSmsService } from "@services/cloud/SmsService";
+import { CloudSchoolService } from "@services/cloud/SchoolService";
 import type { ClassRow, SmsLogRow, SmsRecipient, SmsSendResult } from "@/types/database";
 
 const QUICK_TEMPLATES: Array<{ label: string; text: string }> = [
@@ -48,6 +49,10 @@ export function CloudSmsToParents() {
 
   const [message, setMessage] = useState("");
   const [includeReportSummary, setIncludeReportSummary] = useState(false);
+  const [includeFeesThisTerm, setIncludeFeesThisTerm] = useState(false);
+  const [includeFeesNextTerm, setIncludeFeesNextTerm] = useState(false);
+  const [includeReopeningDate, setIncludeReopeningDate] = useState(false);
+  const [schoolIsPrivate, setSchoolIsPrivate] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<SmsSendResult | null>(null);
@@ -57,6 +62,12 @@ export function CloudSmsToParents() {
   useEffect(() => {
     CloudClassService.list(undefined, profile?.school_id).then((rows) => setClasses(CloudClassService.forRole(rows, profile)));
   }, [profile]);
+
+  useEffect(() => {
+    CloudSchoolService.getProfile()
+      .then((s) => setSchoolIsPrivate(!!s?.is_private))
+      .catch(() => setSchoolIsPrivate(false));
+  }, []);
 
   useEffect(() => {
     CloudSmsService.recentHistory().then(setHistory).catch(() => setHistory([]));
@@ -117,6 +128,9 @@ export function CloudSmsToParents() {
         message: message.trim(),
         classId: classId || undefined,
         includeReportSummary,
+        includeFeesThisTerm: schoolIsPrivate ? includeFeesThisTerm : false,
+        includeFeesNextTerm: schoolIsPrivate ? includeFeesNextTerm : false,
+        includeReopeningDate,
       });
       setSendResult(result);
     } catch (err) {
@@ -231,8 +245,48 @@ export function CloudSmsToParents() {
                 Include this term's subject scores and grades for each pupil (added automatically to their own message)
               </label>
             </div>
+            {schoolIsPrivate && (
+              <>
+                <div className="form-check mt-2">
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="includeFeesThisTerm"
+                    checked={includeFeesThisTerm}
+                    onChange={(e) => setIncludeFeesThisTerm(e.target.checked)}
+                  />
+                  <label className="form-check-label small" htmlFor="includeFeesThisTerm">
+                    Include this term's fees payable (due, paid, and balance)
+                  </label>
+                </div>
+                <div className="form-check mt-2">
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="includeFeesNextTerm"
+                    checked={includeFeesNextTerm}
+                    onChange={(e) => setIncludeFeesNextTerm(e.target.checked)}
+                  />
+                  <label className="form-check-label small" htmlFor="includeFeesNextTerm">
+                    Include next term's fees payable
+                  </label>
+                </div>
+              </>
+            )}
+            <div className="form-check mt-2">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                id="includeReopeningDate"
+                checked={includeReopeningDate}
+                onChange={(e) => setIncludeReopeningDate(e.target.checked)}
+              />
+              <label className="form-check-label small" htmlFor="includeReopeningDate">
+                Include the reopening date
+              </label>
+            </div>
             <p className="text-muted small mb-0 mt-2">
-              Placeholders and the grades option personalize each guardian's copy - each message actually sent may
+              Placeholders and these options personalize each guardian's copy - each message actually sent may
               differ slightly per pupil, even though you're only writing it once.
             </p>
           </div>

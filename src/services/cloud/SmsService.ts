@@ -18,6 +18,14 @@ export interface SendSmsInput {
   /** Appends each pupil's current-term subject scores/grades to THEIR
    *  message - see get_student_term_report_summary(). */
   includeReportSummary?: boolean;
+  /** Appends this/next term's fees payable and/or the reopening date
+   *  to THEIR message - see build_fee_sms_snippet() in
+   *  edulink_gh_phase1b_fee_edits_and_sms.sql. Private schools only -
+   *  the fees screen these numbers come from doesn't exist for public
+   *  schools. */
+  includeFeesThisTerm?: boolean;
+  includeFeesNextTerm?: boolean;
+  includeReopeningDate?: boolean;
 }
 
 class CloudSmsServiceImpl {
@@ -38,6 +46,9 @@ class CloudSmsServiceImpl {
       classId: input.classId ?? null,
       termId: input.termId ?? null,
       includeReportSummary: input.includeReportSummary ?? false,
+      includeFeesThisTerm: input.includeFeesThisTerm ?? false,
+      includeFeesNextTerm: input.includeFeesNextTerm ?? false,
+      includeReopeningDate: input.includeReopeningDate ?? false,
     });
   }
 

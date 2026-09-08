@@ -2,6 +2,7 @@ import type { ReportSnapshot } from "../ReportSnapshot.types";
 import type { TemplateSettings } from "@models/TemplateSettings";
 import { ReportPage } from "../ReportPage";
 import { ReportHeader } from "../ReportHeader";
+import { ReportFeesSection } from "../ReportFeesSection";
 import { SignatureBlock } from "../SignatureBlock";
 import { KgLegend } from "../KgLegend";
 import { formatDateForDisplay } from "@utils/dateUtils";
@@ -25,7 +26,7 @@ export function KGReportTemplate({
   settings: TemplateSettings;
   isLastPage?: boolean;
 }) {
-  const { school, student, term, attendance, learningAreas, kgRemarks } = snapshot;
+  const { school, student, term, attendance, learningAreas, kgRemarks, feeSummary } = snapshot;
 
   return (
     <ReportPage settings={settings} school={school} isLastPage={isLastPage}>
@@ -109,6 +110,8 @@ export function KGReportTemplate({
         <div><span className="label">Vacation Date:</span> {formatDateForDisplay(term.vacationDate)}</div>
         <div><span className="label">Reopening Date:</span> {formatDateForDisplay(term.reopeningDate)}</div>
       </div>
+
+      <ReportFeesSection feeSummary={feeSummary} />
 
       <SignatureBlock
         settings={settings}
