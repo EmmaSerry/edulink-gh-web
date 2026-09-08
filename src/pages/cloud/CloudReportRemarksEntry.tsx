@@ -7,13 +7,14 @@ import { CloudEnrollmentService } from "@services/cloud/EnrollmentService";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudReportRecordService } from "@services/cloud/ReportRecordService";
 import { CloudAssessmentSessionService } from "@services/cloud/AssessmentSessionService";
+import { KG_GENERAL_COMMENT_BANK } from "@/constants/kgCommentBank";
 import type { TermRow, ClassRow, LevelRow, StudentRow, ReportRecordRow } from "@/types/database";
 
 function fullNameOf(s: StudentRow): string {
   return [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" ");
 }
 
-type TextField =
+type ScoredTextField =
   | "conduct_remark"
   | "interest_remark"
   | "attitude_remark"
@@ -21,15 +22,23 @@ type TextField =
   | "headteacher_remark"
   | "progression";
 
+type KgTextField = "general_comment" | "class_teacher_name" | "head_teacher_name" | "progression";
+
 /**
- * Attendance, conduct/interest/attitude remarks, and the promotion
- * decision - the non-score fields a report card needs alongside the
- * subject scores from Assessment Entry (see
- * ReportDataService.validateReportPrerequisites, which checks these
- * are filled before a report can be generated). Scoped to scored
- * levels for now, same reasoning as Assessment Entry - KG uses
- * different fields entirely (a General Progress Comment, not a
- * Class Teacher's Remark) and gets its own screen later.
+ * Attendance, plus the free-text fields a report card needs alongside
+ * either the subject scores (scored levels) or the skill ratings (KG) -
+ * see ReportDataService.validateReportPrerequisites, which checks
+ * these are filled before a report can be generated.
+ *
+ * Two distinct field sets share this one screen because the two
+ * report layouts do: a scored level's report shows Conduct/Interest/
+ * Attitude/Class Teacher's/Headteacher's remarks plus a promotion
+ * decision, while KG's official form has exactly one "GENERAL
+ * COMMENTS" box (see ReportSnapshotKgRemarks) plus its own teacher/
+ * headteacher name lines and, for KG2, a "PROGRESSION:" line. Both
+ * field sets live on the same report_records row per student/term
+ * (edulink_gh_phase0f_remarks_templates.sql) - only which fields this
+ * screen shows and saves changes with the level's assessment mode.
  */
 export function CloudReportRemarksEntry() {
   const [term, setTerm] = useState<TermRow | null>(null);
@@ -70,9 +79,10 @@ export function CloudReportRemarksEntry() {
     [levels, selectedClass]
   );
   const isScoredLevel = selectedLevel?.assessment_mode === "scored";
+  const isSkillLevel = selectedLevel?.assessment_mode === "skill-checklist";
 
   useEffect(() => {
-    if (!classId || !term || !isScoredLevel) {
+    if (!classId || !term || !selectedLevel) {
       setSessionId(null);
       setStudents([]);
       setRecords(new Map());
@@ -107,9 +117,9 @@ export function CloudReportRemarksEntry() {
     return () => {
       cancelled = true;
     };
-  }, [classId, term, isScoredLevel]);
+  }, [classId, term, selectedLevel]);
 
-  async function saveField(studentId: string, field: TextField | "days_present", raw: string) {
+  async function saveField(studentId: string, field: ScoredTextField | KgTextField | "days_present", raw: string) {
     if (!term || !sessionId) return;
     const key = `${studentId}:${field}`;
     let value: string | number | null;
@@ -143,7 +153,7 @@ export function CloudReportRemarksEntry() {
   if (contextError) return <div className="alert alert-danger">{contextError}</div>;
   if (!term) return <div className="alert alert-warning">Your school doesn't have an active term set up yet.</div>;
 
-  const textFields: Array<{ key: TextField; label: string; placeholder?: string }> = [
+  const scoredTextFields: Array<{ key: ScoredTextField; label: string; placeholder?: string }> = [
     { key: "class_teacher_remark", label: "Class teacher's remark" },
     { key: "conduct_remark", label: "Conduct" },
     { key: "interest_remark", label: "Interest" },
@@ -169,13 +179,6 @@ export function CloudReportRemarksEntry() {
         </select>
       </div>
 
-      {classId && selectedLevel && !isScoredLevel && (
-        <div className="alert alert-info">
-          {selectedLevel.name} uses KG's General Progress Comment fields rather than these - that screen isn't built
-          yet.
-        </div>
-      )}
-
       {classError && <div className="alert alert-danger">{classError}</div>}
 
       {classId && isScoredLevel && (
@@ -186,7 +189,7 @@ export function CloudReportRemarksEntry() {
                 <tr>
                   <th style={{ minWidth: 160 }}>Student</th>
                   <th style={{ width: 110 }}>Days present</th>
-                  {textFields.map((f) => (
+                  {scoredTextFields.map((f) => (
                     <th key={f.key} style={{ minWidth: 180 }}>
                       {f.label}
                     </th>
@@ -196,14 +199,14 @@ export function CloudReportRemarksEntry() {
               <tbody>
                 {loadingClass && (
                   <tr>
-                    <td colSpan={2 + textFields.length} className="text-center text-muted py-4">
+                    <td colSpan={2 + scoredTextFields.length} className="text-center text-muted py-4">
                       Loading…
                     </td>
                   </tr>
                 )}
                 {!loadingClass && students.length === 0 && (
                   <tr>
-                    <td colSpan={2 + textFields.length} className="text-center text-muted py-4">
+                    <td colSpan={2 + scoredTextFields.length} className="text-center text-muted py-4">
                       No students are currently enrolled in this class for this term.
                     </td>
                   </tr>
@@ -224,7 +227,7 @@ export function CloudReportRemarksEntry() {
                             onBlur={(e) => saveField(student.id, "days_present", e.target.value)}
                           />
                         </td>
-                        {textFields.map((f) => (
+                        {scoredTextFields.map((f) => (
                           <td key={f.key}>
                             <input
                               type="text"
@@ -244,6 +247,122 @@ export function CloudReportRemarksEntry() {
           </div>
         </div>
       )}
+
+      {classId && isSkillLevel && (
+        <div className="actrs-card p-0">
+          <div className="table-responsive">
+            <table className="table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 160 }}>Student</th>
+                  <th style={{ width: 100 }}>Days present</th>
+                  <th style={{ minWidth: 320 }}>General comments</th>
+                  <th style={{ minWidth: 170 }}>Class teacher's name</th>
+                  <th style={{ minWidth: 170 }}>Headteacher's name</th>
+                  <th style={{ minWidth: 150 }}>Progression</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingClass && (
+                  <tr>
+                    <td colSpan={6} className="text-center text-muted py-4">
+                      Loading…
+                    </td>
+                  </tr>
+                )}
+                {!loadingClass && students.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center text-muted py-4">
+                      No students are currently enrolled in this class for this term.
+                    </td>
+                  </tr>
+                )}
+                {!loadingClass &&
+                  students.map((student) => {
+                    const record = records.get(student.id);
+                    return (
+                      <tr key={student.id}>
+                        <td className="fw-medium">{fullNameOf(student)}</td>
+                        <td>
+                          <input
+                            type="number"
+                            min={0}
+                            className="form-control form-control-sm"
+                            defaultValue={record?.days_present ?? ""}
+                            key={`${student.id}:days:${record?.days_present}`}
+                            onBlur={(e) => saveField(student.id, "days_present", e.target.value)}
+                          />
+                        </td>
+                        <td style={{ minWidth: 320 }}>
+                          <select
+                            className="form-select form-select-sm mb-1"
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (!e.target.value) return;
+                              const textarea = document.getElementById(
+                                `general-comment-${student.id}`
+                              ) as HTMLTextAreaElement | null;
+                              if (textarea) {
+                                textarea.value = e.target.value;
+                                saveField(student.id, "general_comment", e.target.value);
+                              }
+                              e.target.value = "";
+                            }}
+                          >
+                            <option value="">Quick-fill a comment…</option>
+                            {KG_GENERAL_COMMENT_BANK.map((phrase) => (
+                              <option key={phrase} value={phrase}>
+                                {phrase}
+                              </option>
+                            ))}
+                          </select>
+                          <textarea
+                            id={`general-comment-${student.id}`}
+                            className="form-control form-control-sm"
+                            rows={2}
+                            placeholder="General comments on the learner's progress this term…"
+                            defaultValue={record?.general_comment ?? ""}
+                            key={`${student.id}:general_comment:${record?.general_comment}`}
+                            onBlur={(e) => saveField(student.id, "general_comment", e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            defaultValue={record?.class_teacher_name ?? ""}
+                            key={`${student.id}:class_teacher_name:${record?.class_teacher_name}`}
+                            onBlur={(e) => saveField(student.id, "class_teacher_name", e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            defaultValue={record?.head_teacher_name ?? ""}
+                            key={`${student.id}:head_teacher_name:${record?.head_teacher_name}`}
+                            onBlur={(e) => saveField(student.id, "head_teacher_name", e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            placeholder="e.g. KG2"
+                            defaultValue={record?.progression ?? ""}
+                            key={`${student.id}:progression:${record?.progression}`}
+                            onBlur={(e) => saveField(student.id, "progression", e.target.value)}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {savingKey && <p className="text-muted small mt-2 mb-0">Saving…</p>}
     </div>
   );

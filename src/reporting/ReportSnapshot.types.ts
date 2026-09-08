@@ -27,6 +27,11 @@ export interface ReportSnapshotSchoolInfo {
   telephone?: string;
   email?: string;
   logoDataUrl?: string;
+  /** The district's own logo (Settings, district admin) - used on the
+   *  KG cover page in place of the old NaCCA logo. Undefined for a
+   *  district that hasn't uploaded one yet; the cover page simply
+   *  omits it rather than showing a placeholder. */
+  districtLogoDataUrl?: string;
   motto?: string;
   reportHeader?: string;
   reportFooter?: string;
@@ -113,10 +118,17 @@ export interface ReportSnapshotLearningArea {
   skills: ReportSnapshotSkillRating[];
 }
 
+/** KG's official form has exactly one free-text box - "GENERAL
+ *  COMMENTS" - not the separate Class Teacher's/Headteacher's remarks
+ *  a scored level's report uses (see ReportSnapshotScoredRemarks
+ *  above). `generalComment` is that one box; the entry screen offers a
+ *  quick-fill dropdown (src/constants/kgCommentBank.ts) plus free text
+ *  feeding this same field, matching what the KG redesign asked for -
+ *  "one field... combine the remarks set... provide space to add their
+ *  own comments". `progression` stays separate since the KG2 form has
+ *  its own explicit "PROGRESSION:" line next to the reopening date. */
 export interface ReportSnapshotKgRemarks {
   generalComment?: string;
-  areasForImprovement?: string;
-  teacherRecommendation?: string;
   classTeacherName?: string;
   headTeacherName?: string;
   progression?: string;

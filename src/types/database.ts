@@ -21,6 +21,22 @@ export interface DistrictRow {
   name: string;
   region: string | null;
   created_at: string;
+  /** Used on the KG cover page in place of the NaCCA logo - see
+   *  Settings (district admin) and edulink_gh_phase1c_kg_report_redesign.sql. */
+  logo_data_url?: string | null;
+}
+
+/** Which official skills a teacher has chosen to show on this class's
+ *  report card this term - see edulink_gh_phase1c_kg_report_redesign.sql.
+ *  Absence of a row for a skill means "included" (the default). */
+export interface ReportSkillSelectionRow {
+  id: string;
+  school_id: string;
+  class_id: string;
+  term_id: string;
+  skill_id: string;
+  is_included: boolean;
+  updated_at: string;
 }
 
 export interface SchoolRow {

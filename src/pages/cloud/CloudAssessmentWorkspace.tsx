@@ -7,6 +7,7 @@ import { CloudSubjectService } from "@services/cloud/SubjectService";
 import { CloudLearningAreaService } from "@services/cloud/LearningAreaService";
 import { CloudSkillService } from "@services/cloud/SkillService";
 import { CloudSkillAssessmentService } from "@services/cloud/SkillAssessmentService";
+import { CloudSkillSelectionService } from "@services/cloud/SkillSelectionService";
 import { CloudEnrollmentService } from "@services/cloud/EnrollmentService";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudScoreRecordService } from "@services/cloud/ScoreRecordService";
@@ -30,6 +31,17 @@ const STATUS_LABEL: Record<AssessmentSessionStatus, string> = {
   COMPLETED: "Completed",
   VERIFIED: "Verified",
   FINALIZED: "Finalized",
+};
+
+/** Item 12 of the KG report redesign - the standard quick-fill text
+ *  for each proficiency rating's Comments column, applied automatically
+ *  the first time a rating is picked (see handleRatingSelect below).
+ *  Deliberately doesn't cover X/O - those aren't proficiency levels, so
+ *  there's no "how they did" comment to suggest. */
+const DEFAULT_SKILL_COMMENT: Record<string, string> = {
+  G: "Keep it up",
+  S: "Can do better",
+  B: "More room for improvement",
 };
 
 const STATUS_BADGE: Record<AssessmentSessionStatus, string> = {
@@ -87,6 +99,12 @@ export function CloudAssessmentWorkspace() {
   const [ratings, setRatings] = useState<Map<string, { rating: SkillRating | null; comment: string | null }>>(
     new Map()
   );
+  // Item 10 of the KG redesign: which official skills a teacher has
+  // chosen to leave off THIS class's report card this term - map of
+  // skillId -> isIncluded. A skill with no entry here is included by
+  // default (see CloudSkillSelectionService/report_skill_selection).
+  const [skillSelection, setSkillSelection] = useState<Map<string, boolean>>(new Map());
+  const [skillSelectionBusy, setSkillSelectionBusy] = useState<string | null>(null);
 
   const [loadingClass, setLoadingClass] = useState(false);
   const [classError, setClassError] = useState<string | null>(null);
@@ -177,8 +195,9 @@ export function CloudAssessmentWorkspace() {
         rosterPromise,
         CloudLearningAreaService.listForLevel(selectedLevel.id),
         CloudSkillAssessmentService.getForTerm(term.id),
+        CloudSkillSelectionService.listForClassTerm(classId, term.id),
       ])
-        .then(async ([[sessionRow, roster, allStudents], areaRows, allRatings]) => {
+        .then(async ([[sessionRow, roster, allStudents], areaRows, allRatings, selectionRows]) => {
           if (cancelled) return;
           setSession(sessionRow);
           setSubjects([]);
@@ -200,6 +219,10 @@ export function CloudAssessmentWorkspace() {
             ratingMap.set(`${rec.student_id}:${rec.skill_id}`, { rating: rec.rating, comment: rec.comment });
           }
           setRatings(ratingMap);
+
+          const selectionMap = new Map<string, boolean>();
+          for (const row of selectionRows) selectionMap.set(row.skill_id, row.is_included);
+          setSkillSelection(selectionMap);
         })
         .catch((err) => !cancelled && setClassError(err instanceof Error ? err.message : "Could not load this class."))
         .finally(() => !cancelled && setLoadingClass(false));
@@ -294,12 +317,36 @@ export function CloudAssessmentWorkspace() {
     }
   }
 
+  async function toggleSkillIncluded(skillIdToToggle: string, nextIncluded: boolean) {
+    if (!classId || !term) return;
+    setSkillSelectionBusy(skillIdToToggle);
+    setClassError(null);
+    try {
+      await CloudSkillSelectionService.setIncluded(classId, term.id, skillIdToToggle, nextIncluded);
+      setSkillSelection((prev) => {
+        const next = new Map(prev);
+        next.set(skillIdToToggle, nextIncluded);
+        return next;
+      });
+    } catch (err) {
+      setClassError(err instanceof Error ? err.message : "Could not update this skill's report visibility.");
+    } finally {
+      setSkillSelectionBusy(null);
+    }
+  }
+
   function handleRatingSelect(studentId: string, raw: string) {
     const key = `${studentId}:${skillId}`;
     const existing = ratings.get(key) ?? { rating: null, comment: null };
     const rating = (raw === "" ? null : raw) as SkillRating | null;
     if (existing.rating === rating) return;
-    void saveSkillRating(studentId, rating, existing.comment);
+    // Item 12 of the KG redesign: Gold/Silver/Bronze each have a
+    // standard quick-fill comment. Only applied when the teacher
+    // hasn't already written something of their own in that cell -
+    // this never overwrites an existing comment, and never fires for
+    // X (not assessed) or O (absent), which have no such mapping.
+    const comment = existing.comment && existing.comment.trim() !== "" ? existing.comment : DEFAULT_SKILL_COMMENT[rating ?? ""] ?? existing.comment;
+    void saveSkillRating(studentId, rating, comment);
   }
 
   function handleCommentBlur(studentId: string, raw: string) {
@@ -406,6 +453,39 @@ export function CloudAssessmentWorkspace() {
           )}
         </div>
       </div>
+
+      {classId && isSkillLevel && learningAreaId && skills.length > 0 && (
+        <div className="actrs-card p-3 mb-4">
+          <h2 className="h6 fw-bold mb-1">
+            Report skills - {learningAreas.find((a) => a.id === learningAreaId)?.name ?? "this learning area"}
+          </h2>
+          <p className="text-muted small mb-2">
+            Uncheck a skill to leave it off {selectedClass?.name ?? "this class"}'s report cards this term - it
+            stays available here for rating either way. Everything is checked (shown) by default. Switch learning
+            areas above to manage another area's skills.
+          </p>
+          <div className="d-flex flex-column gap-1">
+            {skills.map((s) => {
+              const included = skillSelection.get(s.id) ?? true;
+              return (
+                <label key={s.id} className="form-check d-flex align-items-start gap-2 mb-0">
+                  <input
+                    type="checkbox"
+                    className="form-check-input mt-1"
+                    checked={included}
+                    disabled={skillSelectionBusy === s.id}
+                    onChange={(e) => toggleSkillIncluded(s.id, e.target.checked)}
+                  />
+                  <span className="form-check-label small">
+                    {s.serial_number != null ? `${s.serial_number}. ` : ""}
+                    {s.description}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {classId && isScoredLevel && (
         <>

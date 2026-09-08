@@ -1,9 +1,126 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CloudDistrictService } from "@services/cloud/DistrictService";
 import { CloudAcademicStandardsService } from "@services/cloud/AcademicStandardsService";
 import { AcademicStandardsPanel, SchoolBreakdownPanel } from "@components/AcademicStandardsPanel";
 import { downloadCsv } from "@/lib/csvExport";
+import { resizeImageToDataUrl } from "@/lib/imageResize";
 import type { DistrictSchoolOverviewRow, DistrictAcademicStandards, PendingSchoolRow, IdleTimeoutSettings } from "@/types/database";
+
+/**
+ * District branding - just a logo today (KG cover page item 8; every
+ * other template already had a school-level logo via Settings ->
+ * School profile, but nothing let a district set its OWN logo before
+ * this). Same visibility rule as SessionTimeoutPanel just below:
+ * a district_admin sees only their own district, a platform_admin
+ * sees whichever district get_idle_timeout_settings() resolves them
+ * against (it returns null here for a platform_admin with no district
+ * of their own, in which case this panel simply doesn't render - a
+ * platform-wide "pick any district" logo editor is future work).
+ */
+function DistrictLogoPanel() {
+  const [settings, setSettings] = useState<IdleTimeoutSettings | null>(null);
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    CloudDistrictService.getIdleTimeoutSettings()
+      .then(async (s) => {
+        if (cancelled) return;
+        setSettings(s);
+        if (s.districtId) {
+          const logo = await CloudDistrictService.getDistrictLogo(s.districtId);
+          if (!cancelled) setLogoDataUrl(logo);
+        }
+      })
+      .catch(() => !cancelled && setSettings(null))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !settings?.districtId) return;
+    setError(null);
+    setSuccess(null);
+    try {
+      const dataUrl = await resizeImageToDataUrl(file);
+      setSaving(true);
+      await CloudDistrictService.setDistrictLogo(settings.districtId, dataUrl);
+      setLogoDataUrl(dataUrl);
+      setSuccess("District logo updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save that logo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!settings?.districtId) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await CloudDistrictService.setDistrictLogo(settings.districtId, null);
+      setLogoDataUrl(null);
+      setSuccess("District logo removed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove that logo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading || !settings || !settings.canSetDistrict || !settings.districtId) return null;
+
+  return (
+    <div className="actrs-card p-4 mb-4">
+      <h2 className="h6 fw-bold mb-1">District logo</h2>
+      <p className="text-muted small mb-3">
+        Shown on the cover page of every KG report card generated across your district, in place of the old NaCCA
+        logo.
+      </p>
+      {success && <div className="alert alert-success py-2">{success}</div>}
+      {error && <div className="alert alert-danger py-2">{error}</div>}
+      <div className="d-flex align-items-center gap-3">
+        <div
+          className="border d-flex align-items-center justify-content-center"
+          style={{ width: 88, height: 88, borderRadius: 10, background: "#e9ecef", overflow: "hidden", flexShrink: 0 }}
+        >
+          {logoDataUrl ? (
+            <img src={logoDataUrl} alt="District logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          ) : (
+            <span className="text-muted small">No logo</span>
+          )}
+        </div>
+        <div className="d-flex flex-column gap-2">
+          <input ref={fileInputRef} type="file" accept="image/*" className="d-none" onChange={handleFile} />
+          <button
+            type="button"
+            className="btn btn-outline-primary btn-sm"
+            disabled={saving}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {logoDataUrl ? "Replace logo" : "Upload logo"}
+          </button>
+          {logoDataUrl && (
+            <button type="button" className="btn btn-link btn-sm text-danger p-0" disabled={saving} onClick={handleRemove}>
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SummaryCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -306,6 +423,7 @@ export function CloudDistrictDashboard() {
         <p className="text-muted">Loading…</p>
       ) : (
         <>
+          <DistrictLogoPanel />
           <SessionTimeoutPanel />
 
           {((pending && pending.length > 0) || approveSuccess || approveError || approveWarning) && (

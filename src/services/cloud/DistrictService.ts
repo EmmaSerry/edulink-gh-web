@@ -8,7 +8,7 @@
  * RequireDistrictAdmin check.
  */
 import { rest, edgeFunctions } from "@/lib/supabaseClient";
-import type { DistrictSchoolOverviewRow, SchoolRegistrationContext, PendingSchoolRow, IdleTimeoutSettings } from "@/types/database";
+import type { DistrictSchoolOverviewRow, SchoolRegistrationContext, PendingSchoolRow, IdleTimeoutSettings, DistrictRow } from "@/types/database";
 
 class CloudDistrictServiceImpl {
   async getSchoolsOverview(): Promise<DistrictSchoolOverviewRow[]> {
@@ -62,6 +62,26 @@ class CloudDistrictServiceImpl {
    *  back to the platform-wide default. */
   async setDistrictIdleTimeout(districtId: string, minutes: number | null): Promise<void> {
     await rest.rpc<void>("set_district_idle_timeout", { p_district_id: districtId, p_minutes: minutes });
+  }
+
+  /** The district's own logo (KG cover page + branding) - a plain read,
+   *  same as any other districts column; RLS already allows this or the
+   *  district dashboard's other lookups wouldn't work. */
+  async getDistrictLogo(districtId: string): Promise<string | null> {
+    const [row] = await rest.select<Pick<DistrictRow, "logo_data_url">>("districts", {
+      filters: { id: `eq.${districtId}` },
+      select: "logo_data_url",
+      limit: 1,
+    });
+    return row?.logo_data_url ?? null;
+  }
+
+  /** Pass `dataUrl: null` to remove the district's logo. Server-side
+   *  role check (district_admin, own district only, or platform_admin
+   *  any district) - see set_district_logo() in
+   *  edulink_gh_phase1c_kg_report_redesign.sql. */
+  async setDistrictLogo(districtId: string, dataUrl: string | null): Promise<void> {
+    await rest.rpc<void>("set_district_logo", { p_district_id: districtId, p_logo_data_url: dataUrl });
   }
 }
 

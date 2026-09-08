@@ -306,6 +306,7 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
     officialSignatoryTitles: undefined,
     reportWatermarkDataUrl: undefined,
     headTeacherName: school?.head_teacher_name ?? undefined,
+    districtLogoDataUrl: district?.logo_data_url ?? undefined,
   };
 
   const termInfo = {
@@ -334,6 +335,21 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
           })
         : [];
 
+    // Which of these official skills the class teacher has chosen to
+    // leave OFF this term's report - see report_skill_selection in
+    // edulink_gh_phase1c_kg_report_redesign.sql. A skill with no row
+    // here, or a row with is_included = true, still shows; only an
+    // explicit is_included = false row hides one. This only affects
+    // what prints - Assessment Entry always offers the full official
+    // list regardless of this selection.
+    const skillSelectionRows = await rest.select<{ skill_id: string; is_included: boolean }>(
+      "report_skill_selection",
+      { filters: { class_id: `eq.${classId}`, term_id: `eq.${termId}` } }
+    );
+    const excludedSkillIds = new Set(
+      skillSelectionRows.filter((r) => r.is_included === false).map((r) => r.skill_id)
+    );
+
     for (const student of students) {
       const reportRecord = reportRecordByStudent.get(student.id);
       const guardian = await CloudGuardianService.getByStudentId(student.id);
@@ -344,7 +360,7 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
           learningAreaId: area.id,
           name: area.name,
           skills: skills
-            .filter((sk) => sk.learning_area_id === area.id)
+            .filter((sk) => sk.learning_area_id === area.id && !excludedSkillIds.has(sk.id))
             .sort((a, b) => a.sort_order - b.sort_order || (a.serial_number ?? 0) - (b.serial_number ?? 0))
             .map((sk) => {
               const rating = allRatings.find((r) => r.student_id === student.id && r.skill_id === sk.id);
@@ -393,8 +409,6 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
         learningAreas: learningAreaRows,
         kgRemarks: {
           generalComment: reportRecord?.general_comment ?? undefined,
-          areasForImprovement: reportRecord?.areas_for_improvement ?? undefined,
-          teacherRecommendation: reportRecord?.teacher_recommendation ?? undefined,
           classTeacherName: reportRecord?.class_teacher_name ?? cls.class_teacher_name ?? undefined,
           headTeacherName: reportRecord?.head_teacher_name ?? school?.head_teacher_name ?? undefined,
           progression: reportRecord?.progression ?? undefined,

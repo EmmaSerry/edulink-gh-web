@@ -430,3 +430,215 @@
     display: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------
+ * KG report redesign (Module 15b) - cover page, per-skill G/S/B
+ * checkmark table, and the general-comments box. Appended rather than
+ * interleaved with the sections above so every existing template's
+ * CSS is untouched; KGReportTemplate.tsx is the only consumer of the
+ * classes below.
+ * --------------------------------------------------------------------- */
+
+.kg-cover-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: 6mm;
+  margin-bottom: 10mm;
+}
+
+.kg-cover-header .district-logo {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  margin-bottom: 8px;
+}
+
+.kg-cover-header .district-name {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 1.05em;
+  color: var(--report-primary);
+}
+
+.kg-cover-header .district-name .region {
+  display: block;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.78em;
+  color: #5c6774;
+  margin-top: 1px;
+}
+
+.kg-cover-header .form-title {
+  margin-top: 10px;
+  font-family: Georgia, "Cambria", "Times New Roman", serif;
+  font-weight: 700;
+  font-size: 1.5em;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--report-secondary);
+}
+
+.kg-cover-header .form-subtitle {
+  font-size: 0.86em;
+  color: #55606f;
+  margin-top: 2px;
+}
+
+.kg-cover-photo-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 26px;
+  margin: 8mm 0 6mm;
+}
+
+.kg-cover-photo-row .photo-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.kg-cover-photo-row .photo-slot .caption {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7a8494;
+  font-weight: 700;
+}
+
+.kg-cover-school-logo {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  border: 2px solid var(--report-secondary);
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.kg-cover-school-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.kg-cover-learner-photo {
+  width: 128px;
+  height: 154px;
+  border: 3px solid var(--report-primary);
+  border-radius: 8px;
+  background: #eef1f5;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.kg-cover-learner-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.kg-cover-learner-photo .placeholder {
+  font-size: 2.6em;
+  font-weight: 800;
+  color: var(--report-primary);
+  opacity: 0.3;
+  font-family: Georgia, serif;
+}
+
+.kg-cover-learner-name {
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.3em;
+  color: var(--report-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 8mm;
+}
+
+.kg-cover-info-grid {
+  max-width: 420px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 5px 12px;
+  font-size: 0.92em;
+  background: #f8fafc;
+  border: 1px solid #e3e8ee;
+  border-radius: 6px;
+  padding: 10px 16px;
+}
+
+.kg-cover-info-grid .label {
+  font-weight: 700;
+  color: #55606f;
+}
+
+/* ---------- KG skill table: Gold / Silver / Bronze checkmark columns --------- */
+
+.kg-skill-table th.col-skill,
+.kg-skill-table td.col-skill {
+  text-align: left;
+  width: auto;
+}
+
+.kg-skill-table th.col-rating,
+.kg-skill-table td.col-rating {
+  width: 58px;
+}
+
+.kg-skill-table th.col-comment,
+.kg-skill-table td.col-comment {
+  width: 22%;
+  text-align: left;
+  font-size: 0.94em;
+  color: #4a5464;
+}
+
+.kg-skill-table td.col-rating .check {
+  display: inline-block;
+  font-weight: 900;
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+.kg-skill-table td.col-rating.gold .check {
+  color: #b8860b;
+}
+
+.kg-skill-table td.col-rating.silver .check {
+  color: #6b7280;
+}
+
+.kg-skill-table td.col-rating.bronze .check {
+  color: #a05a2c;
+}
+
+.kg-skill-table td.col-status {
+  font-size: 0.82em;
+  font-style: italic;
+  color: #7a8494;
+}
+
+.kg-comments-box {
+  min-height: 46mm;
+  border: 1px solid #dbe1e8;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 0.95em;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  background: #fbfcfe;
+}
