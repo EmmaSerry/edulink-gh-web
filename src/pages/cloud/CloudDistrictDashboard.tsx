@@ -320,7 +320,7 @@ export function CloudDistrictDashboard() {
               {approveWarning && <div className="alert alert-warning py-2 m-3">{approveWarning}</div>}
               <table className="table mb-0 align-middle">
                 <tbody>
-                  {pending.map((s) => (
+                  {(pending ?? []).map((s) => (
                     <tr key={s.id}>
                       <td>
                         <div className="fw-semibold">{s.name}</div>
