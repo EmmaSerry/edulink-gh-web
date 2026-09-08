@@ -60,7 +60,8 @@ export interface SchoolRow {
   report_header: string | null;
   report_footer: string | null;
   subscription_tier: string;
-  subscription_status: string;
+  subscription_status: "trial" | "active" | "expired" | "suspended";
+  subscription_expires_at: string | null;
   approval_status: "pending" | "approved";
   created_at: string;
   updated_at: string;
@@ -591,4 +592,44 @@ export interface FeePaymentRow {
   recorded_by: string | null;
   paid_at: string;
   created_at: string;
+}
+
+/** A school's subscription payment claim/log - see
+ *  edulink_gh_phase1d_subscriptions.sql. "online" here means "paid
+ *  online outside this app and being reported" (bank transfer, a
+ *  payment link, etc.), not an in-app Paystack checkout - that's a
+ *  separate, later piece. */
+export type SubscriptionPaymentMethod = "cash" | "mobile_money" | "bank_transfer" | "online" | "other";
+export type SubscriptionPaymentStatus = "pending" | "approved" | "rejected";
+
+export interface SubscriptionPaymentRow {
+  id: string;
+  school_id: string;
+  amount: number;
+  method: SubscriptionPaymentMethod;
+  reference: string | null;
+  notes: string | null;
+  period_label: string | null;
+  status: SubscriptionPaymentStatus;
+  submitted_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  created_at: string;
+}
+
+/** One row per school - the Super Admin Dashboard's main table. See
+ *  list_schools_subscription_overview(); is_lapsed is computed
+ *  server-side from subscription_expires_at, not read from the stored
+ *  subscription_status (nothing flips that automatically yet). */
+export interface SchoolSubscriptionOverviewRow {
+  school_id: string;
+  school_name: string;
+  district_name: string | null;
+  is_private: boolean;
+  subscription_tier: string;
+  subscription_status: SchoolRow["subscription_status"];
+  subscription_expires_at: string | null;
+  is_lapsed: boolean;
+  pending_payment_count: number;
 }

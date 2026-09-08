@@ -19,6 +19,8 @@ import { CloudPromoteClass } from "@pages/cloud/CloudPromoteClass";
 import { CloudUserDirectory } from "@pages/cloud/CloudUserDirectory";
 import { CloudSmsToParents } from "@pages/cloud/CloudSmsToParents";
 import { CloudFees } from "@pages/cloud/CloudFees";
+import { CloudSubscriptionApproval } from "@pages/cloud/CloudSubscriptionApproval";
+import { CloudSubscriptionStatus } from "@pages/cloud/CloudSubscriptionStatus";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -116,6 +118,22 @@ export default function App() {
             element={
               <RequireAdmin roles="fees">
                 <CloudFees />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/billing"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudSubscriptionApproval />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/subscription"
+            element={
+              <RequireAdmin roles="subscription">
+                <CloudSubscriptionStatus />
               </RequireAdmin>
             }
           />

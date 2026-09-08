@@ -7,6 +7,9 @@ import type { UserRole } from "@/types/database";
 const SCHOOL_ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
 const DISTRICT_ADMIN_ROLES: UserRole[] = ["district_admin", "platform_admin"];
 const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin", "platform_admin"];
+// Narrower than DISTRICT_ADMIN_ROLES - see RequireAdmin.tsx.
+const PLATFORM_ADMIN_ROLES: UserRole[] = ["platform_admin"];
+const SUBSCRIPTION_SUBMIT_ROLES: UserRole[] = ["school_admin", "bursar"];
 
 interface NavItem {
   path: string;
@@ -23,6 +26,14 @@ interface NavItem {
    *  whose own school isn't private - see edulink_gh_phase1a_fees.sql.
    *  Public schools don't collect fees through this screen. */
   feesOnly?: boolean;
+  /** Only platform_admin - the Super Admin Dashboard, see
+   *  edulink_gh_phase1d_subscriptions.sql. Deliberately not shown to
+   *  district_admin, unlike every other *Only flag here. */
+  platformOnly?: boolean;
+  /** Only school_admin/bursar - reporting your OWN school's
+   *  subscription payment. district_admin/platform_admin have no
+   *  single school for this to mean anything. */
+  subscriptionOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -36,6 +47,8 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
   { path: "/sms", label: "SMS to parents", icon: "bi-chat-dots" },
   { path: "/fees", label: "Fees", icon: "bi-cash-coin", feesOnly: true },
+  { path: "/subscription", label: "Subscription", icon: "bi-credit-card", subscriptionOnly: true },
+  { path: "/billing", label: "Super Admin", icon: "bi-shield-lock", platformOnly: true },
   { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
   { path: "/settings", label: "Settings", icon: "bi-gear", adminOnly: true },
 ];
@@ -61,8 +74,13 @@ export function CloudSidebar() {
       .catch(() => setSchoolIsPrivate(false));
   }, [profile?.school_id, profile?.role]);
 
+  const isPlatformAdmin = !!profile && PLATFORM_ADMIN_ROLES.includes(profile.role);
+  const isSubscriptionSubmitter = !!profile && SUBSCRIPTION_SUBMIT_ROLES.includes(profile.role);
+
   const items = NAV_ITEMS.filter((item) => {
     if (item.districtOnly) return isDistrictAdmin;
+    if (item.platformOnly) return isPlatformAdmin;
+    if (item.subscriptionOnly) return isSubscriptionSubmitter;
     if (item.feesOnly) {
       if (!isFeeManager) return false;
       if (["school_admin", "bursar"].includes(profile?.role ?? "")) return schoolIsPrivate !== false;
