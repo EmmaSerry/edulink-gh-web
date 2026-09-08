@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { CloudSubscriptionService } from "@services/cloud/SubscriptionService";
-import type { SchoolSubscriptionOverviewRow, SubscriptionPaymentRow, SubscriptionPaymentMethod } from "@/types/database";
+import { CloudTermService } from "@services/cloud/TermService";
+import type { SchoolSubscriptionOverviewRow, SubscriptionPaymentRow, SubscriptionPaymentMethod, TermRow } from "@/types/database";
 
 const METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {
   cash: "Cash",
@@ -28,14 +29,150 @@ function StatusBadge({ row }: { row: SchoolSubscriptionOverviewRow }) {
   return <span className="badge text-bg-success">Active</span>;
 }
 
+function RateCell({ row, onSaved }: { row: SchoolSubscriptionOverviewRow; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(row.subscription_price_per_term != null ? String(row.subscription_price_per_term) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    const parsed = Number(value);
+    if (value === "" || Number.isNaN(parsed) || parsed < 0) {
+      setError("Enter a rate of zero or more.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await CloudSubscriptionService.setSchoolRate(row.school_id, parsed);
+      setEditing(false);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save this rate.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button type="button" className="btn btn-link btn-sm p-0 text-decoration-none" onClick={() => setEditing(true)}>
+        {row.subscription_price_per_term != null ? money(row.subscription_price_per_term) : "Set rate"}
+        {row.subscription_rate_is_custom && <span className="badge text-bg-light text-muted ms-1">custom</span>}
+      </button>
+    );
+  }
+
+  return (
+    <div className="d-flex align-items-center gap-1" style={{ minWidth: 140 }}>
+      <input
+        type="number"
+        min={0}
+        step="0.01"
+        className="form-control form-control-sm"
+        style={{ width: 90 }}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        autoFocus
+      />
+      <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={handleSave}>
+        ✓
+      </button>
+      <button type="button" className="btn btn-link btn-sm text-muted" onClick={() => setEditing(false)}>
+        ✕
+      </button>
+      {error && <div className="text-danger small ms-1">{error}</div>}
+    </div>
+  );
+}
+
+function DefaultRatesForm({ onSaved }: { onSaved: (updated: number) => void }) {
+  const [publicRate, setPublicRate] = useState("");
+  const [privateRate, setPrivateRate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleApply() {
+    const pub = Number(publicRate);
+    const priv = Number(privateRate);
+    if (publicRate === "" || Number.isNaN(pub) || pub < 0 || privateRate === "" || Number.isNaN(priv) || priv < 0) {
+      setError("Enter a rate of zero or more for both.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await CloudSubscriptionService.setDefaultRates(pub, priv);
+      onSaved(result.updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not apply these rates.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="actrs-card p-3 mb-4">
+      <h2 className="h6 fw-bold mb-1">Default termly rates</h2>
+      <p className="text-muted small mb-2">
+        Applies to every school that hasn't had its own rate set individually - a school-specific rate (below) is
+        never overwritten by this.
+      </p>
+      {error && <div className="alert alert-danger py-2 small mb-2">{error}</div>}
+      <div className="row g-2 align-items-end">
+        <div className="col-sm-3">
+          <label className="form-label small">Public schools (GHS/term)</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="form-control form-control-sm"
+            value={publicRate}
+            onChange={(e) => setPublicRate(e.target.value)}
+          />
+        </div>
+        <div className="col-sm-3">
+          <label className="form-label small">Private schools (GHS/term)</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="form-control form-control-sm"
+            value={privateRate}
+            onChange={(e) => setPrivateRate(e.target.value)}
+          />
+        </div>
+        <div className="col-sm-3">
+          <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={handleApply}>
+            {saving ? "Applying…" : "Apply to non-custom schools"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecordPaymentForm({ school, onDone }: { school: SchoolSubscriptionOverviewRow; onDone: () => void }) {
-  const [amount, setAmount] = useState("");
+  const [terms, setTerms] = useState<TermRow[]>([]);
+  const [amount, setAmount] = useState(school.subscription_price_per_term != null ? String(school.subscription_price_per_term) : "");
   const [method, setMethod] = useState<SubscriptionPaymentMethod>("cash");
+  const [termId, setTermId] = useState("");
   const [reference, setReference] = useState("");
-  const [periodLabel, setPeriodLabel] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    CloudTermService.list(undefined, school.school_id).then((rows) => {
+      if (cancelled) return;
+      setTerms(rows);
+      setTermId(rows.find((t) => t.is_active)?.id ?? "");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [school.school_id]);
 
   async function handleSubmit() {
     const value = Number(amount);
@@ -43,15 +180,21 @@ function RecordPaymentForm({ school, onDone }: { school: SchoolSubscriptionOverv
       setError("Enter an amount greater than zero.");
       return;
     }
+    if (!termId) {
+      setError("Select which term this payment covers.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
+      const term = terms.find((t) => t.id === termId);
       await CloudSubscriptionService.recordAndApprove({
         schoolId: school.school_id,
         amount: value,
         method,
+        termId,
         reference: reference.trim() || null,
-        periodLabel: periodLabel.trim() || null,
+        periodLabel: term?.term_name ?? null,
         notes: notes.trim() || null,
       });
       onDone();
@@ -87,13 +230,15 @@ function RecordPaymentForm({ school, onDone }: { school: SchoolSubscriptionOverv
           </select>
         </div>
         <div className="col-sm-3">
-          <input
-            type="text"
-            className="form-control form-control-sm"
-            placeholder="Period (e.g. 2026 Term 2)"
-            value={periodLabel}
-            onChange={(e) => setPeriodLabel(e.target.value)}
-          />
+          <select className="form-select form-select-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
+            <option value="">{terms.length === 0 ? "No terms yet" : "Select a term…"}</option>
+            {terms.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.term_name}
+                {t.is_active ? " (current)" : ""}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="col-sm-3">
           <input
@@ -214,6 +359,14 @@ export function CloudSubscriptionApproval() {
       {actionSuccess && <div className="alert alert-success py-2">{actionSuccess}</div>}
       {actionError && <div className="alert alert-danger py-2">{actionError}</div>}
 
+      <DefaultRatesForm
+        onSaved={(updated) => {
+          setActionSuccess(`Default rates applied to ${updated} school${updated === 1 ? "" : "s"}.`);
+          load();
+          window.setTimeout(() => setActionSuccess(null), 6000);
+        }}
+      />
+
       <div className="actrs-card p-0 mb-4">
         <div className="p-3 border-bottom">
           <h2 className="h6 fw-bold mb-0">Pending payment claims ({pending.length})</h2>
@@ -285,7 +438,7 @@ export function CloudSubscriptionApproval() {
           <thead>
             <tr>
               <th>School</th>
-              <th>Tier</th>
+              <th>Rate / term</th>
               <th>Status</th>
               <th>Expires</th>
               <th className="text-end" />
@@ -304,7 +457,9 @@ export function CloudSubscriptionApproval() {
                       )}
                     </div>
                   </td>
-                  <td className="text-muted small">{row.subscription_tier}</td>
+                  <td>
+                    <RateCell row={row} onSaved={load} />
+                  </td>
                   <td>
                     <StatusBadge row={row} />
                   </td>

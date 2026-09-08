@@ -8,11 +8,15 @@
  * to enforce itself.
  */
 import { rest } from "@/lib/supabaseClient";
-import type { SubscriptionPaymentRow, SubscriptionPaymentMethod, SchoolSubscriptionOverviewRow } from "@/types/database";
+import type { SubscriptionPaymentRow, SubscriptionPaymentMethod, SchoolSubscriptionOverviewRow, SchoolRow } from "@/types/database";
 
 export interface SubmitSubscriptionPaymentInput {
   amount: number;
   method: SubscriptionPaymentMethod;
+  /** Defaults server-side to the school's own active term when omitted
+   *  - see submit_subscription_payment() in
+   *  edulink_gh_phase1e_termly_subscriptions.sql. */
+  termId?: string | null;
   reference?: string | null;
   notes?: string | null;
   periodLabel?: string | null;
@@ -44,6 +48,7 @@ class CloudSubscriptionServiceImpl {
     return rest.rpc<SubscriptionPaymentRow>("submit_subscription_payment", {
       p_amount: input.amount,
       p_method: input.method,
+      p_term_id: input.termId ?? null,
       p_reference: input.reference ?? null,
       p_notes: input.notes ?? null,
       p_period_label: input.periodLabel ?? null,
@@ -70,6 +75,7 @@ class CloudSubscriptionServiceImpl {
       p_school_id: input.schoolId,
       p_amount: input.amount,
       p_method: input.method,
+      p_term_id: input.termId ?? null,
       p_reference: input.reference ?? null,
       p_notes: input.notes ?? null,
       p_period_label: input.periodLabel ?? null,
@@ -79,6 +85,25 @@ class CloudSubscriptionServiceImpl {
 
   async listSchoolsOverview(): Promise<SchoolSubscriptionOverviewRow[]> {
     return rest.rpc<SchoolSubscriptionOverviewRow[]>("list_schools_subscription_overview", {});
+  }
+
+  /** platform_admin only - sets ONE school's own rate and marks it
+   *  custom, so a later bulk default-rate pass never overwrites it. */
+  async setSchoolRate(schoolId: string, pricePerTerm: number): Promise<SchoolRow> {
+    return rest.rpc<SchoolRow>("set_school_subscription_rate", {
+      p_school_id: schoolId,
+      p_price_per_term: pricePerTerm,
+    });
+  }
+
+  /** platform_admin only - applies a public-school rate and a separate
+   *  private-school rate to every school that hasn't had its own rate
+   *  set individually. Safe to re-run. */
+  async setDefaultRates(publicRate: number, privateRate: number): Promise<{ updated: number }> {
+    return rest.rpc<{ updated: number }>("set_default_subscription_rates", {
+      p_public_rate: publicRate,
+      p_private_rate: privateRate,
+    });
   }
 }
 

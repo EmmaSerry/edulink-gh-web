@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
 import { CloudSubscriptionService } from "@services/cloud/SubscriptionService";
-import type { SchoolRow, SubscriptionPaymentRow, SubscriptionPaymentMethod } from "@/types/database";
+import { CloudTermService } from "@services/cloud/TermService";
+import type { SchoolRow, SubscriptionPaymentRow, SubscriptionPaymentMethod, TermRow } from "@/types/database";
 
 const METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {
   cash: "Cash",
@@ -41,12 +42,13 @@ function formatDate(iso: string | null): string {
 export function CloudSubscriptionStatus() {
   const [school, setSchool] = useState<SchoolRow | null>(null);
   const [payments, setPayments] = useState<SubscriptionPaymentRow[] | null>(null);
+  const [terms, setTerms] = useState<TermRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<SubscriptionPaymentMethod>("cash");
+  const [termId, setTermId] = useState("");
   const [reference, setReference] = useState("");
-  const [periodLabel, setPeriodLabel] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -56,14 +58,22 @@ export function CloudSubscriptionStatus() {
     CloudSchoolService.getProfile()
       .then((s) => {
         setSchool(s);
-        if (!s) return Promise.resolve([]);
-        return CloudSubscriptionService.listForSchool(s.id);
+        if (!s) return Promise.resolve<[SubscriptionPaymentRow[], TermRow[]]>([[], []]);
+        return Promise.all([CloudSubscriptionService.listForSchool(s.id), CloudTermService.list(undefined, s.id)]);
       })
-      .then((rows) => setPayments(rows))
+      .then(([paymentRows, termRows]) => {
+        setPayments(paymentRows);
+        setTerms(termRows);
+        setTermId((current) =>
+          current && termRows.some((t) => t.id === current) ? current : (termRows.find((t) => t.is_active)?.id ?? "")
+        );
+      })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load subscription status."));
   }
 
   useEffect(load, []);
+
+  const selectedTerm = useMemo(() => terms.find((t) => t.id === termId) ?? null, [terms, termId]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -72,19 +82,23 @@ export function CloudSubscriptionStatus() {
       setSubmitError("Enter an amount greater than zero.");
       return;
     }
+    if (!termId) {
+      setSubmitError("Select which term this payment covers.");
+      return;
+    }
     setSaving(true);
     setSubmitError(null);
     try {
       await CloudSubscriptionService.submit({
         amount: value,
         method,
+        termId,
         reference: reference.trim() || null,
-        periodLabel: periodLabel.trim() || null,
+        periodLabel: selectedTerm ? `${selectedTerm.term_name}` : null,
         notes: notes.trim() || null,
       });
       setAmount("");
       setReference("");
-      setPeriodLabel("");
       setNotes("");
       setSubmitSuccess("Payment reported - it'll show as active once approved.");
       load();
@@ -123,8 +137,10 @@ export function CloudSubscriptionStatus() {
             </div>
           </div>
           <div className="col-sm-4">
-            <div className="text-muted small mb-1">Plan</div>
-            <div className="fw-semibold">{school.subscription_tier}</div>
+            <div className="text-muted small mb-1">Rate per term</div>
+            <div className="fw-semibold">
+              {school.subscription_price_per_term != null ? money(school.subscription_price_per_term) : "Not set yet"}
+            </div>
           </div>
           <div className="col-sm-4">
             <div className="text-muted small mb-1">Renews / expires</div>
@@ -170,14 +186,16 @@ export function CloudSubscriptionStatus() {
               </select>
             </div>
             <div className="col-sm-3">
-              <label className="form-label small">Period covered</label>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                placeholder="e.g. 2026 Term 2"
-                value={periodLabel}
-                onChange={(e) => setPeriodLabel(e.target.value)}
-              />
+              <label className="form-label small">Term covered</label>
+              <select className="form-select form-select-sm" value={termId} onChange={(e) => setTermId(e.target.value)} required>
+                <option value="">Select a term…</option>
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.term_name}
+                    {t.is_active ? " (current)" : ""}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="col-sm-3">
               <label className="form-label small">Reference (optional)</label>

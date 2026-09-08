@@ -62,6 +62,8 @@ export interface SchoolRow {
   subscription_tier: string;
   subscription_status: "trial" | "active" | "expired" | "suspended";
   subscription_expires_at: string | null;
+  subscription_price_per_term: number | null;
+  subscription_rate_is_custom: boolean;
   approval_status: "pending" | "approved";
   created_at: string;
   updated_at: string;
@@ -85,6 +87,13 @@ export interface PendingSchoolRow {
   requested_by_name: string | null;
   requested_by_phone: string | null;
   created_at: string;
+  /** Whether this school has at least one approved subscription_payment
+   *  on file yet - see edulink_gh_phase1e_termly_subscriptions.sql.
+   *  approve_school() now refuses to approve without one; this lets the
+   *  pending-signups panel explain why, without exposing amounts or
+   *  payment history to a district_admin (subscription details stay
+   *  platform_admin-only). */
+  has_confirmed_payment: boolean;
 }
 
 export interface UserProfileRow {
@@ -610,6 +619,7 @@ export interface SubscriptionPaymentRow {
   reference: string | null;
   notes: string | null;
   period_label: string | null;
+  term_id: string | null;
   status: SubscriptionPaymentStatus;
   submitted_by: string | null;
   reviewed_by: string | null;
@@ -630,6 +640,8 @@ export interface SchoolSubscriptionOverviewRow {
   subscription_tier: string;
   subscription_status: SchoolRow["subscription_status"];
   subscription_expires_at: string | null;
+  subscription_price_per_term: number | null;
+  subscription_rate_is_custom: boolean;
   is_lapsed: boolean;
   pending_payment_count: number;
 }

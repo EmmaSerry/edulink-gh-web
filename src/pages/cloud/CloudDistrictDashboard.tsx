@@ -308,6 +308,13 @@ export function CloudDistrictDashboard() {
   useEffect(loadPending, []);
 
   async function handleApprove(school: PendingSchoolRow) {
+    if (!school.has_confirmed_payment) {
+      setApproveError(
+        `${school.name} can't be approved yet - no confirmed subscription payment on file. Ask the platform admin to record and approve a payment first.`
+      );
+      window.setTimeout(() => setApproveError(null), 8000);
+      return;
+    }
     if (!confirm(`Approve ${school.name}? Their head teacher will be texted that the school is live.`)) return;
     setApprovingId(school.id);
     setApproveError(null);
@@ -450,6 +457,15 @@ export function CloudDistrictDashboard() {
                         {s.requested_by_name ?? "Unknown"}
                         <br />
                         {s.requested_by_phone ?? "—"}
+                      </td>
+                      <td>
+                        {s.has_confirmed_payment ? (
+                          <span className="badge text-bg-success">Payment confirmed</span>
+                        ) : (
+                          <span className="badge text-bg-warning" title="The platform admin needs to record and approve a subscription payment before this school can be approved.">
+                            Awaiting payment
+                          </span>
+                        )}
                       </td>
                       <td className="text-end">
                         <button
