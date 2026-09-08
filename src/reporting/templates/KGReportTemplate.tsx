@@ -151,40 +151,42 @@ export function KGReportTemplate({ snapshot, settings, isLastPage }: {
     <>
       {/* ---------------- Page 1: Cover + Learner Information ---------------- */}
       <ReportPage settings={settings} school={school} isLastPage={false}>
-        <div className="kg-cover-header">
-          {school.districtLogoDataUrl && (
-            <img src={school.districtLogoDataUrl} alt="" className="district-logo" />
-          )}
-          <div className="district-name">
-            {school.district || "District"}
-            {school.region && <span className="region">{school.region} Region</span>}
+        {/* Letterhead row - district seal + wordmark on the left, the
+            school's own logo slot on the right, matching the physical
+            office letterhead this was modelled on. */}
+        <div className="kg-cover-letterhead">
+          <div className="kg-cover-district">
+            {school.districtLogoDataUrl && (
+              <img src={school.districtLogoDataUrl} alt="" className="district-logo" />
+            )}
+            <div className="wordmark">
+              {school.district || "District"}
+              {school.region && <span className="region">{school.region} Region</span>}
+            </div>
           </div>
+          <div className="kg-cover-school-logo-box">
+            {school.logoDataUrl ? (
+              <img src={school.logoDataUrl} alt="" />
+            ) : (
+              <span className="placeholder">School Logo</span>
+            )}
+          </div>
+        </div>
+
+        <div className="kg-cover-titles">
           <div className="form-title">Kindergarten Learner's Report</div>
           <div className="form-subtitle">
             {student.levelName} &middot; {term.termName}, {term.academicYearLabel}
           </div>
         </div>
 
-        <div className="kg-cover-photo-row">
-          <div className="photo-slot">
-            <div className="kg-cover-school-logo">
-              {school.logoDataUrl ? (
-                <img src={school.logoDataUrl} alt="" />
-              ) : (
-                <span className="text-muted small">Logo</span>
-              )}
-            </div>
-            <span className="caption">School logo</span>
-          </div>
-          <div className="photo-slot">
-            <div className="kg-cover-learner-photo">
-              {student.photoDataUrl ? (
-                <img src={student.photoDataUrl} alt="" />
-              ) : (
-                <span className="placeholder">{initialsOf(student.fullName)}</span>
-              )}
-            </div>
-            <span className="caption">Learner's photo</span>
+        <div className="kg-cover-photo-centered">
+          <div className="kg-cover-learner-photo">
+            {student.photoDataUrl ? (
+              <img src={student.photoDataUrl} alt="" />
+            ) : (
+              <span className="placeholder">{initialsOf(student.fullName)}</span>
+            )}
           </div>
         </div>
 

@@ -171,8 +171,8 @@
 .actrs-report-info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 3px 24px;
-  font-size: 0.92em;
+  gap: 5px 24px;
+  font-size: 1.05em;
   margin-bottom: 10px;
   align-content: start;
   flex: 1;
@@ -180,7 +180,7 @@
   border: 1px solid #e3e8ee;
   border-left: 3px solid var(--report-primary);
   border-radius: 4px;
-  padding: 8px 12px;
+  padding: 10px 14px;
 }
 
 .actrs-report-student-block .actrs-report-info-grid {
@@ -343,10 +343,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 0.82em;
+  font-size: 0.95em;
   border: 1px solid #dbe1e8;
   border-radius: 5px;
-  padding: 7px 11px;
+  padding: 8px 12px;
   margin-bottom: 10px;
   background: #f7f9fc;
 }
@@ -439,84 +439,64 @@
  * classes below.
  * --------------------------------------------------------------------- */
 
-.kg-cover-header {
+/* Letterhead row: district seal + wordmark on the left, a slot for
+   the school's own logo on the right - mirrors the physical office
+   letterhead (seal + printed directorate name side by side) the
+   school sent as the target layout, with the school logo slot added
+   to the same row rather than stacked below the title. */
+.kg-cover-letterhead {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  padding-top: 6mm;
-  margin-bottom: 10mm;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 4mm;
+  margin-bottom: 6mm;
 }
 
-.kg-cover-header .district-logo {
-  width: 92px;
-  height: 92px;
+.kg-cover-district {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.kg-cover-district .district-logo {
+  width: 100px;
+  height: 100px;
   object-fit: contain;
-  margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
-.kg-cover-header .district-name {
+.kg-cover-district .wordmark {
+  border-left: 3px solid #1a1a1a;
+  padding-left: 14px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  font-size: 1.28em;
+  line-height: 1.22;
+  letter-spacing: 0.01em;
   text-transform: uppercase;
-  font-size: 1.05em;
-  color: var(--report-primary);
+  color: #202733;
 }
 
-.kg-cover-header .district-name .region {
+.kg-cover-district .wordmark .region {
   display: block;
+  border: none;
+  padding: 0;
   font-weight: 500;
   text-transform: none;
   letter-spacing: normal;
-  font-size: 0.78em;
-  color: #5c6774;
-  margin-top: 1px;
-}
-
-.kg-cover-header .form-title {
-  margin-top: 10px;
-  font-family: Georgia, "Cambria", "Times New Roman", serif;
-  font-weight: 700;
-  font-size: 1.5em;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--report-secondary);
-}
-
-.kg-cover-header .form-subtitle {
-  font-size: 0.86em;
+  font-size: 0.62em;
   color: #3d4652;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
-.kg-cover-photo-row {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 26px;
-  margin: 8mm 0 6mm;
-}
-
-.kg-cover-photo-row .photo-slot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.kg-cover-photo-row .photo-slot .caption {
-  font-size: 0.72em;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #5c6674;
-  font-weight: 700;
-}
-
-.kg-cover-school-logo {
-  width: 78px;
-  height: 78px;
-  border-radius: 50%;
+.kg-cover-school-logo-box {
+  width: 118px;
+  height: 118px;
+  flex-shrink: 0;
   border: 2px solid var(--report-secondary);
+  border-radius: 10px;
   background: #fff;
   overflow: hidden;
   display: flex;
@@ -525,15 +505,51 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
-.kg-cover-school-logo img {
+.kg-cover-school-logo-box img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
+.kg-cover-school-logo-box .placeholder {
+  font-size: 0.78em;
+  font-weight: 700;
+  color: var(--report-secondary);
+  opacity: 0.55;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kg-cover-titles {
+  text-align: center;
+  margin-bottom: 7mm;
+}
+
+.kg-cover-titles .form-title {
+  font-family: Georgia, "Cambria", "Times New Roman", serif;
+  font-weight: 700;
+  font-size: 1.55em;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--report-secondary);
+}
+
+.kg-cover-titles .form-subtitle {
+  font-size: 0.95em;
+  color: #3d4652;
+  margin-top: 3px;
+}
+
+.kg-cover-photo-centered {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 6mm;
+}
+
 .kg-cover-learner-photo {
-  width: 128px;
-  height: 154px;
+  width: 160px;
+  height: 192px;
   border: 3px solid var(--report-primary);
   border-radius: 8px;
   background: #eef1f5;
@@ -551,7 +567,7 @@
 }
 
 .kg-cover-learner-photo .placeholder {
-  font-size: 2.6em;
+  font-size: 3em;
   font-weight: 800;
   color: var(--report-primary);
   opacity: 0.3;
@@ -561,32 +577,25 @@
 .kg-cover-learner-name {
   text-align: center;
   font-weight: 800;
-  font-size: 1.3em;
-  color: var(--report-primary);
+  font-size: 1.5em;
+  color: var(--report-secondary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin-bottom: 8mm;
 }
 
-.kg-cover-info-grid {
-  max-width: 420px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 5px 12px;
-  font-size: 0.92em;
-  background: #f8fafc;
-  border: 1px solid #e3e8ee;
-  border-radius: 6px;
-  padding: 10px 16px;
-}
-
-.kg-cover-info-grid .label {
-  font-weight: 700;
-  color: #3d4652;
-}
-
 /* ---------- KG skill table: Gold / Silver / Bronze checkmark columns --------- */
+
+.kg-skill-table {
+  font-size: 1.08em;
+}
+
+.kg-skill-table th,
+.kg-skill-table td {
+  padding: 6px 8px;
+}
 
 .kg-skill-table th.col-skill,
 .kg-skill-table td.col-skill {
@@ -596,7 +605,7 @@
 
 .kg-skill-table th.col-rating,
 .kg-skill-table td.col-rating {
-  width: 58px;
+  width: 62px;
 }
 
 .kg-skill-table th.col-comment {
@@ -607,14 +616,14 @@
 .kg-skill-table td.col-comment {
   width: 22%;
   text-align: left;
-  font-size: 0.94em;
+  font-size: 1em;
   color: #333c48;
 }
 
 .kg-skill-table td.col-rating .check {
   display: inline-block;
   font-weight: 900;
-  font-size: 1.15em;
+  font-size: 1.25em;
   line-height: 1;
 }
 
@@ -631,7 +640,7 @@
 }
 
 .kg-skill-table td.col-status {
-  font-size: 0.82em;
+  font-size: 0.92em;
   font-style: italic;
   color: #5c6674;
 }
