@@ -7,7 +7,7 @@
  * submitted/reviewed it) or a role check the browser can't be trusted
  * to enforce itself.
  */
-import { rest } from "@/lib/supabaseClient";
+import { rest, edgeFunctions } from "@/lib/supabaseClient";
 import type { SubscriptionPaymentRow, SubscriptionPaymentMethod, SchoolSubscriptionOverviewRow, SchoolRow } from "@/types/database";
 
 export interface SubmitSubscriptionPaymentInput {
@@ -104,6 +104,20 @@ class CloudSubscriptionServiceImpl {
       p_public_rate: publicRate,
       p_private_rate: privateRate,
     });
+  }
+
+  /** Called right after Paystack's own popup (Inline JS Popup V2, see
+   *  CloudSubscriptionStatus.tsx) reports success - that report alone
+   *  is never trusted, so this hands the reference to the
+   *  paystack-verify-transaction Edge Function, which re-checks it
+   *  directly against Paystack's servers with the secret key before
+   *  recording anything. */
+  async verifyPaystackPayment(reference: string, termId: string): Promise<SubscriptionPaymentRow> {
+    const result = await edgeFunctions.invoke<{ payment: SubscriptionPaymentRow }>("paystack-verify-transaction", {
+      reference,
+      termId,
+    });
+    return result.payment;
   }
 }
 

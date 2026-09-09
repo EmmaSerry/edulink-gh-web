@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
 import { CloudSubscriptionService } from "@services/cloud/SubscriptionService";
 import { CloudTermService } from "@services/cloud/TermService";
 import type { SchoolRow, SubscriptionPaymentRow, SubscriptionPaymentMethod, TermRow } from "@/types/database";
+
+const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
 
 const METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {
   cash: "Cash",
@@ -40,6 +43,7 @@ function formatDate(iso: string | null): string {
  * platform_admin have no single school to report a payment for).
  */
 export function CloudSubscriptionStatus() {
+  const { session } = useCloudAuth();
   const [school, setSchool] = useState<SchoolRow | null>(null);
   const [payments, setPayments] = useState<SubscriptionPaymentRow[] | null>(null);
   const [terms, setTerms] = useState<TermRow[]>([]);
@@ -53,6 +57,10 @@ export function CloudSubscriptionStatus() {
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  const [payingOnline, setPayingOnline] = useState(false);
+  const [paystackError, setPaystackError] = useState<string | null>(null);
+  const [paystackSuccess, setPaystackSuccess] = useState<string | null>(null);
 
   function load() {
     CloudSchoolService.getProfile()
@@ -110,6 +118,58 @@ export function CloudSubscriptionStatus() {
     }
   }
 
+  function handlePaystackPay() {
+    setPaystackError(null);
+    setPaystackSuccess(null);
+    if (!school) return;
+    if (school.subscription_price_per_term == null) {
+      setPaystackError("No subscription rate has been set for your school yet. Contact the platform admin.");
+      return;
+    }
+    if (!termId) {
+      setPaystackError("Select which term you're paying for first.");
+      return;
+    }
+    if (!session?.user.email) {
+      setPaystackError("Could not determine your login email - please sign in again.");
+      return;
+    }
+    if (!PAYSTACK_PUBLIC_KEY) {
+      setPaystackError("Online payment isn't configured yet - report a payment below instead, or ask your platform admin.");
+      return;
+    }
+
+    const popup = new PaystackPop();
+    popup.newTransaction({
+      key: PAYSTACK_PUBLIC_KEY,
+      email: session.user.email,
+      amount: Math.round(school.subscription_price_per_term * 100),
+      currency: "GHS",
+      metadata: { schoolId: school.id, termId, schoolName: school.name },
+      onSuccess: (transaction) => {
+        setPayingOnline(true);
+        CloudSubscriptionService.verifyPaystackPayment(transaction.reference, termId)
+          .then(() => {
+            setPaystackSuccess("Payment verified - your subscription is now active.");
+            load();
+          })
+          .catch((err) => {
+            setPaystackError(
+              (err instanceof Error ? err.message : "Could not confirm this payment.") +
+                ` If this doesn't resolve, contact the platform admin with reference ${transaction.reference}.`
+            );
+          })
+          .finally(() => {
+            setPayingOnline(false);
+            window.setTimeout(() => setPaystackSuccess(null), 8000);
+          });
+      },
+      onCancel: () => {
+        // User closed the popup without paying - nothing to do.
+      },
+    });
+  }
+
   if (loadError) return <div className="alert alert-danger">{loadError}</div>;
   if (school === null || payments === null) return <p className="text-muted">Loading…</p>;
 
@@ -145,6 +205,46 @@ export function CloudSubscriptionStatus() {
           <div className="col-sm-4">
             <div className="text-muted small mb-1">Renews / expires</div>
             <div className="fw-semibold">{formatDate(school.subscription_expires_at)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="actrs-card p-3 mb-4">
+        <h2 className="h6 fw-bold mb-3">Pay online (Paystack)</h2>
+        <p className="text-muted small mb-3">
+          Pay instantly by card or mobile money through Paystack - your subscription activates as soon as the
+          payment is verified, no waiting for approval.
+        </p>
+        {paystackSuccess && <div className="alert alert-success py-2 small">{paystackSuccess}</div>}
+        {paystackError && <div className="alert alert-danger py-2 small">{paystackError}</div>}
+        <div className="row g-2 align-items-end">
+          <div className="col-sm-4">
+            <label className="form-label small">Term to pay for</label>
+            <select className="form-select form-select-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
+              <option value="">Select a term…</option>
+              {terms.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.term_name}
+                  {t.is_active ? " (current)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="col-sm-4">
+            <div className="text-muted small mb-1">Amount</div>
+            <div className="fw-semibold">
+              {school.subscription_price_per_term != null ? money(school.subscription_price_per_term) : "Rate not set yet"}
+            </div>
+          </div>
+          <div className="col-sm-4">
+            <button
+              type="button"
+              className="btn btn-success btn-sm w-100"
+              disabled={payingOnline || school.subscription_price_per_term == null}
+              onClick={handlePaystackPay}
+            >
+              {payingOnline ? "Verifying…" : "Pay with Paystack"}
+            </button>
           </div>
         </div>
       </div>
