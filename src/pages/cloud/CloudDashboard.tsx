@@ -24,7 +24,14 @@ export function CloudDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([CloudSchoolService.getProfile(), CloudStudentService.list()])
+    // A district_admin/platform_admin has no single school of their own
+    // - RLS lets them read EVERY school, so calling getProfile() (a
+    // bare "give me a school row" with no filter) for one of them
+    // would return an arbitrary row from the whole table, not "their"
+    // school. Only ever ask for a school when the signed-in profile
+    // actually has one.
+    const schoolPromise = profile?.school_id ? CloudSchoolService.getProfile() : Promise.resolve(null);
+    Promise.all([schoolPromise, CloudStudentService.list()])
       .then(([schoolRow, studentRows]) => {
         if (cancelled) return;
         setSchool(schoolRow);
@@ -33,7 +40,7 @@ export function CloudDashboard() {
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not load dashboard data.");
       });
-    if (profile?.role !== "district_admin") {
+    if (profile?.school_id) {
       CloudAcademicStandardsService.getForSchool()
         .then((data) => !cancelled && setStandards(data))
         .catch(() => {
@@ -44,7 +51,7 @@ export function CloudDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [profile?.role]);
+  }, [profile?.role, profile?.school_id]);
 
   const activeCount = students?.filter((s) => s.status === "ACTIVE").length ?? null;
 
@@ -70,7 +77,7 @@ export function CloudDashboard() {
               </>
             ) : (
               <div className="text-muted small">
-                {profile?.role === "district_admin" ? "District-level account (no single school)" : "Loading…"}
+                {!profile?.school_id ? "District/platform-level account (no single school)" : "Loading…"}
               </div>
             )}
           </div>

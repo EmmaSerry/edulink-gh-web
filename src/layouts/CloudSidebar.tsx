@@ -97,7 +97,11 @@ export function CloudSidebar() {
         <div className="lh-sm">
           <div className="fw-bold">EduLink GH</div>
           <div className="text-muted" style={{ fontSize: "0.7rem" }}>
-            {profile?.role === "district_admin" ? "District dashboard" : "School dashboard"}
+            {profile?.role === "platform_admin"
+              ? "Platform dashboard"
+              : profile?.role === "district_admin"
+                ? "District dashboard"
+                : "School dashboard"}
           </div>
         </div>
       </div>

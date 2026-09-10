@@ -134,17 +134,19 @@ function SummaryCard({ label, value }: { label: string; value: number | string }
 }
 
 /**
- * "Give district and system admin the right to set" the idle-session
- * timeout - see get_idle_timeout_settings() in
- * edulink_gh_phase0z_idle_timeout_and_signup_fix.sql. A district admin
- * only ever sees/edits their own district's override; a platform admin
- * additionally sees/edits the platform-wide default every district
- * without its own override falls back to. Enforcement itself lives in
- * CloudAuthContext, not here - this is just the control panel.
+ * Lets a district admin set THEIR OWN district's idle-session timeout
+ * override - see get_idle_timeout_settings() in
+ * edulink_gh_phase0z_idle_timeout_and_signup_fix.sql. The platform-wide
+ * default every district falls back to is a separate, platform_admin-
+ * only control that lives on the Super Admin Dashboard instead (see
+ * PlatformIdleTimeoutPanel in CloudSubscriptionApproval.tsx) - it has
+ * nothing to do with any one district, so it doesn't belong on this
+ * page even though a platform_admin can also open this page. Session
+ * timeout enforcement itself lives in CloudAuthContext, not here - this
+ * is just the control panel.
  */
 function SessionTimeoutPanel() {
   const [settings, setSettings] = useState<IdleTimeoutSettings | null>(null);
-  const [platformMinutes, setPlatformMinutes] = useState("");
   const [districtMinutes, setDistrictMinutes] = useState("");
   const [useDistrictOverride, setUseDistrictOverride] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -155,7 +157,6 @@ function SessionTimeoutPanel() {
     CloudDistrictService.getIdleTimeoutSettings()
       .then((s) => {
         setSettings(s);
-        setPlatformMinutes(String(s.platformDefaultMinutes));
         setUseDistrictOverride(s.districtOverrideMinutes !== null);
         setDistrictMinutes(String(s.districtOverrideMinutes ?? s.platformDefaultMinutes));
       })
@@ -189,27 +190,7 @@ function SessionTimeoutPanel() {
     }
   }
 
-  async function savePlatform(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const minutes = Number(platformMinutes);
-      if (!Number.isFinite(minutes) || minutes < 1 || minutes > 480) {
-        throw new Error("Choose a timeout between 1 and 480 minutes.");
-      }
-      await CloudDistrictService.setPlatformIdleTimeout(minutes);
-      setSuccess("Platform-wide session timeout updated.");
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update the session timeout.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!settings || (!settings.canSetDistrict && !settings.canSetPlatform)) return null;
+  if (!settings || !settings.canSetDistrict) return null;
 
   return (
     <div className="actrs-card p-4 mb-4">
@@ -251,26 +232,6 @@ function SessionTimeoutPanel() {
           </div>
           <button type="submit" className="btn btn-outline-primary btn-sm" disabled={saving}>
             {saving ? "Saving…" : "Save district timeout"}
-          </button>
-        </form>
-      )}
-
-      {settings.canSetPlatform && (
-        <form className="d-flex flex-wrap align-items-end gap-3" onSubmit={savePlatform}>
-          <div>
-            <label className="form-label small mb-1">Platform-wide default (minutes)</label>
-            <input
-              type="number"
-              min={1}
-              max={480}
-              className="form-control form-control-sm"
-              style={{ width: 100 }}
-              value={platformMinutes}
-              onChange={(e) => setPlatformMinutes(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="btn btn-outline-primary btn-sm" disabled={saving}>
-            {saving ? "Saving…" : "Save platform default"}
           </button>
         </form>
       )}

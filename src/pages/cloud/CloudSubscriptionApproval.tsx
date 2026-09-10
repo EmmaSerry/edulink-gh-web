@@ -1,7 +1,14 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CloudSubscriptionService } from "@services/cloud/SubscriptionService";
 import { CloudTermService } from "@services/cloud/TermService";
-import type { SchoolSubscriptionOverviewRow, SubscriptionPaymentRow, SubscriptionPaymentMethod, TermRow } from "@/types/database";
+import { CloudDistrictService } from "@services/cloud/DistrictService";
+import type {
+  SchoolSubscriptionOverviewRow,
+  SubscriptionPaymentRow,
+  SubscriptionPaymentMethod,
+  TermRow,
+  IdleTimeoutSettings,
+} from "@/types/database";
 
 const METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {
   cash: "Cash",
@@ -58,7 +65,7 @@ function RateCell({ row, onSaved }: { row: SchoolSubscriptionOverviewRow; onSave
     return (
       <button type="button" className="btn btn-link btn-sm p-0 text-decoration-none" onClick={() => setEditing(true)}>
         {row.subscription_price_per_term != null ? money(row.subscription_price_per_term) : "Set rate"}
-        {row.subscription_rate_is_custom && <span className="badge text-bg-light text-muted ms-1">custom</span>}
+        {row.subscription_rate_is_custom && <span className="badge text-bg-secondary ms-1">custom</span>}
       </button>
     );
   }
@@ -280,6 +287,87 @@ function RecordPaymentForm({ school, onDone }: { school: SchoolSubscriptionOverv
  * specifically Emmanuel's own call per his own request, not a
  * district_admin's.
  */
+/**
+ * The platform-wide idle-session timeout default - moved here from the
+ * District Dashboard (see CloudDistrictDashboard.tsx's
+ * SessionTimeoutPanel) because it isn't about any one district, it's a
+ * platform-wide setting, so it belongs on the platform_admin-only Super
+ * Admin Dashboard instead. Same get_idle_timeout_settings()/
+ * set_platform_idle_timeout() RPCs as before (edulink_gh_phase0z_idle_
+ * timeout_and_signup_fix.sql) - only where this control lives changed,
+ * not how it works.
+ */
+function PlatformIdleTimeoutPanel() {
+  const [settings, setSettings] = useState<IdleTimeoutSettings | null>(null);
+  const [minutes, setMinutes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  function load() {
+    CloudDistrictService.getIdleTimeoutSettings()
+      .then((s) => {
+        setSettings(s);
+        setMinutes(String(s.platformDefaultMinutes));
+      })
+      .catch(() => setSettings(null));
+  }
+
+  useEffect(load, []);
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const value = Number(minutes);
+      if (!Number.isFinite(value) || value < 1 || value > 480) {
+        throw new Error("Choose a timeout between 1 and 480 minutes.");
+      }
+      await CloudDistrictService.setPlatformIdleTimeout(value);
+      setSuccess("Platform-wide session timeout updated.");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the session timeout.");
+    } finally {
+      setSaving(false);
+      window.setTimeout(() => setSuccess(null), 6000);
+    }
+  }
+
+  if (!settings?.canSetPlatform) return null;
+
+  return (
+    <div className="actrs-card p-3 mb-4">
+      <h2 className="h6 fw-bold mb-1">Platform-wide session timeout</h2>
+      <p className="text-muted small mb-3">
+        Signs a device out automatically after this many minutes of inactivity - applies to every district that
+        hasn't set its own override. Currently <strong>{settings.effectiveMinutes} minutes</strong>.
+      </p>
+      {success && <div className="alert alert-success py-2 small">{success}</div>}
+      {error && <div className="alert alert-danger py-2 small">{error}</div>}
+      <form className="d-flex flex-wrap align-items-end gap-3" onSubmit={handleSave}>
+        <div>
+          <label className="form-label small mb-1">Minutes</label>
+          <input
+            type="number"
+            min={1}
+            max={480}
+            className="form-control form-control-sm"
+            style={{ width: 100 }}
+            value={minutes}
+            onChange={(e) => setMinutes(e.target.value)}
+          />
+        </div>
+        <button type="submit" className="btn btn-outline-primary btn-sm" disabled={saving}>
+          {saving ? "Saving…" : "Save platform default"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export function CloudSubscriptionApproval() {
   const [overview, setOverview] = useState<SchoolSubscriptionOverviewRow[] | null>(null);
   const [pending, setPending] = useState<SubscriptionPaymentRow[] | null>(null);
@@ -358,6 +446,8 @@ export function CloudSubscriptionApproval() {
 
       {actionSuccess && <div className="alert alert-success py-2">{actionSuccess}</div>}
       {actionError && <div className="alert alert-danger py-2">{actionError}</div>}
+
+      <PlatformIdleTimeoutPanel />
 
       <DefaultRatesForm
         onSaved={(updated) => {
