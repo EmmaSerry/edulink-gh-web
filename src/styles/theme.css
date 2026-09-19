@@ -30,6 +30,27 @@
  *   colour/shadow/transform smoothly (see the transition rules further
  *   down) so toggling Day/Night mode morphs between the two instead of
  *   snapping, and hovering a card/button gives it a small lift.
+ *
+ * PERFORMANCE PASS (this revision, follow-up)
+ *   A real "INP Issue" (Interaction to Next Paint) was reported after
+ *   the pass above: a button's click handler was measured blocking UI
+ *   updates for ~1.7s. Root cause is a known backdrop-filter pitfall -
+ *   several overlapping blurred glass layers (sidebar + topbar + card,
+ *   all blurring/saturating at once) sitting on top of a CONTINUOUSLY
+ *   ANIMATED background (the blob breathing animation below): every
+ *   frame of that animation forces every backdrop-filter element above
+ *   it to resample and re-blur, which is expensive, and if that's
+ *   happening while a click handler is also doing work, the click feels
+ *   sluggish. Fixes applied: blur radius and saturate() on every glass
+ *   surface brought down (still visibly glass, much cheaper to compute);
+ *   the blob animation's movement made subtler and slower so there is
+ *   less changing backdrop content to resample each frame; `contain` is
+ *   set on cards so a card updating doesn't force the browser to
+ *   re-check layout/paint outside its own box; and a
+ *   prefers-reduced-motion override turns the animations off entirely
+ *   for anyone whose OS/browser asks for reduced motion (a real
+ *   accessibility setting, and a free win for exactly the
+ *   lower-powered-device case where this kind of jank shows up most).
  */
 :root {
   --actrs-black: #05080f;
@@ -128,9 +149,11 @@ body {
    palette (blue/sea-blue/gold/navy) at low opacity so it stays
    decorative rather than distracting, and sits at z-index -1 so it
    never intercepts clicks or scroll. A slow, subtle breathing animation
-   keeps the whole scene from feeling static now that the glass above it
-   is transparent enough to make the movement visible - the "morph"
-   requested alongside the toggle transitions below. */
+   keeps the whole scene from feeling static - kept deliberately gentle
+   (small scale delta, long duration) because every glass panel above it
+   has to re-sample this layer on every frame it moves; see the
+   performance-pass note in the file header for why this is kept subtle
+   rather than removed. */
 body::before {
   content: "";
   position: fixed;
@@ -142,13 +165,14 @@ body::before {
     radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.16), transparent 42%),
     radial-gradient(circle at 15% 88%, rgba(18, 51, 99, 0.22), transparent 46%),
     var(--actrs-grey-light);
-  animation: actrsBlobBreathe 26s ease-in-out infinite;
+  animation: actrsBlobBreathe 34s ease-in-out infinite;
+  will-change: transform;
   transition: background 0.6s ease;
 }
 
 @keyframes actrsBlobBreathe {
   0%, 100% { transform: scale(1) translate(0, 0); }
-  50% { transform: scale(1.06) translate(-1.5%, 1.5%); }
+  50% { transform: scale(1.02) translate(-0.8%, 0.8%); }
 }
 
 [data-bs-theme="dark"] body::before {
@@ -160,14 +184,41 @@ body::before {
     var(--actrs-grey-light);
 }
 
+/* Anyone whose OS/browser has "reduce motion" turned on gets a fully
+   static backdrop - both a real accessibility courtesy and a free
+   performance win for exactly the lower-powered-device case where an
+   animated backdrop-filter backdrop costs the most. */
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+  .actrs-card,
+  .actrs-card:hover:not(.actrs-card-static),
+  .actrs-sidebar .nav-link,
+  .actrs-brand-mark,
+  .btn,
+  .form-control,
+  .form-select {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
 .actrs-card {
   border: 1px solid var(--actrs-glass-border);
   border-top-color: var(--actrs-glass-border-top);
   border-radius: var(--actrs-radius);
   box-shadow: var(--actrs-shadow);
   background: var(--actrs-glass);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  /* Limits how much of the page the browser has to re-check when a
+     card's own content changes (e.g. after a click triggers a
+     re-render) - it can no longer affect layout/paint outside its own
+     box, which is exactly the kind of "blocked UI update" the reported
+     INP issue was measuring. */
+  contain: layout paint style;
   transition: background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -189,8 +240,8 @@ body::before {
    without ever going invisible against it. */
 .actrs-surface {
   background-color: var(--actrs-glass) !important;
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
   color: var(--actrs-text);
   transition: background-color 0.5s ease, color 0.5s ease;
 }
@@ -204,10 +255,12 @@ body::before {
      glass rather than a flat gradient fill. Opacity brought down
      alongside every other glass surface in this pass - still solid
      enough for the white nav text to stay legible, but noticeably more
-     see-through than before. */
+     see-through than before. Blur radius kept modest (see the
+     performance-pass note above) since the sidebar is one of the
+     largest, longest-lived blurred layers on the page. */
   background: linear-gradient(180deg, rgba(11, 26, 48, 0.58) 0%, rgba(18, 51, 99, 0.54) 55%, rgba(14, 165, 196, 0.5) 100%);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
   color: #fff;
   min-height: 100vh;
   transition: background 0.5s ease;
@@ -247,8 +300,8 @@ body::before {
 
 .actrs-topbar {
   background: var(--actrs-glass);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
   border-bottom: 1px solid var(--actrs-glass-border);
   position: relative;
   transition: background-color 0.5s ease, border-color 0.5s ease;
@@ -323,7 +376,9 @@ body::before {
 
 /* Every button gets a small spring-loaded press: lifts slightly on
    hover, settles back down (and a touch smaller) on click - a "morph",
-   not just a colour swap, so the app feels responsive to the touch. */
+   not just a colour swap, so the app feels responsive to the touch.
+   None of this touches backdrop-filter, so it stays cheap regardless of
+   the glass-performance notes above. */
 .btn {
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease;
 }
@@ -340,7 +395,8 @@ body::before {
    top-left, shadow to the bottom-right) on a base colour close to the
    page background. Left checkboxes/radios and Bootstrap's own small
    utility inputs alone - the carved-in effect only reads well on inputs
-   large enough to show it. */
+   large enough to show it. Inset box-shadow is not a backdrop-filter, so
+   this styling has no bearing on the blur-performance notes above. */
 .form-control,
 .form-select,
 textarea.form-control {
@@ -388,7 +444,10 @@ textarea.form-control {
    above (its own .actrs-grid-cell-input rule wins by being more
    specific) and from the card hover-lift (marked static below) - a
    large scrolling grid bobbing on hover, or every cell looking carved
-   in, would make it harder to read quickly, not nicer to look at. */
+   in, would make it harder to read quickly, not nicer to look at. Also
+   deliberately opaque and backdrop-filter-free, both for legibility
+   while scrolling and because a grid with many rows is exactly the
+   place a blurred backdrop would be most expensive to keep resampled. */
 .actrs-grid-scroll {
   overflow: auto;
   max-height: 70vh;
