@@ -10,6 +10,26 @@
  * active / this matters right now" signals (the current nav item, the
  * topbar's accent line) rather than being spread across the whole UI -
  * a little goes a long way before it stops looking professional.
+ *
+ * GLASSMORPHISM + NEOMORPHISM PASS (this revision)
+ *   Two things changed on top of the original glass tokens below, both
+ *   requested directly: (1) --actrs-glass is now MUCH more transparent
+ *   ("90% will do") - down from opacity 0.62/0.58 to roughly 0.30/0.12 -
+ *   so the blurred blob backdrop shows through far more strongly. Light
+ *   mode stays a little higher than a literal 10% fill on purpose: white
+ *   glass at 10% opacity over an almost-white page (--actrs-grey-light)
+ *   has nothing to contrast against and the card boundary disappears
+ *   entirely - the border/shadow/blur alone can't carry it. This exact
+ *   pair of values (not a flat 90% in both themes) is what was already
+ *   previewed and approved. (2) every form input/select now gets a
+ *   neomorphic "soft embossed" treatment (--actrs-neo-* tokens below)
+ *   instead of Bootstrap's flat default - a carved-in look via a pair of
+ *   opposing inset shadows, on the same base surface colour so it reads
+ *   as "pressed into" the page rather than "sitting on" it. Cards, the
+ *   topbar, the sidebar, buttons and inputs also now transition their
+ *   colour/shadow/transform smoothly (see the transition rules further
+ *   down) so toggling Day/Night mode morphs between the two instead of
+ *   snapping, and hovering a card/button gives it a small lift.
  */
 :root {
   --actrs-black: #05080f;
@@ -42,9 +62,20 @@
      column would smear into the scrolling cells. Everything else
      "raised" (cards, the topbar) uses these instead, semi-transparent +
      blurred over the blob background below, so the frosted-glass effect
-     actually has something colourful behind it to blur. */
-  --actrs-glass: rgba(255, 255, 255, 0.62);
-  --actrs-glass-border: rgba(255, 255, 255, 0.5);
+     actually has something colourful behind it to blur. Values below
+     are the "~90% transparent" pass - see the file header comment. */
+  --actrs-glass: rgba(255, 255, 255, 0.3);
+  --actrs-glass-border: rgba(17, 24, 39, 0.1);
+  --actrs-glass-border-top: rgba(255, 255, 255, 0.85);
+
+  /* Neomorphism tokens - a soft "carved into the page" look for form
+     inputs/selects. Needs a base colour close to the page background
+     (not white, or the embossed shadow pair reads as a hard box instead
+     of a soft dent) plus a light/dark shadow pair simulating one light
+     source from the top-left. */
+  --actrs-neo-base: #eef1f6;
+  --actrs-neo-shadow-dark: rgba(148, 163, 184, 0.55);
+  --actrs-neo-shadow-light: rgba(255, 255, 255, 0.95);
 
   --actrs-gradient-chrome: linear-gradient(180deg, var(--actrs-blue-black) 0%, var(--actrs-navy) 55%, var(--actrs-seablue) 100%);
   --actrs-gradient-accent: linear-gradient(90deg, var(--actrs-blue) 0%, var(--actrs-seablue) 60%, var(--actrs-yellow) 100%);
@@ -70,8 +101,12 @@
   --bs-body-bg: #0c0f13;
   --actrs-surface: #161d29;
   --actrs-blue-light: #16283d;
-  --actrs-glass: rgba(22, 29, 41, 0.58);
-  --actrs-glass-border: rgba(255, 255, 255, 0.08);
+  --actrs-glass: rgba(22, 29, 41, 0.14);
+  --actrs-glass-border: rgba(255, 255, 255, 0.14);
+  --actrs-glass-border-top: rgba(255, 255, 255, 0.26);
+  --actrs-neo-base: #141a2b;
+  --actrs-neo-shadow-dark: rgba(0, 0, 0, 0.55);
+  --actrs-neo-shadow-light: rgba(255, 255, 255, 0.04);
 }
 
 body {
@@ -92,11 +127,14 @@ body {
    flat single-colour background is invisible). Uses the app's own
    palette (blue/sea-blue/gold/navy) at low opacity so it stays
    decorative rather than distracting, and sits at z-index -1 so it
-   never intercepts clicks or scroll. */
+   never intercepts clicks or scroll. A slow, subtle breathing animation
+   keeps the whole scene from feeling static now that the glass above it
+   is transparent enough to make the movement visible - the "morph"
+   requested alongside the toggle transitions below. */
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: -10%;
   z-index: -1;
   background:
     radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.32), transparent 42%),
@@ -104,24 +142,42 @@ body::before {
     radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.16), transparent 42%),
     radial-gradient(circle at 15% 88%, rgba(18, 51, 99, 0.22), transparent 46%),
     var(--actrs-grey-light);
+  animation: actrsBlobBreathe 26s ease-in-out infinite;
+  transition: background 0.6s ease;
+}
+
+@keyframes actrsBlobBreathe {
+  0%, 100% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.06) translate(-1.5%, 1.5%); }
 }
 
 [data-bs-theme="dark"] body::before {
   background:
-    radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.22), transparent 42%),
-    radial-gradient(circle at 88% 12%, rgba(14, 165, 196, 0.2), transparent 46%),
-    radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.1), transparent 42%),
-    radial-gradient(circle at 15% 88%, rgba(31, 111, 235, 0.16), transparent 46%),
+    radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.3), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(14, 165, 196, 0.26), transparent 46%),
+    radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.14), transparent 42%),
+    radial-gradient(circle at 15% 88%, rgba(31, 111, 235, 0.22), transparent 46%),
     var(--actrs-grey-light);
 }
 
 .actrs-card {
   border: 1px solid var(--actrs-glass-border);
+  border-top-color: var(--actrs-glass-border-top);
   border-radius: var(--actrs-radius);
   box-shadow: var(--actrs-shadow);
   background: var(--actrs-glass);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  transition: background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* A gentle lift on hover - cards should feel like panes of glass you
+   can nudge, not flat rectangles. Skipped for anything explicitly
+   marked static (the assessment/skill grid's own cards, which scroll
+   internally and shouldn't visually bob about). */
+.actrs-card:hover:not(.actrs-card-static) {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(11, 26, 48, 0.16);
 }
 
 /* Shared "raised surface" treatment for anything that used to hardcode
@@ -133,9 +189,10 @@ body::before {
    without ever going invisible against it. */
 .actrs-surface {
   background-color: var(--actrs-glass) !important;
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   color: var(--actrs-text);
+  transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 .actrs-sidebar {
@@ -144,12 +201,16 @@ body::before {
      fully solid gradient is still the right choice anywhere else it
      might get used later) - slightly translucent stops plus a blur of
      whatever's behind it, so the sidebar reads as coloured frosted
-     glass rather than a flat gradient fill. */
-  background: linear-gradient(180deg, rgba(11, 26, 48, 0.92) 0%, rgba(18, 51, 99, 0.9) 55%, rgba(14, 165, 196, 0.88) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+     glass rather than a flat gradient fill. Opacity brought down
+     alongside every other glass surface in this pass - still solid
+     enough for the white nav text to stay legible, but noticeably more
+     see-through than before. */
+  background: linear-gradient(180deg, rgba(11, 26, 48, 0.58) 0%, rgba(18, 51, 99, 0.54) 55%, rgba(14, 165, 196, 0.5) 100%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
   color: #fff;
   min-height: 100vh;
+  transition: background 0.5s ease;
 }
 
 /* The sidebar is always dark-styled regardless of Day/Night mode (by
@@ -169,12 +230,13 @@ body::before {
   margin: 2px 8px;
   padding: 0.55rem 0.9rem;
   border-left: 3px solid transparent;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.2s ease;
 }
 
 .actrs-sidebar .nav-link:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
+  transform: translateX(3px);
 }
 
 .actrs-sidebar .nav-link.active {
@@ -185,10 +247,11 @@ body::before {
 
 .actrs-topbar {
   background: var(--actrs-glass);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border-bottom: 1px solid var(--actrs-glass-border);
   position: relative;
+  transition: background-color 0.5s ease, border-color 0.5s ease;
 }
 
 /* A thin gradient accent line under the topbar - the "flashy" touch
@@ -214,6 +277,11 @@ body::before {
   align-items: center;
   justify-content: center;
   font-weight: 700;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.actrs-brand-mark:hover {
+  transform: rotate(-6deg) scale(1.08);
 }
 
 .actrs-phase-badge {
@@ -253,6 +321,55 @@ body::before {
   opacity: 0.55;
 }
 
+/* Every button gets a small spring-loaded press: lifts slightly on
+   hover, settles back down (and a touch smaller) on click - a "morph",
+   not just a colour swap, so the app feels responsive to the touch. */
+.btn {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease;
+}
+.btn:hover {
+  transform: translateY(-2px);
+}
+.btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* Neomorphism pass: every text/number/date input, textarea and select
+   gets a soft "pressed into the page" look instead of Bootstrap's flat
+   bordered box - a pair of opposing inset shadows (light from the
+   top-left, shadow to the bottom-right) on a base colour close to the
+   page background. Left checkboxes/radios and Bootstrap's own small
+   utility inputs alone - the carved-in effect only reads well on inputs
+   large enough to show it. */
+.form-control,
+.form-select,
+textarea.form-control {
+  background-color: var(--actrs-neo-base);
+  border: 1px solid transparent;
+  box-shadow: inset 3px 3px 6px var(--actrs-neo-shadow-dark), inset -3px -3px 6px var(--actrs-neo-shadow-light);
+  color: var(--actrs-text);
+  transition: background-color 0.5s ease, box-shadow 0.3s ease, color 0.5s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--actrs-neo-base);
+  color: var(--actrs-text);
+  box-shadow: inset 4px 4px 8px var(--actrs-neo-shadow-dark), inset -4px -4px 8px var(--actrs-neo-shadow-light), 0 0 0 2px var(--actrs-seablue);
+  border-color: transparent;
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  background-color: var(--actrs-neo-base);
+  opacity: 0.6;
+  box-shadow: inset 2px 2px 4px var(--actrs-neo-shadow-dark), inset -2px -2px 4px var(--actrs-neo-shadow-light);
+}
+
+.form-control::placeholder {
+  color: var(--actrs-text-muted);
+}
+
 /* Print styles - used by the Class Register (Module 12) and future
    report-card printing. Anything marked .no-print (filters, nav,
    action buttons) is hidden when the browser's print dialog is used. */
@@ -267,7 +384,11 @@ body::before {
 /* Assessment score-entry / KG skill grids (Phase 3, Modules 2 & 8) -
    Excel-like sticky headers + frozen first column so a teacher scrolling
    through many subjects/skills never loses track of which student's row
-   they're on. */
+   they're on. Deliberately excluded from the neomorphic input treatment
+   above (its own .actrs-grid-cell-input rule wins by being more
+   specific) and from the card hover-lift (marked static below) - a
+   large scrolling grid bobbing on hover, or every cell looking carved
+   in, would make it harder to read quickly, not nicer to look at. */
 .actrs-grid-scroll {
   overflow: auto;
   max-height: 70vh;
@@ -320,6 +441,7 @@ body::before {
   padding: 2px 4px;
   background: transparent;
   color: var(--actrs-text);
+  box-shadow: none;
 }
 
 .actrs-grid-cell-input:focus {
