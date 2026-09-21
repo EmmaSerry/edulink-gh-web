@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CloudStudentService } from "@services/cloud/StudentService";
-import { EmptyState } from "@components/EmptyState";
+import { ListEmptyState } from "@components/ListEmptyState";
 import type { StudentRow } from "@/types/database";
 
 function fullNameOf(s: StudentRow): string {
@@ -116,7 +116,7 @@ export function CloudStudents() {
                 <tr>
                   <td colSpan={6} className="p-0">
                     {students.length === 0 ? (
-                      <EmptyState
+                      <ListEmptyState
                         title="No students registered yet"
                         body="Once you register a student, they'll show up here with their photo, ID and status."
                         action={
@@ -127,7 +127,7 @@ export function CloudStudents() {
                         }
                       />
                     ) : (
-                      <EmptyState title="No students match your search" body="Try a different name or student ID." />
+                      <ListEmptyState title="No students match your search" body="Try a different name or student ID." />
                     )}
                   </td>
                 </tr>
