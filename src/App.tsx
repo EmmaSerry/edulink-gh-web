@@ -10,6 +10,7 @@ import { CloudStudentEdit } from "@pages/cloud/CloudStudentEdit";
 import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace";
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudBatchReportGeneration } from "@pages/cloud/CloudBatchReportGeneration";
+import { CloudSampleReportPreview } from "@pages/cloud/CloudSampleReportPreview";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
@@ -21,6 +22,7 @@ import { CloudSmsToParents } from "@pages/cloud/CloudSmsToParents";
 import { CloudFees } from "@pages/cloud/CloudFees";
 import { CloudSubscriptionApproval } from "@pages/cloud/CloudSubscriptionApproval";
 import { CloudSubscriptionStatus } from "@pages/cloud/CloudSubscriptionStatus";
+import { CloudTrainingAdmin } from "@pages/cloud/CloudTrainingAdmin";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -72,6 +74,14 @@ export default function App() {
           <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
           <Route path="/reports" element={<CloudReportView />} />
           <Route path="/reports/batch" element={<CloudBatchReportGeneration />} />
+          <Route
+            path="/reports/sample"
+            element={
+              <RequireAdmin roles="reportSample">
+                <CloudSampleReportPreview />
+              </RequireAdmin>
+            }
+          />
           <Route
             path="/settings"
             element={
@@ -134,6 +144,14 @@ export default function App() {
             element={
               <RequireAdmin roles="subscription">
                 <CloudSubscriptionStatus />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/training"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudTrainingAdmin />
               </RequireAdmin>
             }
           />

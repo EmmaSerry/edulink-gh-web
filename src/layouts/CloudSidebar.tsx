@@ -10,6 +10,9 @@ const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin
 // Narrower than DISTRICT_ADMIN_ROLES - see RequireAdmin.tsx.
 const PLATFORM_ADMIN_ROLES: UserRole[] = ["platform_admin"];
 const SUBSCRIPTION_SUBMIT_ROLES: UserRole[] = ["school_admin", "bursar"];
+// Same four roles as FEE_MANAGER_ROLES today, kept as its own constant
+// for the same reason RequireAdmin.tsx does - see that file's comment.
+const REPORT_SAMPLE_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin", "platform_admin"];
 
 interface NavItem {
   path: string;
@@ -34,6 +37,10 @@ interface NavItem {
    *  subscription payment. district_admin/platform_admin have no
    *  single school for this to mean anything. */
   subscriptionOnly?: boolean;
+  /** Only bursar/school_admin/district_admin/platform_admin - the
+   *  Sample report preview screen. Not shown to teacher, who already
+   *  has real students/reports to check via Reports. */
+  reportSampleOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -45,10 +52,12 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
+  { path: "/reports/sample", label: "Sample report", icon: "bi-file-earmark-ruled", reportSampleOnly: true },
   { path: "/sms", label: "SMS to parents", icon: "bi-chat-dots" },
   { path: "/fees", label: "Fees", icon: "bi-cash-coin", feesOnly: true },
   { path: "/subscription", label: "Subscription", icon: "bi-credit-card", subscriptionOnly: true },
   { path: "/billing", label: "Super Admin", icon: "bi-shield-lock", platformOnly: true },
+  { path: "/training", label: "Training environment", icon: "bi-mortarboard", platformOnly: true },
   { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
   { path: "/settings", label: "Settings", icon: "bi-gear", adminOnly: true },
 ];
@@ -58,6 +67,7 @@ export function CloudSidebar() {
   const isSchoolAdmin = !!profile && SCHOOL_ADMIN_ROLES.includes(profile.role);
   const isDistrictAdmin = !!profile && DISTRICT_ADMIN_ROLES.includes(profile.role);
   const isFeeManager = !!profile && FEE_MANAGER_ROLES.includes(profile.role);
+  const isReportSampleRole = !!profile && REPORT_SAMPLE_ROLES.includes(profile.role);
 
   // Only a school_admin/bursar's own school needs checking - a
   // district_admin/platform_admin has no single school in the sidebar
@@ -81,6 +91,7 @@ export function CloudSidebar() {
     if (item.districtOnly) return isDistrictAdmin;
     if (item.platformOnly) return isPlatformAdmin;
     if (item.subscriptionOnly) return isSubscriptionSubmitter;
+    if (item.reportSampleOnly) return isReportSampleRole;
     if (item.feesOnly) {
       if (!isFeeManager) return false;
       if (["school_admin", "bursar"].includes(profile?.role ?? "")) return schoolIsPrivate !== false;

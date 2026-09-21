@@ -49,13 +49,18 @@ function SubjectLevelGrid({ stats }: { stats: SubjectLevelStat[] }) {
     return <p className="text-muted small mb-0">No subject scores recorded for the current term yet.</p>;
   }
 
+  // A class-scoped panel only ever has one level group present - skip
+  // the "which level group is this" heading in that case, it would
+  // just be repeating the panel's own subtitle for no reason.
+  const showGroupHeading = groupsPresent.length > 1;
+
   return (
     <div className="row g-3">
       {groupsPresent.map((group) => {
         const rows = [...(byGroup.get(group) ?? [])].sort((a, b) => a.subject_name.localeCompare(b.subject_name));
         return (
-          <div className="col-md-6" key={group}>
-            <div className="fw-semibold small mb-2">{LEVEL_GROUP_LABEL[group]}</div>
+          <div className={showGroupHeading ? "col-md-6" : "col-12"} key={group}>
+            {showGroupHeading && <div className="fw-semibold small mb-2">{LEVEL_GROUP_LABEL[group]}</div>}
             <div className="d-flex flex-column gap-2">
               {rows.map((r) => (
                 <div key={r.subject_name}>
@@ -117,17 +122,29 @@ export function AcademicStandardsPanel({
   subjectLevelStats,
   kgSkillStats,
   termName,
+  title = "Academic standards",
+  subtitle,
 }: {
   subjectLevelStats: SubjectLevelStat[];
   kgSkillStats: KgSkillStat[];
   termName?: string | null;
+  /** Lets a caller relabel this for a narrower scope - e.g. a teacher's
+   *  own class - without duplicating the whole panel. Defaults to the
+   *  original school/district-wide heading so every existing caller is
+   *  unaffected. */
+  title?: string;
+  /** Small muted line under the title - e.g. a class name - shown
+   *  alongside the existing term-name badge on the right. */
+  subtitle?: string | null;
 }) {
   return (
     <div className="actrs-card p-3 mb-4">
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <h2 className="h6 mb-0">Academic standards</h2>
+      <div className="d-flex align-items-center justify-content-between mb-1">
+        <h2 className="h6 mb-0">{title}</h2>
         {termName && <span className="text-muted small">{termName}</span>}
       </div>
+      {subtitle && <p className="text-muted small mb-3">{subtitle}</p>}
+      <div className={subtitle ? "" : "mb-3"} />
       <SubjectLevelGrid stats={subjectLevelStats} />
       <KgBreakdown stats={kgSkillStats} />
     </div>

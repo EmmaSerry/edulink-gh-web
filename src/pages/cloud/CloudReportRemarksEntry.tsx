@@ -9,6 +9,13 @@ import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudReportRecordService } from "@services/cloud/ReportRecordService";
 import { CloudAssessmentSessionService } from "@services/cloud/AssessmentSessionService";
 import { KG_GENERAL_COMMENT_BANK } from "@/constants/kgCommentBank";
+import {
+  CONDUCT_COMMENT_BANK,
+  INTEREST_COMMENT_BANK,
+  ATTITUDE_COMMENT_BANK,
+  CLASS_TEACHER_REMARK_BANK,
+  HEADTEACHER_REMARK_BANK,
+} from "@/constants/scoredRemarkCommentBanks";
 import type { TermRow, ClassRow, LevelRow, StudentRow, ReportRecordRow, SchoolRow } from "@/types/database";
 
 function fullNameOf(s: StudentRow): string {
@@ -77,6 +84,50 @@ function SaveButton({ state, onClick }: { state: SaveState; onClick: () => void 
   );
 }
 
+/** A quick-fill dropdown stacked above a free-text input - selecting an
+ *  option copies it into the field below, which stays a normal text
+ *  input the teacher can still edit or overwrite by typing their own
+ *  remark instead. Same pattern KgRow already used for General
+ *  comments, just reused for every scored-level remark field so Lower
+ *  Primary, Upper Primary and JHS all get the same quick-fill option
+ *  KG already had. */
+function QuickFillField({
+  bank,
+  value,
+  onChange,
+}: {
+  bank: string[];
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <>
+      <select
+        className="form-select form-select-sm mb-1"
+        value=""
+        onChange={(e) => {
+          if (!e.target.value) return;
+          onChange(e.target.value);
+        }}
+      >
+        <option value="">Quick-fill…</option>
+        {bank.map((phrase) => (
+          <option key={phrase} value={phrase}>
+            {phrase}
+          </option>
+        ))}
+      </select>
+      <input
+        type="text"
+        className="form-control form-control-sm"
+        placeholder="Or type your own…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </>
+  );
+}
+
 function ScoredRow({
   student,
   record,
@@ -94,14 +145,9 @@ function ScoredRow({
     setSaveState("idle");
   }, [record]);
 
-  function field<K extends keyof ScoredDraft>(key: K) {
-    return {
-      value: draft[key],
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-        setDraft((d) => ({ ...d, [key]: e.target.value }));
-        setSaveState("idle");
-      },
-    };
+  function set<K extends keyof ScoredDraft>(key: K, value: string) {
+    setDraft((d) => ({ ...d, [key]: value }));
+    setSaveState("idle");
   }
 
   async function handleSave() {
@@ -131,25 +177,37 @@ function ScoredRow({
     <tr>
       <td className="fw-medium">{fullNameOf(student)}</td>
       <td>
-        <input type="number" min={0} className="form-control form-control-sm" {...field("days_present")} />
+        <input
+          type="number"
+          min={0}
+          className="form-control form-control-sm"
+          value={draft.days_present}
+          onChange={(e) => set("days_present", e.target.value)}
+        />
+      </td>
+      <td style={{ minWidth: 210 }}>
+        <QuickFillField bank={CLASS_TEACHER_REMARK_BANK} value={draft.class_teacher_remark} onChange={(v) => set("class_teacher_remark", v)} />
+      </td>
+      <td style={{ minWidth: 210 }}>
+        <QuickFillField bank={CONDUCT_COMMENT_BANK} value={draft.conduct_remark} onChange={(v) => set("conduct_remark", v)} />
+      </td>
+      <td style={{ minWidth: 210 }}>
+        <QuickFillField bank={INTEREST_COMMENT_BANK} value={draft.interest_remark} onChange={(v) => set("interest_remark", v)} />
+      </td>
+      <td style={{ minWidth: 210 }}>
+        <QuickFillField bank={ATTITUDE_COMMENT_BANK} value={draft.attitude_remark} onChange={(v) => set("attitude_remark", v)} />
+      </td>
+      <td style={{ minWidth: 210 }}>
+        <QuickFillField bank={HEADTEACHER_REMARK_BANK} value={draft.headteacher_remark} onChange={(v) => set("headteacher_remark", v)} />
       </td>
       <td>
-        <input type="text" className="form-control form-control-sm" {...field("class_teacher_remark")} />
-      </td>
-      <td>
-        <input type="text" className="form-control form-control-sm" {...field("conduct_remark")} />
-      </td>
-      <td>
-        <input type="text" className="form-control form-control-sm" {...field("interest_remark")} />
-      </td>
-      <td>
-        <input type="text" className="form-control form-control-sm" {...field("attitude_remark")} />
-      </td>
-      <td>
-        <input type="text" className="form-control form-control-sm" {...field("headteacher_remark")} />
-      </td>
-      <td>
-        <input type="text" className="form-control form-control-sm" placeholder="e.g. Basic 6" {...field("progression")} />
+        <input
+          type="text"
+          className="form-control form-control-sm"
+          placeholder="e.g. Basic 6"
+          value={draft.progression}
+          onChange={(e) => set("progression", e.target.value)}
+        />
       </td>
       <td>
         <SaveButton state={saveState} onClick={handleSave} />
@@ -298,7 +356,10 @@ function KgRow({
  * Teacher's/Headteacher's remarks plus a promotion decision, and KG's
  * single General Comments box plus its own teacher/headteacher name
  * lines - write to the same report_records row per student/term
- * (edulink_gh_phase0f_remarks_templates.sql).
+ * (edulink_gh_phase0f_remarks_templates.sql). Every scored-level remark
+ * field now offers the same "quick-fill from a comment bank, or just
+ * type your own" pattern KG's General comments box already had - see
+ * scoredRemarkCommentBanks.ts.
  */
 export function CloudReportRemarksEntry() {
   const [term, setTerm] = useState<TermRow | null>(null);
@@ -426,11 +487,11 @@ export function CloudReportRemarksEntry() {
                 <tr>
                   <th style={{ minWidth: 160 }}>Student</th>
                   <th style={{ width: 110 }}>Days present</th>
-                  <th style={{ minWidth: 180 }}>Class teacher's remark</th>
-                  <th style={{ minWidth: 180 }}>Conduct</th>
-                  <th style={{ minWidth: 180 }}>Interest</th>
-                  <th style={{ minWidth: 180 }}>Attitude</th>
-                  <th style={{ minWidth: 180 }}>Headteacher's remark</th>
+                  <th style={{ minWidth: 210 }}>Class teacher's remark</th>
+                  <th style={{ minWidth: 210 }}>Conduct</th>
+                  <th style={{ minWidth: 210 }}>Interest</th>
+                  <th style={{ minWidth: 210 }}>Attitude</th>
+                  <th style={{ minWidth: 210 }}>Headteacher's remark</th>
                   <th style={{ minWidth: 150 }}>Promoted to</th>
                   <th style={{ width: 120 }} />
                 </tr>
