@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CloudStudentService } from "@services/cloud/StudentService";
-import { downloadCsv } from "@/lib/csvExport";
-import type { StudentRow, StudentStatus } from "@/types/database";
+import { EmptyState } from "@components/EmptyState";
+import type { StudentRow } from "@/types/database";
 
 function fullNameOf(s: StudentRow): string {
   return [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" ");
@@ -41,19 +41,10 @@ const STATUS_BADGE: Record<StudentRow["status"], string> = {
   DECEASED: "text-bg-dark",
 };
 
-const STATUS_FILTER_LABEL: Record<StudentStatus, string> = {
-  ACTIVE: "Active",
-  TRANSFERRED_OUT: "Transferred out",
-  GRADUATED: "Graduated",
-  WITHDRAWN: "Withdrawn",
-  DECEASED: "Deceased",
-};
-
 export function CloudStudents() {
   const [students, setStudents] = useState<StudentRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "ALL">("ACTIVE");
 
   useEffect(() => {
     let cancelled = false;
@@ -67,36 +58,18 @@ export function CloudStudents() {
 
   const filtered = useMemo(() => {
     if (!students) return [];
-    const byStatus = statusFilter === "ALL" ? students : students.filter((s) => s.status === "ACTIVE");
     const q = query.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter(
+    if (!q) return students;
+    return students.filter(
       (s) => fullNameOf(s).toLowerCase().includes(q) || s.student_id.toLowerCase().includes(q)
     );
-  }, [students, query, statusFilter]);
-
-  function handleExport() {
-    downloadCsv(
-      "students.csv",
-      ["Student ID", "First name", "Middle name", "Last name", "Gender", "Date of birth", "Status"],
-      filtered.map((s) => [s.student_id, s.first_name, s.middle_name ?? "", s.last_name, s.gender, s.date_of_birth, s.status])
-    );
-  }
+  }, [students, query]);
 
   return (
     <div>
-      <div className="d-flex align-items-center justify-content-between mb-3 gap-3 flex-wrap">
+      <div className="d-flex align-items-center justify-content-between mb-3 gap-3">
         <h1 className="h4 mb-0">Students</h1>
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          <select
-            className="form-select"
-            style={{ maxWidth: 180 }}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "ACTIVE" | "ALL")}
-          >
-            <option value="ACTIVE">Active only</option>
-            <option value="ALL">All statuses</option>
-          </select>
+        <div className="d-flex align-items-center gap-2">
           <input
             type="search"
             className="form-control"
@@ -105,15 +78,6 @@ export function CloudStudents() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button
-            type="button"
-            className="btn btn-outline-secondary text-nowrap"
-            onClick={handleExport}
-            disabled={!students || filtered.length === 0}
-          >
-            <i className="bi bi-download me-1" />
-            Export CSV
-          </button>
           <Link to="/students/register" className="btn btn-primary text-nowrap">
             <i className="bi bi-person-plus me-1" />
             Register student
@@ -138,21 +102,33 @@ export function CloudStudents() {
                 <th>Gender</th>
                 <th>Date of birth</th>
                 <th>Status</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
               {students === null && (
                 <tr>
-                  <td colSpan={7} className="text-center text-muted py-4">
+                  <td colSpan={6} className="text-center text-muted py-4">
                     Loading…
                   </td>
                 </tr>
               )}
               {students !== null && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center text-muted py-4">
-                    {students.length === 0 ? "No students registered yet." : "No students match your search."}
+                  <td colSpan={6} className="p-0">
+                    {students.length === 0 ? (
+                      <EmptyState
+                        title="No students registered yet"
+                        body="Once you register a student, they'll show up here with their photo, ID and status."
+                        action={
+                          <Link to="/students/register" className="btn btn-primary btn-sm">
+                            <i className="bi bi-person-plus me-1" />
+                            Register the first student
+                          </Link>
+                        }
+                      />
+                    ) : (
+                      <EmptyState title="No students match your search" body="Try a different name or student ID." />
+                    )}
                   </td>
                 </tr>
               )}
@@ -166,15 +142,7 @@ export function CloudStudents() {
                   <td>{s.gender === "M" ? "Male" : "Female"}</td>
                   <td>{s.date_of_birth}</td>
                   <td>
-                    <span className={`badge ${STATUS_BADGE[s.status]}`}>
-                      {STATUS_FILTER_LABEL[s.status] ?? s.status.replace("_", " ")}
-                    </span>
-                  </td>
-                  <td className="text-end">
-                    <Link to={`/students/${s.id}/edit`} className="btn btn-outline-secondary btn-sm">
-                      <i className="bi bi-pencil me-1" />
-                      Edit
-                    </Link>
+                    <span className={`badge ${STATUS_BADGE[s.status]}`}>{s.status.replace("_", " ")}</span>
                   </td>
                 </tr>
               ))}

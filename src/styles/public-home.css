@@ -179,6 +179,49 @@
   font-size: 1.3rem;
 }
 
+/* ---- Real-classrooms photo section -------------------------------------
+   Two photos from Unsplash (see HOW_TO_APPLY.txt in this batch for the
+   attribution line) - a visual break between the feature grid and the
+   stats band, since the page was otherwise all icons/text with nothing
+   photographic to ground it in an actual classroom. */
+.ph-photo-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1rem;
+}
+@media (max-width: 767.98px) {
+  .ph-photo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ph-photo-card {
+  position: relative;
+  border-radius: var(--actrs-radius);
+  overflow: hidden;
+  box-shadow: var(--actrs-shadow);
+  min-height: 220px;
+}
+
+.ph-photo-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ph-photo-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(0deg, rgba(5, 8, 15, 0.75) 0%, transparent 100%);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 /* ---- Stats ------------------------------------------------------------ */
 .ph-stat-number {
   font-size: 2.5rem;

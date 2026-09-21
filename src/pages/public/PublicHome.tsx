@@ -133,6 +133,30 @@ export function PublicHome() {
       <section className="py-5">
         <div className="container">
           <Reveal>
+            <div className="ph-photo-grid">
+              <div className="ph-photo-card">
+                <img
+                  src="https://images.unsplash.com/photo-1744809482817-9a9d4fc280af?auto=format&fit=crop&w=1200&q=80"
+                  alt="A teacher instructing students in a classroom"
+                  loading="lazy"
+                />
+                <div className="ph-photo-caption">Built for the classroom, not just the dashboard</div>
+              </div>
+              <div className="ph-photo-card">
+                <img
+                  src="https://images.unsplash.com/photo-1632215861513-130b66fe97f4?auto=format&fit=crop&w=900&q=80"
+                  alt="A teacher standing in front of a group of children"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="py-5">
+        <div className="container">
+          <Reveal>
             <div className="actrs-card p-4 p-md-5">
               <div className="row g-4">
                 {STATS.map((s) => (
@@ -150,6 +174,23 @@ export function PublicHome() {
         <div className="container d-flex flex-wrap justify-content-between align-items-center gap-2">
           <span className="text-muted small">&copy; {new Date().getFullYear()} EduLink GH</span>
           <span className="text-muted small">Amenfi Central Terminal Report System, reimagined nationwide</span>
+        </div>
+        <div className="container mt-2">
+          <span className="text-muted" style={{ fontSize: "0.7rem" }}>
+            Classroom photos by{" "}
+            <a href="https://unsplash.com/@davidgeneugelijk" target="_blank" rel="noreferrer" className="text-muted">
+              David Geneugelijk
+            </a>{" "}
+            and{" "}
+            <a href="https://unsplash.com/@emmages" target="_blank" rel="noreferrer" className="text-muted">
+              Emmanuel Ikwuegbu
+            </a>{" "}
+            on{" "}
+            <a href="https://unsplash.com" target="_blank" rel="noreferrer" className="text-muted">
+              Unsplash
+            </a>
+            .
+          </span>
         </div>
       </footer>
     </div>

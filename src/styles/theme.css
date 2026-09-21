@@ -10,47 +10,6 @@
  * active / this matters right now" signals (the current nav item, the
  * topbar's accent line) rather than being spread across the whole UI -
  * a little goes a long way before it stops looking professional.
- *
- * GLASSMORPHISM + NEOMORPHISM PASS (this revision)
- *   Two things changed on top of the original glass tokens below, both
- *   requested directly: (1) --actrs-glass is now MUCH more transparent
- *   ("90% will do") - down from opacity 0.62/0.58 to roughly 0.30/0.12 -
- *   so the blurred blob backdrop shows through far more strongly. Light
- *   mode stays a little higher than a literal 10% fill on purpose: white
- *   glass at 10% opacity over an almost-white page (--actrs-grey-light)
- *   has nothing to contrast against and the card boundary disappears
- *   entirely - the border/shadow/blur alone can't carry it. This exact
- *   pair of values (not a flat 90% in both themes) is what was already
- *   previewed and approved. (2) every form input/select now gets a
- *   neomorphic "soft embossed" treatment (--actrs-neo-* tokens below)
- *   instead of Bootstrap's flat default - a carved-in look via a pair of
- *   opposing inset shadows, on the same base surface colour so it reads
- *   as "pressed into" the page rather than "sitting on" it. Cards, the
- *   topbar, the sidebar, buttons and inputs also now transition their
- *   colour/shadow/transform smoothly (see the transition rules further
- *   down) so toggling Day/Night mode morphs between the two instead of
- *   snapping, and hovering a card/button gives it a small lift.
- *
- * PERFORMANCE PASS (this revision, follow-up)
- *   A real "INP Issue" (Interaction to Next Paint) was reported after
- *   the pass above: a button's click handler was measured blocking UI
- *   updates for ~1.7s. Root cause is a known backdrop-filter pitfall -
- *   several overlapping blurred glass layers (sidebar + topbar + card,
- *   all blurring/saturating at once) sitting on top of a CONTINUOUSLY
- *   ANIMATED background (the blob breathing animation below): every
- *   frame of that animation forces every backdrop-filter element above
- *   it to resample and re-blur, which is expensive, and if that's
- *   happening while a click handler is also doing work, the click feels
- *   sluggish. Fixes applied: blur radius and saturate() on every glass
- *   surface brought down (still visibly glass, much cheaper to compute);
- *   the blob animation's movement made subtler and slower so there is
- *   less changing backdrop content to resample each frame; `contain` is
- *   set on cards so a card updating doesn't force the browser to
- *   re-check layout/paint outside its own box; and a
- *   prefers-reduced-motion override turns the animations off entirely
- *   for anyone whose OS/browser asks for reduced motion (a real
- *   accessibility setting, and a free win for exactly the
- *   lower-powered-device case where this kind of jank shows up most).
  */
 :root {
   --actrs-black: #05080f;
@@ -83,20 +42,18 @@
      column would smear into the scrolling cells. Everything else
      "raised" (cards, the topbar) uses these instead, semi-transparent +
      blurred over the blob background below, so the frosted-glass effect
-     actually has something colourful behind it to blur. Values below
-     are the "~90% transparent" pass - see the file header comment. */
-  --actrs-glass: rgba(255, 255, 255, 0.3);
-  --actrs-glass-border: rgba(17, 24, 39, 0.1);
-  --actrs-glass-border-top: rgba(255, 255, 255, 0.85);
+     actually has something colourful behind it to blur. */
+  --actrs-glass: rgba(255, 255, 255, 0.62);
+  --actrs-glass-border: rgba(255, 255, 255, 0.5);
 
-  /* Neomorphism tokens - a soft "carved into the page" look for form
-     inputs/selects. Needs a base colour close to the page background
-     (not white, or the embossed shadow pair reads as a hard box instead
-     of a soft dent) plus a light/dark shadow pair simulating one light
-     source from the top-left. */
+  /* Neomorphism tokens - used only by form inputs (see .form-control /
+     .form-select below). A soft, slightly-off-white base with a light
+     shadow on the top-left and a darker shadow on the bottom-right
+     gives inputs a gently "pressed in" look, distinct from the glass
+     cards they sit inside, without needing a visible border. */
   --actrs-neo-base: #eef1f6;
-  --actrs-neo-shadow-dark: rgba(148, 163, 184, 0.55);
-  --actrs-neo-shadow-light: rgba(255, 255, 255, 0.95);
+  --actrs-neo-shadow-dark: rgba(163, 177, 198, 0.55);
+  --actrs-neo-shadow-light: rgba(255, 255, 255, 0.85);
 
   --actrs-gradient-chrome: linear-gradient(180deg, var(--actrs-blue-black) 0%, var(--actrs-navy) 55%, var(--actrs-seablue) 100%);
   --actrs-gradient-accent: linear-gradient(90deg, var(--actrs-blue) 0%, var(--actrs-seablue) 60%, var(--actrs-yellow) 100%);
@@ -122,12 +79,11 @@
   --bs-body-bg: #0c0f13;
   --actrs-surface: #161d29;
   --actrs-blue-light: #16283d;
-  --actrs-glass: rgba(22, 29, 41, 0.14);
-  --actrs-glass-border: rgba(255, 255, 255, 0.14);
-  --actrs-glass-border-top: rgba(255, 255, 255, 0.26);
-  --actrs-neo-base: #141a2b;
-  --actrs-neo-shadow-dark: rgba(0, 0, 0, 0.55);
-  --actrs-neo-shadow-light: rgba(255, 255, 255, 0.04);
+  --actrs-glass: rgba(22, 29, 41, 0.58);
+  --actrs-glass-border: rgba(255, 255, 255, 0.08);
+  --actrs-neo-base: #1a212e;
+  --actrs-neo-shadow-dark: rgba(0, 0, 0, 0.5);
+  --actrs-neo-shadow-light: rgba(255, 255, 255, 0.045);
 }
 
 body {
@@ -148,87 +104,62 @@ body {
    flat single-colour background is invisible). Uses the app's own
    palette (blue/sea-blue/gold/navy) at low opacity so it stays
    decorative rather than distracting, and sits at z-index -1 so it
-   never intercepts clicks or scroll. A slow, subtle breathing animation
-   keeps the whole scene from feeling static - kept deliberately gentle
-   (small scale delta, long duration) because every glass panel above it
-   has to re-sample this layer on every frame it moves; see the
-   performance-pass note in the file header for why this is kept subtle
-   rather than removed. */
+   never intercepts clicks or scroll.
+
+   The very slow, very small "breathe" (1 -> 1.02 scale over 34s) is
+   what makes the background read as alive rather than a static image,
+   without being fast/large enough to be a performance or distraction
+   problem - see @keyframes actrsBlobBreathe below. will-change tells
+   the browser to promote this to its own compositor layer up front
+   rather than discovering mid-animation that it needs to, which is
+   what caused the original version of this to briefly block the UI on
+   first interaction. */
 body::before {
   content: "";
   position: fixed;
-  inset: -10%;
+  inset: 0;
   z-index: -1;
+  will-change: transform;
+  animation: actrsBlobBreathe 34s ease-in-out infinite;
   background:
     radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.32), transparent 42%),
     radial-gradient(circle at 88% 12%, rgba(14, 165, 196, 0.28), transparent 46%),
     radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.16), transparent 42%),
     radial-gradient(circle at 15% 88%, rgba(18, 51, 99, 0.22), transparent 46%),
     var(--actrs-grey-light);
-  animation: actrsBlobBreathe 34s ease-in-out infinite;
-  will-change: transform;
-  transition: background 0.6s ease;
 }
 
 @keyframes actrsBlobBreathe {
-  0%, 100% { transform: scale(1) translate(0, 0); }
-  50% { transform: scale(1.02) translate(-0.8%, 0.8%); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
 }
 
 [data-bs-theme="dark"] body::before {
   background:
-    radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.3), transparent 42%),
-    radial-gradient(circle at 88% 12%, rgba(14, 165, 196, 0.26), transparent 46%),
-    radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.14), transparent 42%),
-    radial-gradient(circle at 15% 88%, rgba(31, 111, 235, 0.22), transparent 46%),
+    radial-gradient(circle at 12% 18%, rgba(31, 111, 235, 0.22), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(14, 165, 196, 0.2), transparent 46%),
+    radial-gradient(circle at 78% 82%, rgba(242, 183, 5, 0.1), transparent 42%),
+    radial-gradient(circle at 15% 88%, rgba(31, 111, 235, 0.16), transparent 46%),
     var(--actrs-grey-light);
-}
-
-/* Anyone whose OS/browser has "reduce motion" turned on gets a fully
-   static backdrop - both a real accessibility courtesy and a free
-   performance win for exactly the lower-powered-device case where an
-   animated backdrop-filter backdrop costs the most. */
-@media (prefers-reduced-motion: reduce) {
-  body::before {
-    animation: none;
-  }
-  .actrs-card,
-  .actrs-card:hover:not(.actrs-card-static),
-  .actrs-sidebar .nav-link,
-  .actrs-brand-mark,
-  .btn,
-  .form-control,
-  .form-select {
-    transition: none !important;
-    animation: none !important;
-    transform: none !important;
-  }
 }
 
 .actrs-card {
   border: 1px solid var(--actrs-glass-border);
-  border-top-color: var(--actrs-glass-border-top);
   border-radius: var(--actrs-radius);
   box-shadow: var(--actrs-shadow);
   background: var(--actrs-glass);
   backdrop-filter: blur(12px) saturate(130%);
   -webkit-backdrop-filter: blur(12px) saturate(130%);
-  /* Limits how much of the page the browser has to re-check when a
-     card's own content changes (e.g. after a click triggers a
-     re-render) - it can no longer affect layout/paint outside its own
-     box, which is exactly the kind of "blocked UI update" the reported
-     INP issue was measuring. */
+  /* Tells the browser this element's paint/layout never affects
+     anything outside its own box, so it doesn't have to re-check the
+     rest of the page when the blurred background behind it moves -
+     part of the same fix as the blob's will-change above. */
   contain: layout paint style;
-  transition: background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* A gentle lift on hover - cards should feel like panes of glass you
-   can nudge, not flat rectangles. Skipped for anything explicitly
-   marked static (the assessment/skill grid's own cards, which scroll
-   internally and shouldn't visually bob about). */
-.actrs-card:hover:not(.actrs-card-static) {
-  transform: translateY(-3px);
-  box-shadow: 0 14px 28px rgba(11, 26, 48, 0.16);
 }
 
 /* Shared "raised surface" treatment for anything that used to hardcode
@@ -243,7 +174,6 @@ body::before {
   backdrop-filter: blur(12px) saturate(130%);
   -webkit-backdrop-filter: blur(12px) saturate(130%);
   color: var(--actrs-text);
-  transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 .actrs-sidebar {
@@ -252,18 +182,12 @@ body::before {
      fully solid gradient is still the right choice anywhere else it
      might get used later) - slightly translucent stops plus a blur of
      whatever's behind it, so the sidebar reads as coloured frosted
-     glass rather than a flat gradient fill. Opacity brought down
-     alongside every other glass surface in this pass - still solid
-     enough for the white nav text to stay legible, but noticeably more
-     see-through than before. Blur radius kept modest (see the
-     performance-pass note above) since the sidebar is one of the
-     largest, longest-lived blurred layers on the page. */
-  background: linear-gradient(180deg, rgba(11, 26, 48, 0.58) 0%, rgba(18, 51, 99, 0.54) 55%, rgba(14, 165, 196, 0.5) 100%);
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
+     glass rather than a flat gradient fill. */
+  background: linear-gradient(180deg, rgba(11, 26, 48, 0.92) 0%, rgba(18, 51, 99, 0.9) 55%, rgba(14, 165, 196, 0.88) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   color: #fff;
   min-height: 100vh;
-  transition: background 0.5s ease;
 }
 
 /* The sidebar is always dark-styled regardless of Day/Night mode (by
@@ -283,13 +207,12 @@ body::before {
   margin: 2px 8px;
   padding: 0.55rem 0.9rem;
   border-left: 3px solid transparent;
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .actrs-sidebar .nav-link:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  transform: translateX(3px);
 }
 
 .actrs-sidebar .nav-link.active {
@@ -304,7 +227,6 @@ body::before {
   -webkit-backdrop-filter: blur(12px) saturate(130%);
   border-bottom: 1px solid var(--actrs-glass-border);
   position: relative;
-  transition: background-color 0.5s ease, border-color 0.5s ease;
 }
 
 /* A thin gradient accent line under the topbar - the "flashy" touch
@@ -330,11 +252,6 @@ body::before {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.actrs-brand-mark:hover {
-  transform: rotate(-6deg) scale(1.08);
 }
 
 .actrs-phase-badge {
@@ -374,56 +291,39 @@ body::before {
   opacity: 0.55;
 }
 
-/* Every button gets a small spring-loaded press: lifts slightly on
-   hover, settles back down (and a touch smaller) on click - a "morph",
-   not just a colour swap, so the app feels responsive to the touch.
-   None of this touches backdrop-filter, so it stays cheap regardless of
-   the glass-performance notes above. */
-.btn {
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease;
-}
-.btn:hover {
-  transform: translateY(-2px);
-}
-.btn:active {
-  transform: translateY(0) scale(0.97);
-}
-
-/* Neomorphism pass: every text/number/date input, textarea and select
-   gets a soft "pressed into the page" look instead of Bootstrap's flat
-   bordered box - a pair of opposing inset shadows (light from the
-   top-left, shadow to the bottom-right) on a base colour close to the
-   page background. Left checkboxes/radios and Bootstrap's own small
-   utility inputs alone - the carved-in effect only reads well on inputs
-   large enough to show it. Inset box-shadow is not a backdrop-filter, so
-   this styling has no bearing on the blur-performance notes above. */
+/* Neomorphic form inputs - a soft, slightly "pressed into the surface"
+   look instead of Bootstrap's flat bordered box, using the
+   --actrs-neo-* tokens above. Deliberately its own rule rather than
+   touching .actrs-grid-cell-input (the assessment/KG entry grid), which
+   needs to stay flat and borderless so hundreds of cells in a row don't
+   turn into hundreds of little embossed boxes. */
 .form-control,
-.form-select,
-textarea.form-control {
+.form-select {
   background-color: var(--actrs-neo-base);
   border: 1px solid transparent;
-  box-shadow: inset 3px 3px 6px var(--actrs-neo-shadow-dark), inset -3px -3px 6px var(--actrs-neo-shadow-light);
+  border-radius: var(--actrs-radius);
   color: var(--actrs-text);
-  transition: background-color 0.5s ease, box-shadow 0.3s ease, color 0.5s ease;
+  box-shadow: inset 3px 3px 6px var(--actrs-neo-shadow-dark), inset -3px -3px 6px var(--actrs-neo-shadow-light);
+  transition: box-shadow 0.15s ease;
 }
 
 .form-control:focus,
 .form-select:focus {
   background-color: var(--actrs-neo-base);
   color: var(--actrs-text);
-  box-shadow: inset 4px 4px 8px var(--actrs-neo-shadow-dark), inset -4px -4px 8px var(--actrs-neo-shadow-light), 0 0 0 2px var(--actrs-seablue);
-  border-color: transparent;
-}
-
-.form-control:disabled,
-.form-select:disabled {
-  background-color: var(--actrs-neo-base);
-  opacity: 0.6;
-  box-shadow: inset 2px 2px 4px var(--actrs-neo-shadow-dark), inset -2px -2px 4px var(--actrs-neo-shadow-light);
+  box-shadow: inset 2px 2px 4px var(--actrs-neo-shadow-dark), inset -2px -2px 4px var(--actrs-neo-shadow-light),
+    0 0 0 3px var(--actrs-blue-light);
 }
 
 .form-control::placeholder {
   color: var(--actrs-text-muted);
+  opacity: 0.8;
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  opacity: 0.6;
+  box-shadow: inset 1px 1px 3px var(--actrs-neo-shadow-dark);
 }
 
 /* Print styles - used by the Class Register (Module 12) and future
@@ -440,14 +340,10 @@ textarea.form-control {
 /* Assessment score-entry / KG skill grids (Phase 3, Modules 2 & 8) -
    Excel-like sticky headers + frozen first column so a teacher scrolling
    through many subjects/skills never loses track of which student's row
-   they're on. Deliberately excluded from the neomorphic input treatment
-   above (its own .actrs-grid-cell-input rule wins by being more
-   specific) and from the card hover-lift (marked static below) - a
-   large scrolling grid bobbing on hover, or every cell looking carved
-   in, would make it harder to read quickly, not nicer to look at. Also
-   deliberately opaque and backdrop-filter-free, both for legibility
-   while scrolling and because a grid with many rows is exactly the
-   place a blurred backdrop would be most expensive to keep resampled. */
+   they're on. Deliberately kept opaque/blur-free (no glass, no
+   neomorphism) - a translucent or embossed sticky column would smear
+   into the scrolling cells underneath it, and hundreds of embossed
+   inputs in a grid would be noisy rather than "magical". */
 .actrs-grid-scroll {
   overflow: auto;
   max-height: 70vh;
@@ -500,7 +396,6 @@ textarea.form-control {
   padding: 2px 4px;
   background: transparent;
   color: var(--actrs-text);
-  box-shadow: none;
 }
 
 .actrs-grid-cell-input:focus {
@@ -523,4 +418,18 @@ textarea.form-control {
 .actrs-grid-cell-input:disabled {
   background: transparent;
   color: var(--actrs-text-muted);
+}
+
+/* Respect the OS/browser "reduce motion" setting - turns off the
+   background breathing animation and softens input focus transitions
+   for anyone who's asked for that, without changing any layout. */
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none !important;
+  }
+  .form-control,
+  .form-select,
+  .actrs-sidebar .nav-link {
+    transition: none !important;
+  }
 }
