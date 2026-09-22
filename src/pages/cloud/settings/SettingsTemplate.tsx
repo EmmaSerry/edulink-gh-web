@@ -11,6 +11,16 @@ type FormState = Omit<TemplateSettings, "updatedAt" | "id">;
  * first UI. Every field here is consumed by the report rendering
  * pipeline (ReportPage, ReportHeader, SignatureBlock, PdfService) with
  * no other code changes needed.
+ *
+ * Report template settings are inherently per-school, so a
+ * district_admin/platform_admin (who has no single "own school" -
+ * school_id is null for those roles, see
+ * edulink_gh_phase1i_dashboard_and_standards_fixes.sql) has nothing
+ * here to load or edit. Previously the loading effect below simply
+ * `return`ed in that case without ever clearing `loading`, which left
+ * the screen stuck on "Loading template settings…" forever with no
+ * error and no way out - this is fixed by treating "no school_id" as
+ * its own resolved state up front, same as every other Settings tab.
  */
 export function SettingsTemplate() {
   const { profile } = useCloudAuth();
@@ -22,8 +32,12 @@ export function SettingsTemplate() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (!profile?.school_id) return;
+    if (!profile?.school_id) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    setLoading(true);
     CloudTemplateSettingsService.get(profile.school_id)
       .then((settings) => {
         if (cancelled) return;
@@ -59,6 +73,15 @@ export function SettingsTemplate() {
 
   if (loading) return <p className="text-muted">Loading template settings…</p>;
   if (loadError) return <div className="alert alert-danger">{loadError}</div>;
+  if (!profile?.school_id) {
+    return (
+      <div className="alert alert-warning">
+        Report template settings are set per school, and your account (
+        {profile?.role === "district_admin" ? "district admin" : profile?.role === "platform_admin" ? "platform admin" : "your role"}
+        ) isn't tied to one specific school. Sign in as that school's school admin to edit its report template.
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit}>
