@@ -1,10 +1,26 @@
+import {
+  BarChart,
+  Bar,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Legend,
+} from "recharts";
+import { useThemeMode } from "@contexts/ThemeContext";
 import type { SubjectLevelStat, KgSkillStat, SchoolBreakdownStat, ReportTemplateCode } from "@/types/database";
 
 /**
- * Hand-built bars rather than a charting library - this sandbox's npm
- * registry access is blocked, so nothing like recharts/Chart.js can be
- * installed. Plain divs sized by percentage width cover the "infographic"
- * ask without a new dependency the build environment can't fetch.
+ * Real charts (recharts) instead of the hand-rolled percentage-width
+ * divs this used to be. The earlier version's comment said recharts
+ * couldn't be installed because this sandbox's own npm registry access
+ * is blocked - that only ever affected ME test-building locally, not
+ * Vercel, which fetches every dependency fresh on each deploy the same
+ * way it already does for jspdf/xlsx/html2canvas. Adding one more
+ * dependency to package.json works the same way those did.
  */
 
 const LEVEL_GROUP_ORDER: ReportTemplateCode[] = ["KG", "LOWER_PRIMARY", "UPPER_PRIMARY", "JHS"];
@@ -21,22 +37,93 @@ function scoreColor(pct: number): string {
   return "#e03131";
 }
 
-function Bar({ pct, color, height = 8 }: { pct: number; color: string; height?: number }) {
+const KG_RATING_COLOR: Record<string, string> = { G: "#2f9e44", S: "#1f6feb", B: "#f2b705", X: "#868e96", O: "#e03131" };
+const KG_RATING_LABEL: Record<string, string> = {
+  G: "Good",
+  S: "Satisfactory",
+  B: "Beginning",
+  X: "Not assessed",
+  O: "Outstanding",
+};
+
+/** Theme-aware chart chrome - recharts renders plain SVG, so it doesn't
+ *  pick up the app's CSS variables on its own; this reads the same
+ *  light/dark state the rest of the app already uses (see
+ *  ThemeContext) and resolves the handful of colours a chart's
+ *  non-data elements (axis lines, gridlines, tooltip) need. */
+function useChartChrome() {
+  const { mode } = useThemeMode();
+  const dark = mode === "dark";
+  return {
+    axisColor: dark ? "#9aa7b4" : "#5b6b7c",
+    gridColor: dark ? "#262c35" : "#e1e5ea",
+    tooltipBg: dark ? "#161d29" : "#ffffff",
+    tooltipBorder: dark ? "#262c35" : "#e1e5ea",
+    tooltipText: dark ? "#e7ebef" : "#1c2733",
+  };
+}
+
+function ScoreTooltip({ active, payload, chrome }: any) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
   return (
-    <div style={{ background: "#e9ecef", borderRadius: height, height, overflow: "hidden" }}>
-      <div
-        style={{
-          width: `${Math.max(0, Math.min(100, pct))}%`,
-          background: color,
-          height: "100%",
-          borderRadius: height,
-        }}
-      />
+    <div
+      style={{
+        background: chrome.tooltipBg,
+        border: `1px solid ${chrome.tooltipBorder}`,
+        borderRadius: 8,
+        padding: "0.5rem 0.75rem",
+        color: chrome.tooltipText,
+        fontSize: "0.8rem",
+        boxShadow: "0 2px 10px rgba(11,26,48,0.15)",
+      }}
+    >
+      <div className="fw-semibold mb-1">{row.label}</div>
+      <div>{row.avg_total.toFixed(0)}/100 average</div>
+      <div className="text-muted">
+        {row.participant_count} pupil{row.participant_count === 1 ? "" : "s"}
+      </div>
     </div>
   );
 }
 
-function SubjectLevelGrid({ stats }: { stats: SubjectLevelStat[] }) {
+/** Horizontal bar chart for a set of subject/school rows scored 0-100,
+ *  shared by SubjectLevelGrid (per level group) and SchoolBreakdownPanel
+ *  (district ranking) - same visual language, different row labels. */
+function ScoreBarChart({ rows, barSize = 18 }: { rows: { label: string; avg_total: number; participant_count: number }[]; barSize?: number }) {
+  const chrome = useChartChrome();
+  const height = Math.max(80, rows.length * (barSize + 20) + 10);
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 36, bottom: 4, left: 4 }} barCategoryGap={16}>
+        <XAxis
+          type="number"
+          domain={[0, 100]}
+          tick={{ fontSize: 11, fill: chrome.axisColor }}
+          axisLine={{ stroke: chrome.gridColor }}
+          tickLine={false}
+        />
+        <YAxis
+          type="category"
+          dataKey="label"
+          width={132}
+          tick={{ fontSize: 12, fill: chrome.axisColor }}
+          axisLine={{ stroke: chrome.gridColor }}
+          tickLine={false}
+        />
+        <Tooltip content={<ScoreTooltip chrome={chrome} />} cursor={{ fill: chrome.gridColor, opacity: 0.4 }} />
+        <Bar dataKey="avg_total" radius={[0, 6, 6, 0]} barSize={barSize} isAnimationActive>
+          {rows.map((r) => (
+            <Cell key={r.label} fill={scoreColor(r.avg_total)} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function SubjectLevelGrid({ stats, singleGroup }: { stats: SubjectLevelStat[]; singleGroup?: boolean }) {
   const byGroup = new Map<ReportTemplateCode, SubjectLevelStat[]>();
   for (const s of stats) {
     const list = byGroup.get(s.level_group) ?? [];
@@ -49,31 +136,16 @@ function SubjectLevelGrid({ stats }: { stats: SubjectLevelStat[] }) {
     return <p className="text-muted small mb-0">No subject scores recorded for the current term yet.</p>;
   }
 
-  // A class-scoped panel only ever has one level group present - skip
-  // the "which level group is this" heading in that case, it would
-  // just be repeating the panel's own subtitle for no reason.
-  const showGroupHeading = groupsPresent.length > 1;
-
   return (
-    <div className="row g-3">
+    <div className="row g-4">
       {groupsPresent.map((group) => {
-        const rows = [...(byGroup.get(group) ?? [])].sort((a, b) => a.subject_name.localeCompare(b.subject_name));
+        const rows = [...(byGroup.get(group) ?? [])]
+          .sort((a, b) => a.subject_name.localeCompare(b.subject_name))
+          .map((r) => ({ label: r.subject_name, avg_total: r.avg_total, participant_count: r.participant_count }));
         return (
-          <div className={showGroupHeading ? "col-md-6" : "col-12"} key={group}>
-            {showGroupHeading && <div className="fw-semibold small mb-2">{LEVEL_GROUP_LABEL[group]}</div>}
-            <div className="d-flex flex-column gap-2">
-              {rows.map((r) => (
-                <div key={r.subject_name}>
-                  <div className="d-flex justify-content-between small mb-1">
-                    <span>{r.subject_name}</span>
-                    <span className="text-muted">
-                      {r.avg_total.toFixed(0)}/100 · {r.participant_count} pupil{r.participant_count === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  <Bar pct={r.avg_total} color={scoreColor(r.avg_total)} />
-                </div>
-              ))}
-            </div>
+          <div className={groupsPresent.length > 1 && !singleGroup ? "col-md-6" : "col-12"} key={group}>
+            {!singleGroup && <div className="fw-semibold small mb-2">{LEVEL_GROUP_LABEL[group]}</div>}
+            <ScoreBarChart rows={rows} />
           </div>
         );
       })}
@@ -82,37 +154,60 @@ function SubjectLevelGrid({ stats }: { stats: SubjectLevelStat[] }) {
 }
 
 function KgBreakdown({ stats }: { stats: KgSkillStat[] }) {
+  const chrome = useChartChrome();
   const kgStats = stats.filter((s) => s.level_group === "KG");
   if (kgStats.length === 0) return null;
 
-  const total = kgStats.reduce((sum, s) => sum + s.rating_count, 0);
   const byRating = new Map<string, number>();
   for (const s of kgStats) byRating.set(s.rating, (byRating.get(s.rating) ?? 0) + s.rating_count);
-  const ratings = Array.from(byRating.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  const colors: Record<string, string> = { G: "#2f9e44", S: "#2f6fb0", B: "#f2b705", X: "#868e96", O: "#e03131" };
+  const total = Array.from(byRating.values()).reduce((sum, n) => sum + n, 0);
+  const data = Array.from(byRating.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([rating, count]) => ({
+      rating,
+      name: KG_RATING_LABEL[rating] ?? rating,
+      count,
+      pct: total > 0 ? (count / total) * 100 : 0,
+    }));
 
   return (
     <div className="mt-4 pt-3 border-top">
       <div className="fw-semibold small mb-2">Kindergarten (skill-checklist ratings)</div>
-      <div className="d-flex rounded overflow-hidden mb-2" style={{ height: 10 }}>
-        {ratings.map(([rating, count]) => (
-          <div
-            key={rating}
-            style={{ width: `${(count / total) * 100}%`, background: colors[rating] ?? "#adb5bd" }}
-            title={`${rating}: ${count}`}
-          />
-        ))}
-      </div>
-      <div className="d-flex flex-wrap gap-3 small text-muted">
-        {ratings.map(([rating, count]) => (
-          <span key={rating}>
-            <span
-              className="d-inline-block me-1"
-              style={{ width: 10, height: 10, borderRadius: 2, background: colors[rating] ?? "#adb5bd" }}
-            />
-            {rating}: {count} ({((count / total) * 100).toFixed(0)}%)
-          </span>
-        ))}
+      <div className="row align-items-center g-3">
+        <div className="col-md-5">
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={data} dataKey="count" nameKey="rating" innerRadius={52} outerRadius={80} paddingAngle={2} isAnimationActive>
+                {data.map((d) => (
+                  <Cell key={d.rating} fill={KG_RATING_COLOR[d.rating] ?? "#adb5bd"} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number, _name: string, entry: any) => [`${value} (${entry.payload.pct.toFixed(0)}%)`, entry.payload.name]}
+                contentStyle={{ background: chrome.tooltipBg, border: `1px solid ${chrome.tooltipBorder}`, borderRadius: 8, fontSize: "0.8rem" }}
+                itemStyle={{ color: chrome.tooltipText }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="col-md-7">
+          <div className="d-flex flex-column gap-2">
+            {data.map((d) => (
+              <div key={d.rating} className="d-flex align-items-center justify-content-between small">
+                <span className="d-flex align-items-center gap-2">
+                  <span
+                    className="d-inline-block"
+                    style={{ width: 10, height: 10, borderRadius: 3, background: KG_RATING_COLOR[d.rating] ?? "#adb5bd" }}
+                  />
+                  {d.rating} — {d.name}
+                </span>
+                <span className="text-muted">
+                  {d.count} ({d.pct.toFixed(0)}%)
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -122,30 +217,31 @@ export function AcademicStandardsPanel({
   subjectLevelStats,
   kgSkillStats,
   termName,
-  title = "Academic standards",
+  title,
   subtitle,
 }: {
   subjectLevelStats: SubjectLevelStat[];
   kgSkillStats: KgSkillStat[];
   termName?: string | null;
-  /** Lets a caller relabel this for a narrower scope - e.g. a teacher's
-   *  own class - without duplicating the whole panel. Defaults to the
-   *  original school/district-wide heading so every existing caller is
-   *  unaffected. */
+  /** Optional heading override - used when this panel is showing just
+   *  one class's data (e.g. a teacher's own class) rather than a whole
+   *  school, so the label doesn't misleadingly say "Academic standards"
+   *  as if it covers everyone. Defaults preserve the original heading
+   *  for the school-wide/district-wide call sites. */
   title?: string;
-  /** Small muted line under the title - e.g. a class name - shown
-   *  alongside the existing term-name badge on the right. */
-  subtitle?: string | null;
+  subtitle?: string;
 }) {
+  const groupCount = new Set(subjectLevelStats.map((s) => s.level_group).filter((g) => g !== "KG")).size;
   return (
     <div className="actrs-card p-3 mb-4">
-      <div className="d-flex align-items-center justify-content-between mb-1">
-        <h2 className="h6 mb-0">{title}</h2>
+      <div className="d-flex align-items-center justify-content-between mb-3">
+        <div>
+          <h2 className="h6 mb-0">{title ?? "Academic standards"}</h2>
+          {subtitle && <div className="text-muted small">{subtitle}</div>}
+        </div>
         {termName && <span className="text-muted small">{termName}</span>}
       </div>
-      {subtitle && <p className="text-muted small mb-3">{subtitle}</p>}
-      <div className={subtitle ? "" : "mb-3"} />
-      <SubjectLevelGrid stats={subjectLevelStats} />
+      <SubjectLevelGrid stats={subjectLevelStats} singleGroup={groupCount <= 1} />
       <KgBreakdown stats={kgSkillStats} />
     </div>
   );
@@ -154,7 +250,7 @@ export function AcademicStandardsPanel({
 /** District-only: a ranked list of schools by average mark, so a
  *  district admin can see which schools need attention at a glance. */
 export function SchoolBreakdownPanel({ schools }: { schools: SchoolBreakdownStat[] }) {
-  const withScores = schools.filter((s) => s.avg_total !== null);
+  const withScores = schools.filter((s): s is SchoolBreakdownStat & { avg_total: number } => s.avg_total !== null);
   if (withScores.length === 0) {
     return (
       <div className="actrs-card p-3 mb-4">
@@ -164,22 +260,14 @@ export function SchoolBreakdownPanel({ schools }: { schools: SchoolBreakdownStat
     );
   }
 
+  const rows = [...withScores]
+    .sort((a, b) => b.avg_total - a.avg_total)
+    .map((s) => ({ label: s.school_name, avg_total: s.avg_total, participant_count: s.participant_count }));
+
   return (
     <div className="actrs-card p-3 mb-4">
       <h2 className="h6 mb-3">School by school (average mark, current term)</h2>
-      <div className="d-flex flex-column gap-2">
-        {withScores.map((s) => (
-          <div key={s.school_id}>
-            <div className="d-flex justify-content-between small mb-1">
-              <span>{s.school_name}</span>
-              <span className="text-muted">
-                {s.avg_total!.toFixed(0)}/100 · {s.participant_count} record{s.participant_count === 1 ? "" : "s"}
-              </span>
-            </div>
-            <Bar pct={s.avg_total!} color={scoreColor(s.avg_total!)} height={10} />
-          </div>
-        ))}
-      </div>
+      <ScoreBarChart rows={rows} barSize={16} />
     </div>
   );
 }

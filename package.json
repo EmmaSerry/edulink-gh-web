@@ -24,6 +24,7 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.1",
     "react-router-dom": "^6.26.0",
+    "recharts": "^2.12.7",
     "zod": "^3.23.8",
     "bootstrap-icons": "^1.11.3",
     "@hookform/resolvers": "^3.9.0",
