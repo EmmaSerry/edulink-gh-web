@@ -8,7 +8,6 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Legend,
 } from "recharts";
 import { useThemeMode } from "@contexts/ThemeContext";
 import type { SubjectLevelStat, KgSkillStat, SchoolBreakdownStat, ReportTemplateCode } from "@/types/database";
@@ -227,9 +226,11 @@ export function AcademicStandardsPanel({
    *  one class's data (e.g. a teacher's own class) rather than a whole
    *  school, so the label doesn't misleadingly say "Academic standards"
    *  as if it covers everyone. Defaults preserve the original heading
-   *  for the school-wide/district-wide call sites. */
-  title?: string;
-  subtitle?: string;
+   *  for the school-wide/district-wide call sites. Accepts null as well
+   *  as undefined since CloudDashboard.tsx passes a nullable class name
+   *  straight through here. */
+  title?: string | null;
+  subtitle?: string | null;
 }) {
   const groupCount = new Set(subjectLevelStats.map((s) => s.level_group).filter((g) => g !== "KG")).size;
   return (
