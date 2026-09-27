@@ -4,15 +4,17 @@ import { SettingsSchool } from "./settings/SettingsSchool";
 import { SettingsAcademic } from "./settings/SettingsAcademic";
 import { SettingsTemplate } from "./settings/SettingsTemplate";
 import { SettingsClasses } from "./settings/SettingsClasses";
+import { SettingsSubjects } from "./settings/SettingsSubjects";
 import { SettingsCircuits } from "./settings/SettingsCircuits";
 
-type Tab = "school" | "academic" | "template" | "classes" | "circuits";
+type Tab = "school" | "academic" | "template" | "classes" | "subjects" | "circuits";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "school", label: "School profile" },
   { key: "academic", label: "Academic years & terms" },
   { key: "template", label: "Report template" },
   { key: "classes", label: "Classes" },
+  { key: "subjects", label: "Subjects" },
 ];
 
 const DISTRICT_ONLY_TABS: { key: Tab; label: string }[] = [{ key: "circuits", label: "Circuits" }];
@@ -21,10 +23,14 @@ const DISTRICT_ONLY_TABS: { key: Tab; label: string }[] = [{ key: "circuits", la
  * Settings hub. Staff moved out to its own sidebar item (CloudStaffPage)
  * since creating accounts is routine enough to want one click, not two -
  * see the "decouple staff" request. Classes stays here since editing a
- * class is more of an occasional settings-style change. Circuits only
- * appears for a district/platform admin - see
+ * class is more of an occasional settings-style change. Subjects is the
+ * newest tab - previously fixing a wrong subject/level assignment needed
+ * a developer to edit the database directly (see the Upper Primary/JHS
+ * subject mix-up); now a school_admin can add, edit, or remove a
+ * subject themselves - see edulink_gh_subjects_management.sql. Circuits
+ * only appears for a district/platform admin - see
  * edulink_gh_phase0s_circuits.sql - a school_admin still sees the other
- * four tabs exactly as before.
+ * tabs exactly as before.
  */
 export function CloudSettings() {
   const { profile } = useCloudAuth();
@@ -35,7 +41,7 @@ export function CloudSettings() {
   return (
     <div>
       <h1 className="h4 mb-1">Settings</h1>
-      <p className="text-muted mb-4">Manage your school profile, academic calendar, report template, and classes.</p>
+      <p className="text-muted mb-4">Manage your school profile, academic calendar, report template, classes, and subjects.</p>
 
       <ul className="nav nav-pills mb-4">
         {tabs.map((t) => (
@@ -55,6 +61,7 @@ export function CloudSettings() {
       {tab === "academic" && <SettingsAcademic />}
       {tab === "template" && <SettingsTemplate />}
       {tab === "classes" && <SettingsClasses />}
+      {tab === "subjects" && <SettingsSubjects />}
       {tab === "circuits" && isDistrictManager && <SettingsCircuits />}
     </div>
   );
