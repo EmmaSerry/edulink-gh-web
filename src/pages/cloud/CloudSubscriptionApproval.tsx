@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CloudSubscriptionService } from "@services/cloud/SubscriptionService";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudDistrictService } from "@services/cloud/DistrictService";
+import type { PendingDistrictRow } from "@services/cloud/DistrictService";
 import type {
   SchoolSubscriptionOverviewRow,
   SubscriptionPaymentRow,
@@ -276,6 +277,92 @@ function RecordPaymentForm({ school, onDone }: { school: SchoolSubscriptionOverv
 }
 
 /**
+ * Self-registered districts waiting on approval - the district-level
+ * counterpart of the school-signup panel below. Districts have no
+ * "confirmed payment" concept of their own (only their schools do), so
+ * unlike the school panel this is a plain one-click Approve with no
+ * payment badge. Also unlike school approval, there's no SMS leg here
+ * for now - see CloudDistrictService.approveDistrict, and
+ * edulink_gh_district_signup.sql.
+ */
+function PendingDistrictsPanel() {
+  const [pending, setPending] = useState<PendingDistrictRow[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  function load() {
+    CloudDistrictService.getPendingDistricts()
+      .then(setPending)
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load pending districts."));
+  }
+
+  useEffect(load, []);
+
+  async function handleApprove(row: PendingDistrictRow) {
+    if (!confirm(`Approve ${row.name} as a new district?`)) return;
+    setApprovingId(row.id);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      await CloudDistrictService.approveDistrict(row.id);
+      setActionSuccess(`${row.name} approved. Schools can now sign up under it.`);
+      load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not approve this district.");
+    } finally {
+      setApprovingId(null);
+      window.setTimeout(() => setActionSuccess(null), 6000);
+    }
+  }
+
+  if (loadError) return null;
+  if (pending === null) return null;
+
+  return (
+    <div className="actrs-card p-0 mb-4">
+      <div className="p-3 border-bottom">
+        <h2 className="h6 fw-bold mb-0">Pending district signups ({pending.length})</h2>
+      </div>
+      {actionSuccess && <div className="alert alert-success py-2 mx-3 mt-3 mb-0">{actionSuccess}</div>}
+      {actionError && <div className="alert alert-danger py-2 mx-3 mt-3 mb-0">{actionError}</div>}
+      {pending.length === 0 && <p className="text-muted p-3 mb-0">Nothing waiting on you right now.</p>}
+      {pending.length > 0 && (
+        <table className="table mb-0 align-middle">
+          <tbody>
+            {pending.map((d) => (
+              <tr key={d.id}>
+                <td>
+                  <div className="fw-semibold">{d.name}</div>
+                  <div className="text-muted small">
+                    {d.region || "No region"} · {new Date(d.created_at).toLocaleDateString()}
+                  </div>
+                </td>
+                <td className="text-muted small">
+                  {d.requested_by_name && <div>{d.requested_by_name}</div>}
+                  {d.requested_by_phone && <div>{d.requested_by_phone}</div>}
+                </td>
+                <td className="text-end">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={approvingId === d.id}
+                    onClick={() => handleApprove(d)}
+                  >
+                    {approvingId === d.id ? "Working…" : "Approve"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/**
  * Super Admin Dashboard - item 10 of Emmanuel's fixes batch, verbatim:
  * "all payment approval should be done by me on a Super Admin
  * Dashboard." Two halves: a pending-claims queue (schools reporting
@@ -446,6 +533,8 @@ export function CloudSubscriptionApproval() {
 
       {actionSuccess && <div className="alert alert-success py-2">{actionSuccess}</div>}
       {actionError && <div className="alert alert-danger py-2">{actionError}</div>}
+
+      <PendingDistrictsPanel />
 
       <PlatformIdleTimeoutPanel />
 

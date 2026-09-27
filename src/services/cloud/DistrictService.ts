@@ -10,6 +10,19 @@
 import { rest, edgeFunctions } from "@/lib/supabaseClient";
 import type { DistrictSchoolOverviewRow, SchoolRegistrationContext, PendingSchoolRow, IdleTimeoutSettings, DistrictRow } from "@/types/database";
 
+/** A self-registered district waiting on platform_admin approval - see
+ *  list_pending_districts() in edulink_gh_district_signup.sql. Defined
+ *  here rather than in types/database.ts, same as PendingSchoolRow's
+ *  neighbours, to keep this one small addition out of that large file. */
+export interface PendingDistrictRow {
+  id: string;
+  name: string;
+  region: string | null;
+  requested_by_name: string | null;
+  requested_by_phone: string | null;
+  created_at: string;
+}
+
 class CloudDistrictServiceImpl {
   async getSchoolsOverview(): Promise<DistrictSchoolOverviewRow[]> {
     return rest.rpc<DistrictSchoolOverviewRow[]>("get_district_schools_overview", {});
@@ -43,6 +56,17 @@ class CloudDistrictServiceImpl {
     } catch (err) {
       return { notified: false, warning: err instanceof Error ? err.message : "Could not send the approval SMS." };
     }
+  }
+
+  /** Self-registered districts waiting on platform_admin approval - see
+   *  edulink_gh_district_signup.sql. No SMS leg for this one (unlike
+   *  school approval) - just the plain database update. */
+  async getPendingDistricts(): Promise<PendingDistrictRow[]> {
+    return rest.rpc<PendingDistrictRow[]>("list_pending_districts", {});
+  }
+
+  async approveDistrict(districtId: string): Promise<void> {
+    await rest.rpc<void>("approve_district", { p_district_id: districtId });
   }
 
   /** The caller's effective idle-session timeout plus what they're

@@ -132,6 +132,9 @@ export function CloudSchoolSignup() {
             </option>
           ))}
         </select>
+        <div className="form-text">
+          Don't see your district listed? <Link to="/signup/district">Register your district first</Link>.
+        </div>
       </div>
 
       <div className="mb-3">

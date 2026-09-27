@@ -3,6 +3,7 @@ import { CloudAuthLayout } from "@layouts/CloudAuthLayout";
 import { CloudAppLayout } from "@layouts/CloudAppLayout";
 import { CloudLogin } from "@pages/cloud/CloudLogin";
 import { CloudSchoolSignup } from "@pages/cloud/CloudSchoolSignup";
+import { CloudDistrictSignup } from "@pages/cloud/CloudDistrictSignup";
 import { CloudDashboard } from "@pages/cloud/CloudDashboard";
 import { CloudStudents } from "@pages/cloud/CloudStudents";
 import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
@@ -37,6 +38,11 @@ import { ThemeProvider } from "@contexts/ThemeContext";
  * Everything that used to live at "/" (the actual dashboard) moved to
  * "/dashboard" to make room for it; CloudSidebar's Dashboard link and
  * CloudLogin's post-sign-in redirect both point there now.
+ *
+ * "/signup" registers a single school; "/signup/district" (new)
+ * registers a whole district, for a district office wanting its own
+ * account that other schools sign up under - see
+ * edulink_gh_district_signup.sql and CloudDistrictSignup.tsx.
  */
 export default function App() {
   return (
@@ -47,6 +53,7 @@ export default function App() {
         <Route element={<CloudAuthLayout />}>
           <Route path="/login" element={<CloudLogin />} />
           <Route path="/signup" element={<CloudSchoolSignup />} />
+          <Route path="/signup/district" element={<CloudDistrictSignup />} />
         </Route>
 
         <Route
