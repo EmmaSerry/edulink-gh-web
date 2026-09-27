@@ -173,7 +173,7 @@ export function PublicHome() {
       <footer className="py-4 border-top">
         <div className="container d-flex flex-wrap justify-content-between align-items-center gap-2">
           <span className="text-muted small">&copy; {new Date().getFullYear()} EduLink GH</span>
-          <span className="text-muted small">Amenfi Central Terminal Report System, reimagined nationwide</span>
+          <span className="text-muted small">Developed by Emmanuel Serry</span>
         </div>
         <div className="container mt-2">
           <span className="text-muted" style={{ fontSize: "0.7rem" }}>

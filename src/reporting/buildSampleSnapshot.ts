@@ -56,10 +56,23 @@ const SAMPLE_LEVEL_NAME: Record<ReportTemplateCode, string> = {
   JHS: "Junior High School",
 };
 
+/**
+ * Each level's own subject list, taken directly from the official GES
+ * "Pupil's Terminal Report" templates for Lower Primary, Upper Primary
+ * and JHS (Emmanuel supplied these as PDFs). Two earlier versions of
+ * this list were both wrong in different ways: the first mistakenly
+ * gave Upper Primary a JHS-shaped list (Integrated Science/Social
+ * Studies, no Creative Arts); the fix for that left Lower Primary
+ * untouched, which was ALSO wrong (missing Language & Literacy/
+ * Numeracy entirely) and gave JHS "Integrated Science" instead of the
+ * official form's plain "Science", missing "Creative Arts & Design"
+ * altogether. This list matches all three official templates exactly,
+ * subject-for-subject and in the same order printed on each form.
+ */
 const SAMPLE_SUBJECTS_SCORED: Record<Exclude<ReportTemplateCode, "KG">, string[]> = {
-  LOWER_PRIMARY: ["English Language", "Mathematics", "Our World Our People", "Ghanaian Language", "Creative Arts", "Religious & Moral Education"],
-  UPPER_PRIMARY: ["English Language", "Mathematics", "Integrated Science", "Social Studies", "Ghanaian Language", "Computing", "Religious & Moral Education"],
-  JHS: ["English Language", "Mathematics", "Integrated Science", "Social Studies", "Ghanaian Language", "Computing", "Career Technology", "Religious & Moral Education"],
+  LOWER_PRIMARY: ["Language & Literacy", "Numeracy", "Science", "Our World Our People", "Religious & Moral Education", "History", "Creative Arts"],
+  UPPER_PRIMARY: ["English Language", "Mathematics", "Science", "Our World Our People", "Religious & Moral Education", "History", "Computing", "Ghanaian Language", "Creative Arts"],
+  JHS: ["English Language", "Mathematics", "Science", "Social Studies", "Religious & Moral Education", "Career Technology", "Computing", "Ghanaian Language", "Creative Arts & Design"],
 };
 
 const SAMPLE_LEARNING_AREAS_KG: { name: string; skills: string[] }[] = [
