@@ -152,7 +152,7 @@ body::before {
 .actrs-card {
   border: 1px solid var(--actrs-glass-border);
   border-radius: var(--actrs-radius);
-  box-shadow: var(--actrs-shadow);
+  box-shadow: var(--actrs-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   background: var(--actrs-glass);
   backdrop-filter: blur(12px) saturate(130%);
   -webkit-backdrop-filter: blur(12px) saturate(130%);
@@ -161,6 +161,32 @@ body::before {
      rest of the page when the blurred background behind it moves -
      part of the same fix as the blob's will-change above. */
   contain: layout paint style;
+}
+
+[data-bs-theme="dark"] .actrs-card {
+  box-shadow: var(--actrs-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Rows and cards meant to be clicked (school/account rows, a card
+   wrapped in role="button") get a lift-and-glow on hover instead of
+   sitting completely flat - the same cheap "this responds to you"
+   signal buttons and nav links get below. Purely additive: nothing
+   with this attribute changes size/position, it just gains a shadow and
+   floats 2px on hover, and settles back down on click instead of
+   staying lifted, so pressing something still reads as pressing it. */
+.actrs-card[role="button"],
+tr[role="button"] {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.actrs-card[role="button"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(11, 26, 48, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.actrs-card[role="button"]:active {
+  transform: translateY(0);
 }
 
 /* Shared "raised surface" treatment for anything that used to hardcode
@@ -208,18 +234,35 @@ body::before {
   margin: 2px 8px;
   padding: 0.55rem 0.9rem;
   border-left: 3px solid transparent;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.15s ease,
+    box-shadow 0.18s ease;
 }
 
+/* A soft glass sheen that fades in behind the icon/label on hover,
+   rather than just a flat colour swap - same "translucent highlight"
+   language as the cards and inputs, brought into the one part of the
+   sidebar that had no hover feedback at all before. The tiny rightward
+   nudge (2px) is the same "this is reacting to you" cue a button's
+   lift gives, scaled down since a nav item is a row, not a raised
+   panel. */
 .actrs-sidebar .nav-link:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
+  transform: translateX(2px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .actrs-sidebar .nav-link.active {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
   border-left-color: var(--actrs-yellow);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), -2px 0 12px -4px rgba(242, 183, 5, 0.5);
+}
+
+.actrs-sidebar .nav-link.active:hover {
+  transform: none;
 }
 
 .actrs-topbar {
@@ -292,6 +335,34 @@ body::before {
   opacity: 0.55;
 }
 
+/* Every button (any Bootstrap variant - primary, outline-*, link is
+   excluded on purpose, a text link shouldn't float) gets the same
+   lift-and-glow on hover and a quick settle-down on click, so pressing
+   any button in the app feels like pressing something rather than just
+   a colour change. Layered on top of each variant's own hover colours
+   above/from Bootstrap - this only adds motion and shadow, never
+   touches colour. */
+.btn:not(.btn-link) {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn:not(.btn-link):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(11, 26, 48, 0.2);
+}
+
+.btn:not(.btn-link):active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(11, 26, 48, 0.15);
+}
+
+.btn:not(.btn-link):disabled,
+.btn:not(.btn-link).disabled {
+  transform: none;
+  box-shadow: none;
+}
+
 /* Liquid-glass form inputs - its own small pane of frosted glass
    (translucent + blurred, with a bright hairline highlight along the
    top edge to catch the light) rather than Bootstrap's flat bordered
@@ -328,6 +399,29 @@ body::before {
 .form-select:disabled {
   opacity: 0.55;
   box-shadow: none;
+}
+
+/* Settings-style pill tabs (nav-pills - Settings' School profile /
+   Academic / Subjects / Circuits row, and anywhere else the same
+   Bootstrap component is used) switched with a hard, instant colour cut
+   before; this animates the swap and gives an inactive pill some
+   hover feedback of its own, which it had none of previously. */
+.nav-pills .nav-link {
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+}
+
+.nav-pills .nav-link:not(.active):hover {
+  background-color: var(--actrs-blue-light);
+  color: var(--actrs-navy);
+}
+
+[data-bs-theme="dark"] .nav-pills .nav-link:not(.active):hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.nav-pills .nav-link.active {
+  box-shadow: 0 4px 12px rgba(11, 26, 48, 0.22);
 }
 
 /* Print styles - used by the Class Register (Module 12) and future
@@ -424,16 +518,46 @@ body::before {
   color: var(--actrs-text-muted);
 }
 
+/* Table rows - Bootstrap's own .table-hover exists on several of these
+   tables already but its default hover tint is barely visible against
+   the glass/dark backgrounds here. This overrides it with the app's own
+   accent tint plus a transition, and makes sure any row explicitly
+   marked as clickable (role="button", used for drill-down rows like a
+   school or account) actually shows a pointer cursor - previously nothing
+   but the eventual click told you a row could be opened. */
+.table-hover > tbody > tr {
+  transition: background-color 0.15s ease;
+}
+
+.table-hover > tbody > tr:hover > * {
+  background-color: rgba(14, 165, 196, 0.1);
+}
+
+[data-bs-theme="dark"] .table-hover > tbody > tr:hover > * {
+  background-color: rgba(14, 165, 196, 0.14);
+}
+
 /* Respect the OS/browser "reduce motion" setting - turns off the
-   background breathing animation and softens input focus transitions
-   for anyone who's asked for that, without changing any layout. */
+   background breathing animation and softens every hover/press
+   transition added above for anyone who's asked for that, without
+   changing any layout. */
 @media (prefers-reduced-motion: reduce) {
   body::before {
     animation: none !important;
   }
   .form-control,
   .form-select,
-  .actrs-sidebar .nav-link {
+  .actrs-sidebar .nav-link,
+  .actrs-card[role="button"],
+  tr[role="button"],
+  .btn:not(.btn-link),
+  .nav-pills .nav-link,
+  .table-hover > tbody > tr {
     transition: none !important;
+  }
+  .actrs-sidebar .nav-link:hover,
+  .actrs-card[role="button"]:hover,
+  .btn:not(.btn-link):hover {
+    transform: none !important;
   }
 }
