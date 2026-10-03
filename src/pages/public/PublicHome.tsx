@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { NetworkHeroGraphic } from "@components/NetworkHeroGraphic";
 import { Reveal } from "@components/Reveal";
+import { BrandMark } from "@components/BrandMark";
 import { useCountUp } from "@/hooks/useCountUp";
 import "@styles/public-home.css";
 
@@ -54,7 +55,7 @@ export function PublicHome() {
       <header className="ph-nav">
         <div className="container d-flex align-items-center justify-content-between py-2">
           <div className="d-flex align-items-center gap-2">
-            <span className="actrs-brand-mark">EG</span>
+            <BrandMark size={32} />
             <span className="fw-bold">EduLink GH</span>
           </div>
           {session ? (

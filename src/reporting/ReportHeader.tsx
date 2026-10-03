@@ -4,7 +4,15 @@ import type { ReportSnapshotSchoolInfo, ReportSnapshotTermInfo } from "./ReportS
  *  contact details, motto, and the report title/term line - reused
  *  identically by every template so a parent recognises the same
  *  official letterhead regardless of which level's report they're
- *  holding. */
+ *  holding.
+ *
+ *  Shows the district's logo too (district.logoDataUrl -> already
+ *  threaded into every snapshot as school.districtLogoDataUrl by
+ *  ReportDataService - see that file) - previously only the KG
+ *  template's separate cover page showed it; every scored level
+ *  (Lower/Upper Primary, JHS) used to show the school logo alone.
+ *  Omitted entirely when the district hasn't uploaded one, same as the
+ *  school logo already does. */
 export function ReportHeader({
   school,
   term,
@@ -29,6 +37,7 @@ export function ReportHeader({
           </div>
           {school.motto && <div className="school-meta fst-italic">"{school.motto}"</div>}
         </div>
+        {school.districtLogoDataUrl && <img src={school.districtLogoDataUrl} alt="" className="logo district-logo" />}
       </div>
       <div className="actrs-report-header-rule" />
       <div className="actrs-report-title">

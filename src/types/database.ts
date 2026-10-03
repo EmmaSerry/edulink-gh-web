@@ -674,6 +674,16 @@ export interface PilotProgramSettings {
   startedAt: string;
 }
 
+/** Platform-wide branding - see get_public_branding() in
+ *  edulink_gh_phase1h_platform_branding.sql. Publicly readable (no
+ *  sign-in required) since it has to render on the public homepage and
+ *  the login/signup screens, which load before anyone's signed in. */
+export interface PublicBranding {
+  platformLogoDataUrl: string | null;
+  superAdminPhotoDataUrl: string | null;
+  superAdminCaption: string | null;
+}
+
 /** One row per district approved since the pilot program started -
  *  see list_district_pilot_usage(). Lets the platform admin see at a
  *  glance how many of each new district's free slots are used up. */

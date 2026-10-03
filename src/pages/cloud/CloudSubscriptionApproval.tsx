@@ -1,7 +1,9 @@
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CloudSubscriptionService } from "@services/cloud/SubscriptionService";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudDistrictService } from "@services/cloud/DistrictService";
+import { CloudBrandingService } from "@services/cloud/BrandingService";
+import { resizeImageToDataUrl } from "@/lib/imageResize";
 import type { PendingDistrictRow } from "@services/cloud/DistrictService";
 import type {
   SchoolSubscriptionOverviewRow,
@@ -11,6 +13,7 @@ import type {
   IdleTimeoutSettings,
   PilotProgramSettings,
   DistrictPilotUsageRow,
+  PublicBranding,
 } from "@/types/database";
 
 const METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {
@@ -156,6 +159,236 @@ function DefaultRatesForm({ onSaved }: { onSaved: (updated: number) => void }) {
           <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={handleApply}>
             {saving ? "Applying…" : "Apply to non-custom schools"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Platform-wide branding - the one logo that replaces the "EG" badge
+ * everywhere it appears (public homepage, login/signup, every role's
+ * in-app sidebar - see BrandMark.tsx), plus a personal photo + caption
+ * shown only on the login/signup screens (CloudAuthLayout). Both are
+ * platform_admin-exclusive by design - see
+ * edulink_gh_phase1h_platform_branding.sql. District logos
+ * (district_admin, DistrictLogoPanel) and school logos (school_admin,
+ * SettingsSchool) are a level below this and untouched.
+ */
+function PlatformBrandingPanel() {
+  const [branding, setBranding] = useState<PublicBranding | null>(null);
+
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [savingLogo, setSavingLogo] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoSuccess, setLogoSuccess] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [caption, setCaption] = useState("");
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoSuccess, setPhotoSuccess] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  function load() {
+    CloudBrandingService.getPublicBranding()
+      .then((b) => {
+        setBranding(b);
+        setLogoDataUrl(b.platformLogoDataUrl);
+        setPhotoDataUrl(b.superAdminPhotoDataUrl);
+        setCaption(b.superAdminCaption ?? "");
+      })
+      .catch(() => setBranding(null));
+  }
+
+  useEffect(load, []);
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setLogoError(null);
+    setLogoSuccess(null);
+    try {
+      const dataUrl = await resizeImageToDataUrl(file);
+      setSavingLogo(true);
+      await CloudBrandingService.setPlatformLogo(dataUrl);
+      setLogoDataUrl(dataUrl);
+      setLogoSuccess("Platform logo updated everywhere it appears.");
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Could not save that logo.");
+    } finally {
+      setSavingLogo(false);
+      window.setTimeout(() => setLogoSuccess(null), 6000);
+    }
+  }
+
+  async function handleRemoveLogo() {
+    setSavingLogo(true);
+    setLogoError(null);
+    setLogoSuccess(null);
+    try {
+      await CloudBrandingService.setPlatformLogo(null);
+      setLogoDataUrl(null);
+      setLogoSuccess("Platform logo removed - back to the default badge.");
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Could not remove that logo.");
+    } finally {
+      setSavingLogo(false);
+      window.setTimeout(() => setLogoSuccess(null), 6000);
+    }
+  }
+
+  async function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoError(null);
+    setPhotoSuccess(null);
+    try {
+      const dataUrl = await resizeImageToDataUrl(file);
+      setSavingPhoto(true);
+      await CloudBrandingService.setSuperAdminPhoto(dataUrl, caption);
+      setPhotoDataUrl(dataUrl);
+      setPhotoSuccess("Photo updated on the login screen.");
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Could not save that photo.");
+    } finally {
+      setSavingPhoto(false);
+      window.setTimeout(() => setPhotoSuccess(null), 6000);
+    }
+  }
+
+  async function handleRemovePhoto() {
+    setSavingPhoto(true);
+    setPhotoError(null);
+    setPhotoSuccess(null);
+    try {
+      await CloudBrandingService.setSuperAdminPhoto(null, caption);
+      setPhotoDataUrl(null);
+      setPhotoSuccess("Photo removed from the login screen.");
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Could not remove that photo.");
+    } finally {
+      setSavingPhoto(false);
+      window.setTimeout(() => setPhotoSuccess(null), 6000);
+    }
+  }
+
+  async function handleSaveCaption(e: FormEvent) {
+    e.preventDefault();
+    setSavingPhoto(true);
+    setPhotoError(null);
+    setPhotoSuccess(null);
+    try {
+      await CloudBrandingService.setSuperAdminPhoto(photoDataUrl, caption);
+      setPhotoSuccess("Caption saved.");
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Could not save that caption.");
+    } finally {
+      setSavingPhoto(false);
+      window.setTimeout(() => setPhotoSuccess(null), 6000);
+    }
+  }
+
+  if (!branding) return null;
+
+  return (
+    <div className="actrs-card p-3 mb-4">
+      <h2 className="h6 fw-bold mb-1">Platform branding</h2>
+      <p className="text-muted small mb-3">
+        Yours to set, exclusively - replaces the "EG" badge on the public homepage, the login/signup screens, and
+        every role's sidebar once uploaded. A district admin can still set their own district's logo, and a school
+        admin their own school's logo (both already appear on report cards) - this is a level above those, for the
+        platform as a whole.
+      </p>
+
+      <div className="row g-4">
+        <div className="col-md-6">
+          <h3 className="h6 mb-2" style={{ fontSize: "0.9rem" }}>
+            Platform logo
+          </h3>
+          {logoSuccess && <div className="alert alert-success py-2 small">{logoSuccess}</div>}
+          {logoError && <div className="alert alert-danger py-2 small">{logoError}</div>}
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="border d-flex align-items-center justify-content-center"
+              style={{ width: 72, height: 72, borderRadius: 10, background: "#e9ecef", overflow: "hidden", flexShrink: 0 }}
+            >
+              {logoDataUrl ? (
+                <img src={logoDataUrl} alt="Platform logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              ) : (
+                <span className="text-muted small">EG badge</span>
+              )}
+            </div>
+            <div className="d-flex flex-column gap-2">
+              <input ref={logoInputRef} type="file" accept="image/*" className="d-none" onChange={handleLogoFile} />
+              <button
+                type="button"
+                className="btn btn-outline-primary btn-sm"
+                disabled={savingLogo}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                {logoDataUrl ? "Replace logo" : "Upload logo"}
+              </button>
+              {logoDataUrl && (
+                <button type="button" className="btn btn-link btn-sm text-danger p-0" disabled={savingLogo} onClick={handleRemoveLogo}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-6">
+          <h3 className="h6 mb-2" style={{ fontSize: "0.9rem" }}>
+            Your photo (login screen only)
+          </h3>
+          {photoSuccess && <div className="alert alert-success py-2 small">{photoSuccess}</div>}
+          {photoError && <div className="alert alert-danger py-2 small">{photoError}</div>}
+          <div className="d-flex align-items-center gap-3 mb-2">
+            <div
+              className="border d-flex align-items-center justify-content-center"
+              style={{ width: 72, height: 72, borderRadius: "50%", background: "#e9ecef", overflow: "hidden", flexShrink: 0 }}
+            >
+              {photoDataUrl ? (
+                <img src={photoDataUrl} alt="Your photo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <span className="text-muted small">No photo</span>
+              )}
+            </div>
+            <div className="d-flex flex-column gap-2">
+              <input ref={photoInputRef} type="file" accept="image/*" className="d-none" onChange={handlePhotoFile} />
+              <button
+                type="button"
+                className="btn btn-outline-primary btn-sm"
+                disabled={savingPhoto}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                {photoDataUrl ? "Replace photo" : "Upload photo"}
+              </button>
+              {photoDataUrl && (
+                <button type="button" className="btn btn-link btn-sm text-danger p-0" disabled={savingPhoto} onClick={handleRemovePhoto}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+          <form className="d-flex align-items-end gap-2" onSubmit={handleSaveCaption}>
+            <div className="flex-grow-1">
+              <label className="form-label small mb-1">Caption (e.g. "Emmanuel Serry, Platform Administrator")</label>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="btn btn-outline-primary btn-sm" disabled={savingPhoto}>
+              Save
+            </button>
+          </form>
         </div>
       </div>
     </div>
@@ -710,6 +943,8 @@ export function CloudSubscriptionApproval() {
 
       {actionSuccess && <div className="alert alert-success py-2">{actionSuccess}</div>}
       {actionError && <div className="alert alert-danger py-2">{actionError}</div>}
+
+      <PlatformBrandingPanel />
 
       <PendingDistrictsPanel />
 

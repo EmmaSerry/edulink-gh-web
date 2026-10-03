@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
+import { BrandMark } from "@components/BrandMark";
 import type { UserRole } from "@/types/database";
 
 const SCHOOL_ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
@@ -104,7 +105,7 @@ export function CloudSidebar() {
   return (
     <aside className="actrs-sidebar d-flex flex-column p-3" style={{ width: 260 }}>
       <div className="mb-4 px-1 d-flex align-items-center gap-2">
-        <span className="actrs-brand-mark">EG</span>
+        <BrandMark />
         <div className="lh-sm">
           <div className="fw-bold">EduLink GH</div>
           <div className="text-muted" style={{ fontSize: "0.7rem" }}>

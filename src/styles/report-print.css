@@ -116,6 +116,19 @@
   box-shadow: 0 0 0 1px #e1e6ec;
 }
 
+/* The district's logo - same treatment as the school's, smaller and
+   pinned to the right edge of the header (margin-left: auto on a flex
+   item pushes it, and everything after it, to the far side of the
+   row) so the header reads "school on the left, district on the
+   right" without needing to touch the text block in between. Omitted
+   entirely when the district hasn't uploaded one - see ReportHeader.tsx. */
+.actrs-report-header img.district-logo {
+  width: 56px;
+  height: 56px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .actrs-report-header .school-name {
   color: var(--report-primary);
   font-weight: 800;
