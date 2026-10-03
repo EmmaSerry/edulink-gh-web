@@ -180,6 +180,11 @@ function PilotProgramPanel() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [optInEmail, setOptInEmail] = useState("");
+  const [optInSaving, setOptInSaving] = useState(false);
+  const [optInError, setOptInError] = useState<string | null>(null);
+  const [optInSuccess, setOptInSuccess] = useState<string | null>(null);
+
   function load() {
     Promise.all([CloudSubscriptionService.getPilotProgramSettings(), CloudSubscriptionService.listDistrictPilotUsage()])
       .then(([s, u]) => {
@@ -216,6 +221,26 @@ function PilotProgramPanel() {
     }
   }
 
+  async function handleOptIn(e: FormEvent) {
+    e.preventDefault();
+    setOptInSaving(true);
+    setOptInError(null);
+    setOptInSuccess(null);
+    try {
+      const email = optInEmail.trim();
+      if (!email) throw new Error("Enter the district admin's sign-in email.");
+      const result = await CloudSubscriptionService.setDistrictPilotOptInByAdminEmail(email, true);
+      setOptInSuccess(`${result.districtName} opted into the pilot program. New schools registering under it from now will get a free first term.`);
+      setOptInEmail("");
+      load();
+    } catch (err) {
+      setOptInError(err instanceof Error ? err.message : "Could not opt this district in.");
+    } finally {
+      setOptInSaving(false);
+      window.setTimeout(() => setOptInSuccess(null), 8000);
+    }
+  }
+
   if (!settings) return null;
 
   return (
@@ -246,6 +271,36 @@ function PilotProgramPanel() {
           {saving ? "Saving…" : "Save"}
         </button>
       </form>
+
+      <div className="border-top pt-3 mb-3">
+        <h3 className="h6 mb-1" style={{ fontSize: "0.9rem" }}>
+          Opt an already-existing district in
+        </h3>
+        <p className="text-muted small mb-2">
+          For a district that was approved before the date above - find it by its district admin's own sign-in
+          email. Only schools that register AFTER this takes effect get a free term; nothing already registered
+          under the district changes.
+        </p>
+        {optInSuccess && <div className="alert alert-success py-2 small">{optInSuccess}</div>}
+        {optInError && <div className="alert alert-danger py-2 small">{optInError}</div>}
+        <form className="d-flex flex-wrap align-items-end gap-3" onSubmit={handleOptIn}>
+          <div>
+            <label className="form-label small mb-1">District admin's email</label>
+            <input
+              type="email"
+              className="form-control form-control-sm"
+              style={{ width: 240 }}
+              placeholder="admin@example.com"
+              value={optInEmail}
+              onChange={(e) => setOptInEmail(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn btn-outline-primary btn-sm" disabled={optInSaving}>
+            {optInSaving ? "Working…" : "Opt district in"}
+          </button>
+        </form>
+      </div>
+
       {usage && usage.length > 0 && (
         <div className="table-responsive">
           <table className="table table-sm mb-0 align-middle">
@@ -260,6 +315,7 @@ function PilotProgramPanel() {
                 <tr key={d.district_id}>
                   <td>
                     {d.district_name}
+                    {d.opted_in && <span className="badge text-bg-info ms-2">Opted in</span>}
                     <div className="text-muted small">{d.region ?? "No region"}</div>
                   </td>
                   <td className="text-end">

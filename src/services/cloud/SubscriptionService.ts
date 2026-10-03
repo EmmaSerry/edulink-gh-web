@@ -141,10 +141,23 @@ class CloudSubscriptionServiceImpl {
     await rest.rpc<void>("set_pilot_slots_per_district", { p_slots: slots });
   }
 
-  /** Every district approved since the pilot program started, with how
+  /** Every district approved since the pilot program started, plus any
+   *  older district a platform admin has manually opted in - with how
    *  many of its free slots are used so far. */
   async listDistrictPilotUsage(): Promise<DistrictPilotUsageRow[]> {
     return rest.rpc<DistrictPilotUsageRow[]>("list_district_pilot_usage", {});
+  }
+
+  /** platform_admin only - makes an already-existing district (one that
+   *  predates the pilot program) eligible too, found by its district
+   *  admin's own sign-in email rather than needing the district's
+   *  internal id. Only affects schools that register AFTER this call -
+   *  see edulink_gh_phase1g_pilot_district_opt_in.sql. */
+  async setDistrictPilotOptInByAdminEmail(email: string, optIn: boolean): Promise<{ districtId: string; districtName: string }> {
+    return rest.rpc<{ districtId: string; districtName: string }>("set_district_pilot_opt_in_by_admin_email", {
+      p_email: email,
+      p_opt_in: optIn,
+    });
   }
 }
 

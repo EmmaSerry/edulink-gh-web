@@ -684,4 +684,9 @@ export interface DistrictPilotUsageRow {
   slots_per_district: number;
   used: number;
   is_eligible: boolean;
+  /** True when a platform admin manually opted this district into the
+   *  program (see set_district_pilot_opt_in_by_admin_email() in
+   *  edulink_gh_phase1g_pilot_district_opt_in.sql) rather than it
+   *  qualifying by being approved after the program started. */
+  opted_in: boolean;
 }
