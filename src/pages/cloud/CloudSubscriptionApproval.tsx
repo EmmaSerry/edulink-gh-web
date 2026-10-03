@@ -9,6 +9,8 @@ import type {
   SubscriptionPaymentMethod,
   TermRow,
   IdleTimeoutSettings,
+  PilotProgramSettings,
+  DistrictPilotUsageRow,
 } from "@/types/database";
 
 const METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {
@@ -156,6 +158,125 @@ function DefaultRatesForm({ onSaved }: { onSaved: (updated: number) => void }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The free-pilot-program control - see
+ * edulink_gh_phase1f_free_pilot_program.sql. One setting (how many of
+ * a NEW district's first schools get a free term, 0 to turn it off)
+ * plus a read-only usage table so Emmanuel can see which recently
+ * approved districts are mid-pilot without opening each one's own
+ * school list. Districts approved before the program started never
+ * appear here - the program is deliberately going-forward only, so
+ * there's nothing retroactive to show for them.
+ */
+function PilotProgramPanel() {
+  const [settings, setSettings] = useState<PilotProgramSettings | null>(null);
+  const [usage, setUsage] = useState<DistrictPilotUsageRow[] | null>(null);
+  const [slots, setSlots] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  function load() {
+    Promise.all([CloudSubscriptionService.getPilotProgramSettings(), CloudSubscriptionService.listDistrictPilotUsage()])
+      .then(([s, u]) => {
+        setSettings(s);
+        setSlots(String(s.slotsPerDistrict));
+        setUsage(u);
+      })
+      .catch(() => {
+        setSettings(null);
+        setUsage(null);
+      });
+  }
+
+  useEffect(load, []);
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const value = Number(slots);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error("Enter zero (to turn the program off) or a positive number of slots.");
+      }
+      await CloudSubscriptionService.setPilotSlotsPerDistrict(value);
+      setSuccess("Pilot program setting updated.");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the pilot program setting.");
+    } finally {
+      setSaving(false);
+      window.setTimeout(() => setSuccess(null), 6000);
+    }
+  }
+
+  if (!settings) return null;
+
+  return (
+    <div className="actrs-card p-3 mb-4">
+      <h2 className="h6 fw-bold mb-1">Free pilot program</h2>
+      <p className="text-muted small mb-3">
+        The first schools to self-register under any district approved from{" "}
+        {new Date(settings.startedAt).toLocaleDateString()} onward get their first term's subscription waived
+        automatically - no payment, no extra approval step for you. Existing districts and schools are unaffected.
+        Set this to 0 to turn it off for any district approved from now on - schools already granted a free term
+        keep it.
+      </p>
+      {success && <div className="alert alert-success py-2 small">{success}</div>}
+      {error && <div className="alert alert-danger py-2 small">{error}</div>}
+      <form className="d-flex flex-wrap align-items-end gap-3 mb-3" onSubmit={handleSave}>
+        <div>
+          <label className="form-label small mb-1">Free slots per new district</label>
+          <input
+            type="number"
+            min={0}
+            className="form-control form-control-sm"
+            style={{ width: 100 }}
+            value={slots}
+            onChange={(e) => setSlots(e.target.value)}
+          />
+        </div>
+        <button type="submit" className="btn btn-outline-primary btn-sm" disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </form>
+      {usage && usage.length > 0 && (
+        <div className="table-responsive">
+          <table className="table table-sm mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>District</th>
+                <th className="text-end">Free slots used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usage.map((d) => (
+                <tr key={d.district_id}>
+                  <td>
+                    {d.district_name}
+                    <div className="text-muted small">{d.region ?? "No region"}</div>
+                  </td>
+                  <td className="text-end">
+                    {d.used} / {d.slots_per_district}
+                    {d.slots_per_district > 0 && d.used >= d.slots_per_district && (
+                      <span className="badge text-bg-secondary ms-2">Full</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {usage && usage.length === 0 && (
+        <p className="text-muted small mb-0">No districts have been approved under the pilot program yet.</p>
+      )}
     </div>
   );
 }
@@ -536,6 +657,8 @@ export function CloudSubscriptionApproval() {
 
       <PendingDistrictsPanel />
 
+      <PilotProgramPanel />
+
       <PlatformIdleTimeoutPanel />
 
       <DefaultRatesForm
@@ -631,6 +754,7 @@ export function CloudSubscriptionApproval() {
                     <div className="fw-semibold">{row.school_name}</div>
                     <div className="text-muted small">
                       {row.district_name ?? "No district"} · {row.is_private ? "Private" : "Public"}
+                      {row.is_pilot && <span className="badge text-bg-info ms-2">Pilot</span>}
                       {row.pending_payment_count > 0 && (
                         <span className="badge text-bg-warning ms-2">{row.pending_payment_count} pending</span>
                       )}

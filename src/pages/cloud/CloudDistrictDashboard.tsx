@@ -420,10 +420,20 @@ export function CloudDistrictDashboard() {
                         {s.requested_by_phone ?? "—"}
                       </td>
                       <td>
-                        {s.has_confirmed_payment ? (
+                        {s.is_pilot ? (
+                          <span
+                            className="badge text-bg-info"
+                            title="This school's first term is free under the district pilot program - no payment was needed."
+                          >
+                            Free pilot term
+                          </span>
+                        ) : s.has_confirmed_payment ? (
                           <span className="badge text-bg-success">Payment confirmed</span>
                         ) : (
-                          <span className="badge text-bg-warning" title="The platform admin needs to record and approve a subscription payment before this school can be approved.">
+                          <span
+                            className="badge text-bg-warning"
+                            title="The platform admin needs to record and approve a subscription payment before this school can be approved."
+                          >
                             Awaiting payment
                           </span>
                         )}

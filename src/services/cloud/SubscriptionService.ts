@@ -8,7 +8,14 @@
  * to enforce itself.
  */
 import { rest, edgeFunctions } from "@/lib/supabaseClient";
-import type { SubscriptionPaymentRow, SubscriptionPaymentMethod, SchoolSubscriptionOverviewRow, SchoolRow } from "@/types/database";
+import type {
+  SubscriptionPaymentRow,
+  SubscriptionPaymentMethod,
+  SchoolSubscriptionOverviewRow,
+  SchoolRow,
+  PilotProgramSettings,
+  DistrictPilotUsageRow,
+} from "@/types/database";
 
 export interface SubmitSubscriptionPaymentInput {
   amount: number;
@@ -118,6 +125,26 @@ class CloudSubscriptionServiceImpl {
       termId,
     });
     return result.payment;
+  }
+
+  /** The free-pilot-program's one platform-wide setting - see
+   *  edulink_gh_phase1f_free_pilot_program.sql. Districts approved
+   *  before `startedAt` are untouched by the program entirely. */
+  async getPilotProgramSettings(): Promise<PilotProgramSettings> {
+    return rest.rpc<PilotProgramSettings>("get_pilot_program_settings", {});
+  }
+
+  /** platform_admin only - pass 0 to turn the pilot program off for any
+   *  district approved from now on (schools already granted a free term
+   *  keep it). */
+  async setPilotSlotsPerDistrict(slots: number): Promise<void> {
+    await rest.rpc<void>("set_pilot_slots_per_district", { p_slots: slots });
+  }
+
+  /** Every district approved since the pilot program started, with how
+   *  many of its free slots are used so far. */
+  async listDistrictPilotUsage(): Promise<DistrictPilotUsageRow[]> {
+    return rest.rpc<DistrictPilotUsageRow[]>("list_district_pilot_usage", {});
   }
 }
 

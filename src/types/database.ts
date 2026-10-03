@@ -64,6 +64,12 @@ export interface SchoolRow {
   subscription_expires_at: string | null;
   subscription_price_per_term: number | null;
   subscription_rate_is_custom: boolean;
+  /** Whether this school's first term's subscription was waived under
+   *  the district free-pilot program - see
+   *  edulink_gh_phase1f_free_pilot_program.sql. Purely informational on
+   *  this row; the actual waiver is the auto-approved GHS 0
+   *  subscription_payments row created alongside it. */
+  is_pilot: boolean;
   approval_status: "pending" | "approved";
   created_at: string;
   updated_at: string;
@@ -92,8 +98,15 @@ export interface PendingSchoolRow {
    *  approve_school() now refuses to approve without one; this lets the
    *  pending-signups panel explain why, without exposing amounts or
    *  payment history to a district_admin (subscription details stay
-   *  platform_admin-only). */
+   *  platform_admin-only). A pilot school (see is_pilot below) always
+   *  has this true from the moment it registers. */
   has_confirmed_payment: boolean;
+  /** True when has_confirmed_payment became true because this school's
+   *  first term was auto-waived under the district free-pilot program,
+   *  not because anyone actually paid - see
+   *  edulink_gh_phase1f_free_pilot_program.sql. Lets the approval screen
+   *  show "Free pilot term" instead of implying a real payment came in. */
+  is_pilot: boolean;
 }
 
 export interface UserProfileRow {
@@ -644,4 +657,31 @@ export interface SchoolSubscriptionOverviewRow {
   subscription_rate_is_custom: boolean;
   is_lapsed: boolean;
   pending_payment_count: number;
+  /** See SchoolRow.is_pilot - whether this school's current/most recent
+   *  free period came from the district pilot program rather than a
+   *  real payment. */
+  is_pilot: boolean;
+}
+
+/** The platform-wide free-pilot-program settings - see
+ *  get_pilot_program_settings()/set_pilot_slots_per_district() in
+ *  edulink_gh_phase1f_free_pilot_program.sql. slotsPerDistrict of 0
+ *  means the program is effectively off for any newly-approved
+ *  district (existing pilot schools already granted keep their free
+ *  term either way). */
+export interface PilotProgramSettings {
+  slotsPerDistrict: number;
+  startedAt: string;
+}
+
+/** One row per district approved since the pilot program started -
+ *  see list_district_pilot_usage(). Lets the platform admin see at a
+ *  glance how many of each new district's free slots are used up. */
+export interface DistrictPilotUsageRow {
+  district_id: string;
+  district_name: string;
+  region: string | null;
+  slots_per_district: number;
+  used: number;
+  is_eligible: boolean;
 }
