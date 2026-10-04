@@ -12,6 +12,12 @@ import type { DistrictOption, CircuitOption } from "@/types/database";
  * server-side (school + admin profile + a full starter curriculum, all
  * in one RPC).
  *
+ * The person filling this in becomes the school's ADMINISTRATOR
+ * account (role school_admin) - not necessarily the head teacher.
+ * Their name and phone go on their own user profile only; the school's
+ * head teacher name/phone are separate fields, filled in later under
+ * Settings -> School profile.
+ *
  * Two network steps on submit, in order: sign the person up as a brand
  * new Supabase Auth user AND keep that session (unlike staff creation,
  * there's no existing admin session to protect here - this account IS
@@ -184,12 +190,15 @@ export function CloudSchoolSignup() {
       <hr className="my-4" />
 
       <div className="mb-3">
-        <label className="form-label small">Head teacher's full name</label>
+        <label className="form-label small">School administrator's full name</label>
         <input className="form-control" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-        <div className="form-text">This is the person signing up - you, as the school's head teacher.</div>
+        <div className="form-text">
+          This is the person signing up - you, as the school's administrator. The head teacher's details can be added
+          later under Settings &rarr; School profile.
+        </div>
       </div>
       <div className="mb-3">
-        <label className="form-label small">Head teacher's phone number</label>
+        <label className="form-label small">School administrator's phone number</label>
         <input
           type="tel"
           className="form-control"
