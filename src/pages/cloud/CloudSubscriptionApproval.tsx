@@ -699,6 +699,7 @@ function PendingDistrictsPanel() {
   const [pending, setPending] = useState<PendingDistrictRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -723,6 +724,29 @@ function PendingDistrictsPanel() {
       setActionError(err instanceof Error ? err.message : "Could not approve this district.");
     } finally {
       setApprovingId(null);
+      window.setTimeout(() => setActionSuccess(null), 6000);
+    }
+  }
+
+  async function handleReject(row: PendingDistrictRow) {
+    if (
+      !confirm(
+        `Reject ${row.name}?\n\nThis permanently removes the application and its sign-in account - it cannot be undone. ` +
+          `The same email address can register again afterwards.`
+      )
+    )
+      return;
+    setRejectingId(row.id);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      await CloudDistrictService.rejectDistrictApplication(row.id);
+      setActionSuccess(`${row.name} was rejected and removed.`);
+      load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not reject this application.");
+    } finally {
+      setRejectingId(null);
       window.setTimeout(() => setActionSuccess(null), 6000);
     }
   }
@@ -753,11 +777,19 @@ function PendingDistrictsPanel() {
                   {d.requested_by_name && <div>{d.requested_by_name}</div>}
                   {d.requested_by_phone && <div>{d.requested_by_phone}</div>}
                 </td>
-                <td className="text-end">
+                <td className="text-end text-nowrap">
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger btn-sm me-2"
+                    disabled={approvingId === d.id || rejectingId === d.id}
+                    onClick={() => handleReject(d)}
+                  >
+                    {rejectingId === d.id ? "Removing…" : "Reject"}
+                  </button>
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
-                    disabled={approvingId === d.id}
+                    disabled={approvingId === d.id || rejectingId === d.id}
                     onClick={() => handleApprove(d)}
                   >
                     {approvingId === d.id ? "Working…" : "Approve"}

@@ -259,6 +259,7 @@ export function CloudDistrictDashboard() {
   const [approveError, setApproveError] = useState<string | null>(null);
   const [approveWarning, setApproveWarning] = useState<string | null>(null);
   const [approveSuccess, setApproveSuccess] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   function loadPending() {
     CloudDistrictService.getPendingSchools()
@@ -293,6 +294,38 @@ export function CloudDistrictDashboard() {
       setApproveError(err instanceof Error ? err.message : "Could not approve this school.");
     } finally {
       setApprovingId(null);
+      window.setTimeout(() => setApproveSuccess(null), 6000);
+    }
+  }
+
+  async function handleReject(school: PendingSchoolRow) {
+    // window.prompt returns null when the person cancels, "" when they
+    // press OK without typing - so a reason is optional but cancelling
+    // really does cancel.
+    const reason = window.prompt(
+      `Reject ${school.name}?\n\nThis permanently removes the application and its login - it cannot be undone. ` +
+        `The applicant will be texted that it wasn't approved.\n\n` +
+        `Optional: type a short reason to include in that text (or leave blank), then press OK. Press Cancel to keep the application.`,
+      ""
+    );
+    if (reason === null) return;
+    setRejectingId(school.id);
+    setApproveError(null);
+    setApproveWarning(null);
+    setApproveSuccess(null);
+    try {
+      const result = await CloudDistrictService.rejectSchoolApplication(school.id, reason);
+      if (result.warning) {
+        setApproveWarning(`${school.name} was removed. ${result.warning}`);
+      } else {
+        setApproveSuccess(`${school.name} was rejected and removed. The applicant has been texted.`);
+      }
+      loadPending();
+      CloudDistrictService.getSchoolsOverview().then(setRows).catch(() => {});
+    } catch (err) {
+      setApproveError(err instanceof Error ? err.message : "Could not reject this application.");
+    } finally {
+      setRejectingId(null);
       window.setTimeout(() => setApproveSuccess(null), 6000);
     }
   }
@@ -438,11 +471,19 @@ export function CloudDistrictDashboard() {
                           </span>
                         )}
                       </td>
-                      <td className="text-end">
+                      <td className="text-end text-nowrap">
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger btn-sm me-2"
+                          disabled={approvingId === s.id || rejectingId === s.id}
+                          onClick={() => handleReject(s)}
+                        >
+                          {rejectingId === s.id ? "Removing…" : "Reject"}
+                        </button>
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
-                          disabled={approvingId === s.id}
+                          disabled={approvingId === s.id || rejectingId === s.id}
                           onClick={() => handleApprove(s)}
                         >
                           {approvingId === s.id ? "Approving…" : "Approve"}

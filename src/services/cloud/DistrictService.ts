@@ -69,6 +69,31 @@ class CloudDistrictServiceImpl {
     await rest.rpc<void>("approve_district", { p_district_id: districtId });
   }
 
+  /** Rejects a pending school application by permanently removing it
+   *  (and the applicant's login), then texts the applicant. Done by the
+   *  reject-school-application Edge Function, since the SMS needs the
+   *  Arkesel key. District admin: own district only; platform admin:
+   *  any. Refuses an already-approved school - see
+   *  edulink_gh_phase1k_reject_applications.sql. */
+  async rejectSchoolApplication(
+    schoolId: string,
+    reason?: string
+  ): Promise<{ removed: boolean; notified: boolean; warning?: string }> {
+    const result = await edgeFunctions.invoke<{ removed?: boolean; notified?: boolean; warning?: string }>(
+      "reject-school-application",
+      { schoolId, reason: reason ?? "" }
+    );
+    return { removed: !!result.removed, notified: !!result.notified, warning: result.warning };
+  }
+
+  /** Rejects a pending district application by permanently removing it
+   *  (and the applicant's login). Platform admin only, checked in the
+   *  database function itself. No SMS - districts aren't texted on
+   *  approval either. */
+  async rejectDistrictApplication(districtId: string): Promise<void> {
+    await rest.rpc<void>("reject_district_application", { p_district_id: districtId });
+  }
+
   /** The caller's effective idle-session timeout plus what they're
    *  allowed to change - see get_idle_timeout_settings() in
    *  edulink_gh_phase0z_idle_timeout_and_signup_fix.sql. Used both by
