@@ -50,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/district", label: "District overview", icon: "bi-diagram-3", districtOnly: true },
   { path: "/accounts", label: "Accounts", icon: "bi-people-fill", districtOnly: true },
   { path: "/students", label: "Students", icon: "bi-people" },
+  { path: "/statistics", label: "Statistics", icon: "bi-bar-chart-line" },
   { path: "/staff", label: "Staff", icon: "bi-person-badge", adminOnly: true },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
