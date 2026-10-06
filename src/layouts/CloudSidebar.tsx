@@ -7,7 +7,8 @@ import type { UserRole } from "@/types/database";
 
 const SCHOOL_ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
 const DISTRICT_ADMIN_ROLES: UserRole[] = ["district_admin", "platform_admin"];
-const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin", "platform_admin"];
+// Finances are reserved: district administrators have no access.
+const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "platform_admin"];
 // Narrower than DISTRICT_ADMIN_ROLES - see RequireAdmin.tsx.
 const PLATFORM_ADMIN_ROLES: UserRole[] = ["platform_admin"];
 const SUBSCRIPTION_SUBMIT_ROLES: UserRole[] = ["school_admin", "bursar"];
@@ -58,6 +59,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/fees", label: "Fees", icon: "bi-cash-coin", feesOnly: true },
   { path: "/subscription", label: "Subscription", icon: "bi-credit-card", subscriptionOnly: true },
   { path: "/billing", label: "Super Admin", icon: "bi-shield-lock", platformOnly: true },
+  { path: "/district-admins", label: "District admins", icon: "bi-person-gear", platformOnly: true },
   { path: "/training", label: "Training environment", icon: "bi-mortarboard", platformOnly: true },
   { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
   { path: "/settings", label: "Settings", icon: "bi-gear", adminOnly: true },

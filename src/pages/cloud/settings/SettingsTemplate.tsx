@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTemplateSettingsService } from "@services/cloud/TemplateSettingsService";
 import { DEFAULT_TEMPLATE_SETTINGS, type TemplateSettings } from "@models/TemplateSettings";
+import { resizeImageToDataUrl } from "@/lib/imageResize";
 
 type FormState = Omit<TemplateSettings, "updatedAt" | "id">;
 
@@ -30,6 +31,7 @@ export function SettingsTemplate() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const signatureInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!profile?.school_id) {
@@ -53,6 +55,18 @@ export function SettingsTemplate() {
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function handleSignatureFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setSaveError(null);
+    try {
+      set("headTeacherSignatureDataUrl", await resizeImageToDataUrl(file, 480));
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not read that image.");
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -244,6 +258,52 @@ export function SettingsTemplate() {
               value={form.signatureTitleHeadTeacher}
               onChange={(e) => set("signatureTitleHeadTeacher", e.target.value)}
             />
+          </div>
+        </div>
+        <div className="mt-4">
+          <label className="form-label small d-block">Head teacher's specimen signature (optional)</label>
+          <p className="text-muted small mb-2">
+            Upload a clear picture of the head teacher's signature on plain white paper. If you add one, it is
+            printed on every report card just above the head teacher's signature line. Leave it empty to keep the
+            line blank for signing by hand.
+          </p>
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="border d-flex align-items-center justify-content-center bg-white"
+              style={{ width: 200, height: 70, borderRadius: 8, overflow: "hidden" }}
+            >
+              {form.headTeacherSignatureDataUrl ? (
+                <img
+                  src={form.headTeacherSignatureDataUrl}
+                  alt="Head teacher signature"
+                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                />
+              ) : (
+                <span className="text-muted small">No signature added</span>
+              )}
+            </div>
+            <div className="d-flex flex-column gap-2">
+              <input
+                ref={signatureInput}
+                type="file"
+                accept="image/*"
+                className="d-none"
+                onChange={handleSignatureFile}
+              />
+              <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => signatureInput.current?.click()}>
+                {form.headTeacherSignatureDataUrl ? "Replace signature" : "Upload signature"}
+              </button>
+              {form.headTeacherSignatureDataUrl && (
+                <button
+                  type="button"
+                  className="btn btn-link btn-sm text-danger p-0"
+                  onClick={() => set("headTeacherSignatureDataUrl", null)}
+                >
+                  Remove
+                </button>
+              )}
+              <span className="text-muted small">Remember to press "Save template settings".</span>
+            </div>
           </div>
         </div>
       </div>

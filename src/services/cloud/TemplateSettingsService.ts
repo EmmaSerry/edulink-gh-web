@@ -32,6 +32,7 @@ function fromRow(row: TemplateSettingsRow): TemplateSettings {
     watermarkOpacity: row.watermark_opacity,
     signatureTitleClassTeacher: row.signature_title_class_teacher,
     signatureTitleHeadTeacher: row.signature_title_head_teacher,
+    headTeacherSignatureDataUrl: row.head_teacher_signature_data_url ?? null,
     batchPdfMode: row.batch_pdf_mode,
     updatedAt: row.updated_at,
   };
@@ -59,6 +60,7 @@ class CloudTemplateSettingsServiceImpl {
       watermark_opacity: values.watermarkOpacity,
       signature_title_class_teacher: values.signatureTitleClassTeacher,
       signature_title_head_teacher: values.signatureTitleHeadTeacher,
+      head_teacher_signature_data_url: values.headTeacherSignatureDataUrl ?? null,
       batch_pdf_mode: values.batchPdfMode,
       updated_at: new Date().toISOString(),
     };

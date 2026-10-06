@@ -1,126 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CloudDistrictService } from "@services/cloud/DistrictService";
 import { CloudAcademicStandardsService } from "@services/cloud/AcademicStandardsService";
 import { AcademicStandardsPanel, SchoolBreakdownPanel } from "@components/AcademicStandardsPanel";
 import { downloadCsv } from "@/lib/csvExport";
-import { resizeImageToDataUrl } from "@/lib/imageResize";
-import type { DistrictSchoolOverviewRow, DistrictAcademicStandards, PendingSchoolRow, IdleTimeoutSettings } from "@/types/database";
-
-/**
- * District branding - just a logo today (KG cover page item 8; every
- * other template already had a school-level logo via Settings ->
- * School profile, but nothing let a district set its OWN logo before
- * this). Same visibility rule as SessionTimeoutPanel just below:
- * a district_admin sees only their own district, a platform_admin
- * sees whichever district get_idle_timeout_settings() resolves them
- * against (it returns null here for a platform_admin with no district
- * of their own, in which case this panel simply doesn't render - a
- * platform-wide "pick any district" logo editor is future work).
- */
-function DistrictLogoPanel() {
-  const [settings, setSettings] = useState<IdleTimeoutSettings | null>(null);
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    CloudDistrictService.getIdleTimeoutSettings()
-      .then(async (s) => {
-        if (cancelled) return;
-        setSettings(s);
-        if (s.districtId) {
-          const logo = await CloudDistrictService.getDistrictLogo(s.districtId);
-          if (!cancelled) setLogoDataUrl(logo);
-        }
-      })
-      .catch(() => !cancelled && setSettings(null))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !settings?.districtId) return;
-    setError(null);
-    setSuccess(null);
-    try {
-      const dataUrl = await resizeImageToDataUrl(file);
-      setSaving(true);
-      await CloudDistrictService.setDistrictLogo(settings.districtId, dataUrl);
-      setLogoDataUrl(dataUrl);
-      setSuccess("District logo updated.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that logo.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleRemove() {
-    if (!settings?.districtId) return;
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      await CloudDistrictService.setDistrictLogo(settings.districtId, null);
-      setLogoDataUrl(null);
-      setSuccess("District logo removed.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not remove that logo.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading || !settings || !settings.canSetDistrict || !settings.districtId) return null;
-
-  return (
-    <div className="actrs-card p-4 mb-4">
-      <h2 className="h6 fw-bold mb-1">District logo</h2>
-      <p className="text-muted small mb-3">
-        Shown on the cover page of every KG report card generated across your district, in place of the old NaCCA
-        logo.
-      </p>
-      {success && <div className="alert alert-success py-2">{success}</div>}
-      {error && <div className="alert alert-danger py-2">{error}</div>}
-      <div className="d-flex align-items-center gap-3">
-        <div
-          className="border d-flex align-items-center justify-content-center"
-          style={{ width: 88, height: 88, borderRadius: 10, background: "#e9ecef", overflow: "hidden", flexShrink: 0 }}
-        >
-          {logoDataUrl ? (
-            <img src={logoDataUrl} alt="District logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-          ) : (
-            <span className="text-muted small">No logo</span>
-          )}
-        </div>
-        <div className="d-flex flex-column gap-2">
-          <input ref={fileInputRef} type="file" accept="image/*" className="d-none" onChange={handleFile} />
-          <button
-            type="button"
-            className="btn btn-outline-primary btn-sm"
-            disabled={saving}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {logoDataUrl ? "Replace logo" : "Upload logo"}
-          </button>
-          {logoDataUrl && (
-            <button type="button" className="btn btn-link btn-sm text-danger p-0" disabled={saving} onClick={handleRemove}>
-              Remove
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+import type { DistrictSchoolOverviewRow, DistrictAcademicStandards, PendingSchoolRow } from "@/types/database";
 
 function SummaryCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -129,112 +12,6 @@ function SummaryCard({ label, value }: { label: string; value: number | string }
         <div className="text-muted small mb-1">{label}</div>
         <div className="h3 mb-0">{value}</div>
       </div>
-    </div>
-  );
-}
-
-/**
- * Lets a district admin set THEIR OWN district's idle-session timeout
- * override - see get_idle_timeout_settings() in
- * edulink_gh_phase0z_idle_timeout_and_signup_fix.sql. The platform-wide
- * default every district falls back to is a separate, platform_admin-
- * only control that lives on the Super Admin Dashboard instead (see
- * PlatformIdleTimeoutPanel in CloudSubscriptionApproval.tsx) - it has
- * nothing to do with any one district, so it doesn't belong on this
- * page even though a platform_admin can also open this page. Session
- * timeout enforcement itself lives in CloudAuthContext, not here - this
- * is just the control panel.
- */
-function SessionTimeoutPanel() {
-  const [settings, setSettings] = useState<IdleTimeoutSettings | null>(null);
-  const [districtMinutes, setDistrictMinutes] = useState("");
-  const [useDistrictOverride, setUseDistrictOverride] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  function load() {
-    CloudDistrictService.getIdleTimeoutSettings()
-      .then((s) => {
-        setSettings(s);
-        setUseDistrictOverride(s.districtOverrideMinutes !== null);
-        setDistrictMinutes(String(s.districtOverrideMinutes ?? s.platformDefaultMinutes));
-      })
-      .catch(() => setSettings(null));
-  }
-
-  useEffect(load, []);
-
-  async function saveDistrict(e: FormEvent) {
-    e.preventDefault();
-    if (!settings?.districtId) return;
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      if (useDistrictOverride) {
-        const minutes = Number(districtMinutes);
-        if (!Number.isFinite(minutes) || minutes < 1 || minutes > 480) {
-          throw new Error("Choose a timeout between 1 and 480 minutes.");
-        }
-        await CloudDistrictService.setDistrictIdleTimeout(settings.districtId, minutes);
-      } else {
-        await CloudDistrictService.setDistrictIdleTimeout(settings.districtId, null);
-      }
-      setSuccess("Session timeout updated.");
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update the session timeout.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!settings || !settings.canSetDistrict) return null;
-
-  return (
-    <div className="actrs-card p-4 mb-4">
-      <h2 className="h6 fw-bold mb-1">Session timeout</h2>
-      <p className="text-muted small mb-3">
-        Signs a device out automatically after this many minutes of inactivity - also helps stop a device from
-        staying signed in unattended. Currently applying <strong>{settings.effectiveMinutes} minutes</strong>.
-      </p>
-
-      {success && <div className="alert alert-success py-2">{success}</div>}
-      {error && <div className="alert alert-danger py-2">{error}</div>}
-
-      {settings.canSetDistrict && (
-        <form className="d-flex flex-wrap align-items-end gap-3 mb-3" onSubmit={saveDistrict}>
-          <div className="form-check">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="useDistrictOverride"
-              checked={useDistrictOverride}
-              onChange={(e) => setUseDistrictOverride(e.target.checked)}
-            />
-            <label className="form-check-label small" htmlFor="useDistrictOverride">
-              Set a timeout just for my district
-            </label>
-          </div>
-          <div>
-            <label className="form-label small mb-1">Minutes</label>
-            <input
-              type="number"
-              min={1}
-              max={480}
-              className="form-control form-control-sm"
-              style={{ width: 100 }}
-              value={districtMinutes}
-              disabled={!useDistrictOverride}
-              onChange={(e) => setDistrictMinutes(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="btn btn-outline-primary btn-sm" disabled={saving}>
-            {saving ? "Saving…" : "Save district timeout"}
-          </button>
-        </form>
-      )}
     </div>
   );
 }
@@ -272,7 +49,7 @@ export function CloudDistrictDashboard() {
   async function handleApprove(school: PendingSchoolRow) {
     if (!school.has_confirmed_payment) {
       setApproveError(
-        `${school.name} can't be approved yet - no confirmed subscription payment on file. Ask the platform admin to record and approve a payment first.`
+        `${school.name} can't be approved yet - it is waiting for the Super Admin's clearance. Please contact the Super Admin.`
       );
       window.setTimeout(() => setApproveError(null), 8000);
       return;
@@ -423,9 +200,6 @@ export function CloudDistrictDashboard() {
         <p className="text-muted">Loading…</p>
       ) : (
         <>
-          <DistrictLogoPanel />
-          <SessionTimeoutPanel />
-
           {((pending && pending.length > 0) || approveSuccess || approveError || approveWarning) && (
             <div className="actrs-card p-0 mb-4">
               <div className="p-3 border-bottom">
@@ -455,18 +229,18 @@ export function CloudDistrictDashboard() {
                         {s.is_pilot ? (
                           <span
                             className="badge text-bg-info"
-                            title="This school's first term is free under the district pilot program - no payment was needed."
+                            title="This school is on the free pilot program and can be approved right away."
                           >
                             Free pilot term
                           </span>
                         ) : s.has_confirmed_payment ? (
-                          <span className="badge text-bg-success">Payment confirmed</span>
+                          <span className="badge text-bg-success">Cleared for approval</span>
                         ) : (
                           <span
                             className="badge text-bg-warning"
-                            title="The platform admin needs to record and approve a subscription payment before this school can be approved."
+                            title="The Super Admin has not cleared this school yet."
                           >
-                            Awaiting payment
+                            Awaiting clearance
                           </span>
                         )}
                       </td>

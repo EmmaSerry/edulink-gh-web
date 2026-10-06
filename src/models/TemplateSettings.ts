@@ -26,6 +26,9 @@ export interface TemplateSettings {
   watermarkOpacity: number;
   signatureTitleClassTeacher: string;
   signatureTitleHeadTeacher: string;
+  /** Optional picture of the head teacher's signature, printed above the
+   *  head teacher signature line on every report card. */
+  headTeacherSignatureDataUrl?: string | null;
   /** Module 9 - batch PDF export: one combined multi-page PDF, or a
    *  separate PDF file per student. */
   batchPdfMode: "single" | "individual";
@@ -44,6 +47,7 @@ export const DEFAULT_TEMPLATE_SETTINGS: Omit<TemplateSettings, "id"> = {
   watermarkOpacity: 0.08,
   signatureTitleClassTeacher: "Class Teacher",
   signatureTitleHeadTeacher: "Headteacher",
+  headTeacherSignatureDataUrl: null,
   batchPdfMode: "individual",
   updatedAt: new Date(0).toISOString(),
 };

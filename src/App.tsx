@@ -24,6 +24,7 @@ import { CloudFees } from "@pages/cloud/CloudFees";
 import { CloudSubscriptionApproval } from "@pages/cloud/CloudSubscriptionApproval";
 import { CloudSubscriptionStatus } from "@pages/cloud/CloudSubscriptionStatus";
 import { CloudTrainingAdmin } from "@pages/cloud/CloudTrainingAdmin";
+import { CloudDistrictAdmins } from "@pages/cloud/CloudDistrictAdmins";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -151,6 +152,14 @@ export default function App() {
             element={
               <RequireAdmin roles="subscription">
                 <CloudSubscriptionStatus />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/district-admins"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudDistrictAdmins />
               </RequireAdmin>
             }
           />

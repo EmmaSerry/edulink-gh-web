@@ -5,7 +5,8 @@ import type { UserRole } from "@/types/database";
 
 const SCHOOL_ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
 const DISTRICT_ADMIN_ROLES: UserRole[] = ["district_admin", "platform_admin"];
-const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin", "platform_admin"];
+// Finances are reserved: district administrators have no access.
+const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "platform_admin"];
 // Deliberately narrower than DISTRICT_ADMIN_ROLES - subscription
 // payment approval is Emmanuel's own call, not a district_admin's, per
 // edulink_gh_phase1d_subscriptions.sql ("all payment approval should

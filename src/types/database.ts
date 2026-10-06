@@ -473,6 +473,7 @@ export interface TemplateSettingsRow {
   watermark_opacity: number;
   signature_title_class_teacher: string;
   signature_title_head_teacher: string;
+  head_teacher_signature_data_url?: string | null;
   batch_pdf_mode: "single" | "individual";
   updated_at: string;
 }

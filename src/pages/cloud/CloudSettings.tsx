@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { SettingsSchool } from "./settings/SettingsSchool";
+import { SettingsDistrict } from "./settings/SettingsDistrict";
 import { SettingsAcademic } from "./settings/SettingsAcademic";
 import { SettingsTemplate } from "./settings/SettingsTemplate";
 import { SettingsClasses } from "./settings/SettingsClasses";
 import { SettingsSubjects } from "./settings/SettingsSubjects";
 import { SettingsCircuits } from "./settings/SettingsCircuits";
 
-type Tab = "school" | "academic" | "template" | "classes" | "subjects" | "circuits";
+type Tab = "school" | "district" | "academic" | "template" | "classes" | "subjects" | "circuits";
 
-const TABS: { key: Tab; label: string }[] = [
+const SCHOOL_TABS: { key: Tab; label: string }[] = [
   { key: "school", label: "School profile" },
   { key: "academic", label: "Academic years & terms" },
   { key: "template", label: "Report template" },
@@ -17,31 +18,41 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "subjects", label: "Subjects" },
 ];
 
-const DISTRICT_ONLY_TABS: { key: Tab; label: string }[] = [{ key: "circuits", label: "Circuits" }];
+// A district administrator: "District profile" comes first, and there is
+// no "Report template" tab (report templates belong to each school).
+const DISTRICT_ADMIN_TABS: { key: Tab; label: string }[] = [
+  { key: "district", label: "District profile" },
+  { key: "academic", label: "Academic years & terms" },
+  { key: "classes", label: "Classes" },
+  { key: "subjects", label: "Subjects" },
+  { key: "circuits", label: "Circuits" },
+];
 
 /**
- * Settings hub. Staff moved out to its own sidebar item (CloudStaffPage)
- * since creating accounts is routine enough to want one click, not two -
- * see the "decouple staff" request. Classes stays here since editing a
- * class is more of an occasional settings-style change. Subjects is the
- * newest tab - previously fixing a wrong subject/level assignment needed
- * a developer to edit the database directly (see the Upper Primary/JHS
- * subject mix-up); now a school_admin can add, edit, or remove a
- * subject themselves - see edulink_gh_subjects_management.sql. Circuits
- * only appears for a district/platform admin - see
- * edulink_gh_phase0s_circuits.sql - a school_admin still sees the other
- * tabs exactly as before.
+ * Settings hub. A school administrator sees the school tabs; a district
+ * administrator sees District profile first and no Report template tab;
+ * the Super Admin keeps the original set plus Circuits.
  */
 export function CloudSettings() {
   const { profile } = useCloudAuth();
-  const [tab, setTab] = useState<Tab>("school");
-  const isDistrictManager = profile?.role === "district_admin" || profile?.role === "platform_admin";
-  const tabs = isDistrictManager ? [...TABS, ...DISTRICT_ONLY_TABS] : TABS;
+  const role = profile?.role;
+  const isDistrictAdmin = role === "district_admin";
+  const isPlatformAdmin = role === "platform_admin";
+  const tabs = isDistrictAdmin
+    ? DISTRICT_ADMIN_TABS
+    : isPlatformAdmin
+      ? [...SCHOOL_TABS, { key: "circuits" as Tab, label: "Circuits" }]
+      : SCHOOL_TABS;
+  const [tab, setTab] = useState<Tab>(isDistrictAdmin ? "district" : "school");
 
   return (
     <div>
       <h1 className="h4 mb-1">Settings</h1>
-      <p className="text-muted mb-4">Manage your school profile, academic calendar, report template, classes, and subjects.</p>
+      <p className="text-muted mb-4">
+        {isDistrictAdmin
+          ? "Manage your district profile, academic calendar, classes, subjects and circuits."
+          : "Manage your school profile, academic calendar, report template, classes, and subjects."}
+      </p>
 
       <ul className="nav nav-pills mb-4">
         {tabs.map((t) => (
@@ -57,12 +68,13 @@ export function CloudSettings() {
         ))}
       </ul>
 
-      {tab === "school" && <SettingsSchool />}
+      {tab === "school" && !isDistrictAdmin && <SettingsSchool />}
+      {tab === "district" && isDistrictAdmin && <SettingsDistrict />}
       {tab === "academic" && <SettingsAcademic />}
-      {tab === "template" && <SettingsTemplate />}
+      {tab === "template" && !isDistrictAdmin && <SettingsTemplate />}
       {tab === "classes" && <SettingsClasses />}
       {tab === "subjects" && <SettingsSubjects />}
-      {tab === "circuits" && isDistrictManager && <SettingsCircuits />}
+      {tab === "circuits" && (isDistrictAdmin || isPlatformAdmin) && <SettingsCircuits />}
     </div>
   );
 }
