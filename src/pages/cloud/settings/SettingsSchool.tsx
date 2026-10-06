@@ -63,8 +63,14 @@ function rowToForm(row: SchoolRow): FormState {
 /**
  * Settings -> School profile. Every field here is what
  * edulink_gh_term_school_setup_fix.sql used to have to fill in by hand
- * for each new school (school_code especially) - this is the
- * self-service replacement for that one-off SQL.
+ * for each new school - this is the self-service replacement for that
+ * one-off SQL.
+ *
+ * The school code is now assigned automatically when a school is
+ * created (see edulink_gh_phase1m_school_codes_and_lists.sql) and is
+ * shown here read-only: it doubles as the school administrator's
+ * sign-in name, and the database no longer lets it be edited, so it is
+ * deliberately left out of what gets saved below.
  */
 export function SettingsSchool() {
   const [school, setSchool] = useState<SchoolRow | null>(null);
@@ -124,10 +130,16 @@ export function SettingsSchool() {
     setSaveError(null);
     setSaved(false);
     try {
+      // school_code is assigned automatically and locked - never sent.
+      const { school_code, ...editable } = form;
+      void school_code;
       const updated = await CloudSchoolService.saveProfile(school.id, {
-        ...form,
+        ...editable,
         logo_data_url: logoDataUrl,
       });
+      if (!updated) {
+        throw new Error("Your changes could not be saved - you may not have permission to edit this school's profile.");
+      }
       setSchool(updated);
       setSaved(true);
     } catch (err) {
@@ -187,7 +199,10 @@ export function SettingsSchool() {
           </div>
           <div className="col-md-3">
             <label className="form-label small">School code</label>
-            <input className="form-control" {...field("school_code")} />
+            <input className="form-control" value={form.school_code} readOnly disabled />
+            <div className="form-text">
+              Assigned automatically. You can also use it instead of your email to sign in.
+            </div>
           </div>
           <div className="col-md-3">
             <label className="form-label small">Circuit</label>

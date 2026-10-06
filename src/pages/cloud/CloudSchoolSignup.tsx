@@ -49,6 +49,12 @@ export function CloudSchoolSignup() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Name-already-taken check (see edulink_gh_phase1l_school_name_check.sql).
+  // null = not checked yet / nothing to check. If the check itself
+  // fails (e.g. a dropped connection) it fails OPEN - registration is
+  // never blocked just because this helper couldn't be reached.
+  const [nameTaken, setNameTaken] = useState<boolean | null>(null);
+
   useEffect(() => {
     CloudSchoolSignupService.listDistricts()
       .then(setDistricts)
@@ -69,17 +75,34 @@ export function CloudSchoolSignup() {
     });
   }, [districtId]);
 
+  useEffect(() => {
+    setNameTaken(null);
+    const name = schoolName.trim();
+    if (!districtId || name.length < 3) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      CloudSchoolSignupService.isNameTaken(districtId, name)
+        .then((taken) => !cancelled && setNameTaken(taken))
+        .catch(() => !cancelled && setNameTaken(null));
+    }, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [schoolName, districtId]);
+
   const passwordsMatch = password.length > 0 && password === confirmPassword;
   const readyToSubmit = useMemo(
     () =>
       schoolName.trim().length > 0 &&
+      nameTaken !== true &&
       districtId.length > 0 &&
       fullName.trim().length > 0 &&
       phone.trim().length > 0 &&
       email.trim().length > 0 &&
       password.length >= 6 &&
       passwordsMatch,
-    [schoolName, districtId, fullName, phone, email, password, passwordsMatch]
+    [schoolName, nameTaken, districtId, fullName, phone, email, password, passwordsMatch]
   );
 
   async function handleSubmit(e: FormEvent) {
@@ -87,6 +110,16 @@ export function CloudSchoolSignup() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // Re-check right before creating anything, in case the on-screen
+      // check hadn't finished (or a name was taken in the meantime).
+      // Fails open if the check can't be reached.
+      const taken = await CloudSchoolSignupService.isNameTaken(districtId, schoolName.trim()).catch(() => false);
+      if (taken) {
+        setNameTaken(true);
+        setSubmitting(false);
+        return;
+      }
+
       await auth.signUpAndSignIn(email.trim(), password);
 
       const circuit = circuitChoice === "__other__" ? customCircuit.trim() : circuitChoice;
@@ -126,6 +159,14 @@ export function CloudSchoolSignup() {
       <div className="mb-3">
         <label className="form-label small">School name</label>
         <input className="form-control" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} required />
+        {nameTaken === true && (
+          <div className="alert alert-danger py-2 small mt-2 mb-0" role="alert">
+            A school named &ldquo;{schoolName.trim()}&rdquo; is already registered in this district. If this is your
+            school, please don't register it again &mdash; contact your district office, or WhatsApp EduLink GH on
+            0203555130. If it is a different school, add its town or area to the name (for example &ldquo;St.
+            Mary's Basic School, Anakum&rdquo;).
+          </div>
+        )}
       </div>
 
       <div className="mb-3">

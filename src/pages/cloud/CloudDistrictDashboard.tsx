@@ -299,22 +299,19 @@ export function CloudDistrictDashboard() {
   }
 
   async function handleReject(school: PendingSchoolRow) {
-    // window.prompt returns null when the person cancels, "" when they
-    // press OK without typing - so a reason is optional but cancelling
-    // really does cancel.
-    const reason = window.prompt(
-      `Reject ${school.name}?\n\nThis permanently removes the application and its login - it cannot be undone. ` +
-        `The applicant will be texted that it wasn't approved.\n\n` +
-        `Optional: type a short reason to include in that text (or leave blank), then press OK. Press Cancel to keep the application.`,
-      ""
-    );
-    if (reason === null) return;
+    if (
+      !confirm(
+        `Reject ${school.name}?\n\nThis permanently removes the application and its login - it cannot be undone. ` +
+          `The applicant will be texted that ${school.name} has already been approved.`
+      )
+    )
+      return;
     setRejectingId(school.id);
     setApproveError(null);
     setApproveWarning(null);
     setApproveSuccess(null);
     try {
-      const result = await CloudDistrictService.rejectSchoolApplication(school.id, reason);
+      const result = await CloudDistrictService.rejectSchoolApplication(school.id);
       if (result.warning) {
         setApproveWarning(`${school.name} was removed. ${result.warning}`);
       } else {
@@ -376,6 +373,7 @@ export function CloudDistrictDashboard() {
     downloadCsv(
       "district-overview.csv",
       [
+        "No.",
         "School",
         "Code",
         "Circuit",
@@ -387,7 +385,8 @@ export function CloudDistrictDashboard() {
         "Verified",
         "Finalized",
       ],
-      filtered.map((r) => [
+      filtered.map((r, i) => [
+        i + 1,
         r.school_name,
         r.school_code ?? "",
         r.circuit ?? "",
@@ -524,6 +523,7 @@ export function CloudDistrictDashboard() {
               <table className="table table-hover align-middle mb-0">
                 <thead>
                   <tr>
+                    <th style={{ width: 56 }}>No.</th>
                     <th>School</th>
                     <th>Circuit</th>
                     <th className="text-end">Active students</th>
@@ -537,13 +537,14 @@ export function CloudDistrictDashboard() {
                 <tbody>
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center text-muted py-4">
+                      <td colSpan={9} className="text-center text-muted py-4">
                         {rows && rows.length === 0 ? "No schools in your district yet." : "No schools match your search."}
                       </td>
                     </tr>
                   )}
-                  {filtered.map((r) => (
+                  {filtered.map((r, i) => (
                     <tr key={r.school_id}>
+                      <td className="text-muted">{i + 1}</td>
                       <td>
                         <div className="fw-semibold">{r.school_name}</div>
                         <div className="text-muted small">{r.school_code ?? "No code set"}</div>

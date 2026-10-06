@@ -661,6 +661,8 @@ export interface SchoolSubscriptionOverviewRow {
    *  free period came from the district pilot program rather than a
    *  real payment. */
   is_pilot: boolean;
+  /** 'pending' until a district/platform admin approves the school. */
+  approval_status: "pending" | "approved";
 }
 
 /** The platform-wide free-pilot-program settings - see

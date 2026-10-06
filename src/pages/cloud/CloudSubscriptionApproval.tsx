@@ -1062,6 +1062,7 @@ export function CloudSubscriptionApproval() {
         <table className="table mb-0 align-middle">
           <thead>
             <tr>
+              <th style={{ width: 56 }}>No.</th>
               <th>School</th>
               <th>Rate / term</th>
               <th>Status</th>
@@ -1070,13 +1071,22 @@ export function CloudSubscriptionApproval() {
             </tr>
           </thead>
           <tbody>
-            {filteredOverview.map((row) => (
+            {filteredOverview.map((row, index) => (
               <Fragment key={row.school_id}>
                 <tr>
+                  <td className="text-muted">{index + 1}</td>
                   <td>
                     <div className="fw-semibold">{row.school_name}</div>
                     <div className="text-muted small">
                       {row.district_name ?? "No district"} · {row.is_private ? "Private" : "Public"}
+                      {row.approval_status === "pending" && (
+                        <span
+                          className="badge text-bg-secondary ms-2"
+                          title="Not approved yet - not counted in the district's own lists until a district admin approves it."
+                        >
+                          Pending approval
+                        </span>
+                      )}
                       {row.is_pilot && <span className="badge text-bg-info ms-2">Pilot</span>}
                       {row.pending_payment_count > 0 && (
                         <span className="badge text-bg-warning ms-2">{row.pending_payment_count} pending</span>
@@ -1102,7 +1112,7 @@ export function CloudSubscriptionApproval() {
                 </tr>
                 {recordingFor === row.school_id && (
                   <tr>
-                    <td colSpan={5} className="p-0">
+                    <td colSpan={6} className="p-0">
                       <RecordPaymentForm
                         school={row}
                         onDone={() => {

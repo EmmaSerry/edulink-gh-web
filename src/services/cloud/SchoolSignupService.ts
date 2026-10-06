@@ -29,6 +29,14 @@ class CloudSchoolSignupServiceImpl {
     return rest.rpc<CircuitOption[]>("list_circuits_for_signup", { p_district_id: districtId });
   }
 
+  /** True if a school with this name (ignoring capitals, spaces and
+   *  punctuation) is already registered in that district, whether live
+   *  or still waiting for approval - see
+   *  edulink_gh_phase1l_school_name_check.sql. Callable signed out. */
+  async isNameTaken(districtId: string, schoolName: string): Promise<boolean> {
+    return rest.rpc<boolean>("school_name_taken", { p_district_id: districtId, p_name: schoolName });
+  }
+
   async register(input: SchoolSignupInput): Promise<{ schoolId: string }> {
     return rest.rpc<{ schoolId: string }>("register_school_self_service", {
       p_school_name: input.schoolName,
