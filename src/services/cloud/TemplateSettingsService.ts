@@ -33,6 +33,8 @@ function fromRow(row: TemplateSettingsRow): TemplateSettings {
     signatureTitleClassTeacher: row.signature_title_class_teacher,
     signatureTitleHeadTeacher: row.signature_title_head_teacher,
     headTeacherSignatureDataUrl: row.head_teacher_signature_data_url ?? null,
+    classTeacherName: row.signature_name_class_teacher ?? null,
+    headTeacherName: row.signature_name_head_teacher ?? null,
     batchPdfMode: row.batch_pdf_mode,
     updatedAt: row.updated_at,
   };
@@ -61,6 +63,8 @@ class CloudTemplateSettingsServiceImpl {
       signature_title_class_teacher: values.signatureTitleClassTeacher,
       signature_title_head_teacher: values.signatureTitleHeadTeacher,
       head_teacher_signature_data_url: values.headTeacherSignatureDataUrl ?? null,
+      signature_name_class_teacher: values.classTeacherName?.trim() || null,
+      signature_name_head_teacher: values.headTeacherName?.trim() || null,
       batch_pdf_mode: values.batchPdfMode,
       updated_at: new Date().toISOString(),
     };

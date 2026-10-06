@@ -474,6 +474,8 @@ export interface TemplateSettingsRow {
   signature_title_class_teacher: string;
   signature_title_head_teacher: string;
   head_teacher_signature_data_url?: string | null;
+  signature_name_class_teacher?: string | null;
+  signature_name_head_teacher?: string | null;
   batch_pdf_mode: "single" | "individual";
   updated_at: string;
 }

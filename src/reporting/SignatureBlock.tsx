@@ -16,19 +16,21 @@ export function SignatureBlock({
   headTeacherName?: string;
 }) {
   const specimen = settings.headTeacherSignatureDataUrl;
+  const classTeacherShown = classTeacherName || settings.classTeacherName || "";
+  const headTeacherShown = settings.headTeacherName || headTeacherName || "";
   return (
     <div className="actrs-report-signatures">
       <div className="signature">
-        <div className="line">{classTeacherName || " "}</div>
+        <div className="line">{classTeacherShown || " "}</div>
         <div className="text-muted">{settings.signatureTitleClassTeacher}'s Signature</div>
       </div>
       <div className="signature">
         {specimen && (
-          <div style={{ height: 52, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            <img src={specimen} alt="" style={{ maxHeight: 50, maxWidth: "100%", objectFit: "contain" }} />
+          <div style={{ height: 46, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: -4 }}>
+            <img src={specimen} alt="" style={{ maxHeight: 44, maxWidth: 180, objectFit: "contain" }} />
           </div>
         )}
-        <div className="line">{headTeacherName || " "}</div>
+        <div className="line">{headTeacherShown || " "}</div>
         <div className="text-muted">{settings.signatureTitleHeadTeacher}'s Signature</div>
       </div>
     </div>

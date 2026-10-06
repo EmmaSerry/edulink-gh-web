@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTemplateSettingsService } from "@services/cloud/TemplateSettingsService";
 import { DEFAULT_TEMPLATE_SETTINGS, type TemplateSettings } from "@models/TemplateSettings";
-import { resizeImageToDataUrl } from "@/lib/imageResize";
+import { formatSignatureImage } from "@/lib/signatureImage";
 
 type FormState = Omit<TemplateSettings, "updatedAt" | "id">;
 
@@ -63,7 +63,7 @@ export function SettingsTemplate() {
     if (!file) return;
     setSaveError(null);
     try {
-      set("headTeacherSignatureDataUrl", await resizeImageToDataUrl(file, 480));
+      set("headTeacherSignatureDataUrl", await formatSignatureImage(file));
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Could not read that image.");
     }
@@ -241,7 +241,10 @@ export function SettingsTemplate() {
       </div>
 
       <div className="actrs-card p-4 mb-4">
-        <h2 className="h6 fw-bold mb-3">Signature titles</h2>
+        <h2 className="h6 fw-bold mb-1">Signatures on the report card</h2>
+        <p className="text-muted small mb-3">
+          These appear at the bottom of every report card, above the signature lines.
+        </p>
         <div className="row g-3">
           <div className="col-md-6">
             <label className="form-label small">Class teacher signature label</label>
@@ -259,18 +262,38 @@ export function SettingsTemplate() {
               onChange={(e) => set("signatureTitleHeadTeacher", e.target.value)}
             />
           </div>
+          <div className="col-md-6">
+            <label className="form-label small">Class teacher's name (optional)</label>
+            <input
+              className="form-control"
+              placeholder="Leave empty to use each class's own class teacher"
+              value={form.classTeacherName ?? ""}
+              onChange={(e) => set("classTeacherName", e.target.value)}
+            />
+            <div className="form-text">Only used for a class that has no class teacher assigned.</div>
+          </div>
+          <div className="col-md-6">
+            <label className="form-label small">Head teacher's name</label>
+            <input
+              className="form-control"
+              placeholder="e.g. Mrs. Abena Mensah"
+              value={form.headTeacherName ?? ""}
+              onChange={(e) => set("headTeacherName", e.target.value)}
+            />
+          </div>
         </div>
+
         <div className="mt-4">
-          <label className="form-label small d-block">Head teacher's specimen signature (optional)</label>
+          <label className="form-label small d-block">Head teacher's signature specimen (optional)</label>
           <p className="text-muted small mb-2">
-            Upload a clear picture of the head teacher's signature on plain white paper. If you add one, it is
-            printed on every report card just above the head teacher's signature line. Leave it empty to keep the
-            line blank for signing by hand.
+            Take a photo or scan of the head teacher's signature in dark ink on plain white paper and upload it. The
+            system removes the paper background, trims it, resizes it into a small neat rectangle, and prints it on
+            every report card at the head teacher's signature space.
           </p>
-          <div className="d-flex align-items-center gap-3">
+          <div className="d-flex align-items-center gap-3 flex-wrap">
             <div
               className="border d-flex align-items-center justify-content-center bg-white"
-              style={{ width: 200, height: 70, borderRadius: 8, overflow: "hidden" }}
+              style={{ width: 260, height: 90, borderRadius: 8, overflow: "hidden" }}
             >
               {form.headTeacherSignatureDataUrl ? (
                 <img
@@ -291,7 +314,7 @@ export function SettingsTemplate() {
                 onChange={handleSignatureFile}
               />
               <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => signatureInput.current?.click()}>
-                {form.headTeacherSignatureDataUrl ? "Replace signature" : "Upload signature"}
+                {form.headTeacherSignatureDataUrl ? "Replace signature photo" : "Upload signature photo"}
               </button>
               {form.headTeacherSignatureDataUrl && (
                 <button

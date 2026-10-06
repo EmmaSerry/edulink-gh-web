@@ -29,6 +29,11 @@ export interface TemplateSettings {
   /** Optional picture of the head teacher's signature, printed above the
    *  head teacher signature line on every report card. */
   headTeacherSignatureDataUrl?: string | null;
+  /** Optional names printed under the signature lines. The head teacher's
+   *  name here wins over the school profile; the class teacher's name is
+   *  only a fallback for a class that has no class teacher assigned. */
+  classTeacherName?: string | null;
+  headTeacherName?: string | null;
   /** Module 9 - batch PDF export: one combined multi-page PDF, or a
    *  separate PDF file per student. */
   batchPdfMode: "single" | "individual";
@@ -48,6 +53,8 @@ export const DEFAULT_TEMPLATE_SETTINGS: Omit<TemplateSettings, "id"> = {
   signatureTitleClassTeacher: "Class Teacher",
   signatureTitleHeadTeacher: "Headteacher",
   headTeacherSignatureDataUrl: null,
+  classTeacherName: null,
+  headTeacherName: null,
   batchPdfMode: "individual",
   updatedAt: new Date(0).toISOString(),
 };

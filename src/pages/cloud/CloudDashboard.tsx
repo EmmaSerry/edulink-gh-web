@@ -6,6 +6,7 @@ import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudAcademicStandardsService, type ClassAcademicStandards } from "@services/cloud/AcademicStandardsService";
 import { AcademicStandardsPanel } from "@components/AcademicStandardsPanel";
+import { LearnerStatsPanel } from "@components/LearnerStatsPanel";
 import type { SchoolRow, StudentRow, SchoolAcademicStandards } from "@/types/database";
 
 /** Roles that can legitimately have a single school_id of their own AND
@@ -152,6 +153,8 @@ export function CloudDashboard() {
           </div>
         </div>
       </div>
+
+      <LearnerStatsPanel />
 
       {standards && (
         <AcademicStandardsPanel
