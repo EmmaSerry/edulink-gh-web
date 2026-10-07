@@ -31,6 +31,15 @@ export interface CreateDistrictAdminResult {
   tempPassword?: string;
 }
 
+export interface ResendResult {
+  resent: boolean;
+  notified: boolean;
+  phone?: string;
+  warning?: string;
+  email?: string;
+  tempPassword?: string;
+}
+
 class DistrictAdminServiceImpl {
   list(): Promise<DistrictAdminRow[]> {
     return rest.rpc<DistrictAdminRow[]>("list_district_admins", {});
@@ -41,7 +50,13 @@ class DistrictAdminServiceImpl {
   }
 
   create(values: { districtId: string; fullName: string; phone: string; email: string }) {
-    return edgeFunctions.invoke<CreateDistrictAdminResult>("create-district-admin", values);
+    return edgeFunctions.invoke<CreateDistrictAdminResult>("create-district-admin", { action: "create", ...values });
+  }
+
+  /** Issues a NEW password (the old one cannot be read back) and texts the
+   *  sign-in details again - optionally to a corrected phone number. */
+  resend(userId: string, phone?: string) {
+    return edgeFunctions.invoke<ResendResult>("create-district-admin", { action: "resend", userId, phone });
   }
 
   async setActive(userId: string, active: boolean): Promise<void> {

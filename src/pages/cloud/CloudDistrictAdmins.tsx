@@ -62,6 +62,33 @@ export function CloudDistrictAdmins() {
     }
   }
 
+  async function resend(a: DistrictAdminRow) {
+    const phone = window.prompt(
+      `Send ${a.full_name}'s sign-in details to which phone number?\n\nA NEW password will be created (the old one stops working). Edit the number below if it was wrong.`,
+      a.phone ?? ""
+    );
+    if (phone === null) return;
+    setBusyId(a.user_id);
+    setError(null);
+    setSuccess(null);
+    setWarning(null);
+    try {
+      const r = await DistrictAdminService.resend(a.user_id, phone.trim());
+      if (r.notified) {
+        setSuccess(`New sign-in details were texted to ${a.full_name} (${r.phone}).`);
+      } else {
+        setWarning(
+          `${r.warning ?? "The text could not be sent."} Email: ${r.email}  Password: ${r.tempPassword}  - this is shown only once.`
+        );
+      }
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not resend the details.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function toggle(a: DistrictAdminRow) {
     const removing = a.is_active;
     if (
@@ -179,6 +206,16 @@ export function CloudDistrictAdmins() {
                     </span>
                   </td>
                   <td className="text-end">
+                    {a.is_active && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary me-2"
+                        disabled={busyId === a.user_id}
+                        onClick={() => resend(a)}
+                      >
+                        Resend login details
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={`btn btn-sm ${a.is_active ? "btn-outline-danger" : "btn-outline-primary"}`}
