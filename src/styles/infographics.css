@@ -1,46 +1,97 @@
-/* Glowing, animated infographics (statistics page).
-   Pure CSS/SVG: no extra libraries, only transform/opacity/size transitions,
-   and everything stops animating for people who prefer reduced motion. */
-
-.ig-card {
-  position: relative;
-  border-radius: 18px;
-  padding: 20px;
-  color: #e8f1ff;
-  background: radial-gradient(120% 140% at 0% 0%, #14305f 0%, #0b1a38 55%, #081226 100%);
-  border: 1px solid rgba(120, 180, 255, 0.25);
-  box-shadow: 0 0 0 1px rgba(60, 140, 255, 0.08), 0 10px 40px rgba(10, 40, 110, 0.35),
-    inset 0 0 60px rgba(40, 120, 255, 0.08);
-  overflow: hidden;
-}
-.ig-card::before {
-  content: "";
-  position: absolute;
-  inset: -40% -20% auto auto;
-  width: 60%;
-  height: 80%;
-  background: radial-gradient(closest-side, rgba(0, 220, 255, 0.18), transparent);
-  animation: ig-drift 9s ease-in-out infinite alternate;
-  pointer-events: none;
-}
-.ig-card h2 {
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #9fd2ff;
-  margin: 0 0 14px;
-  text-shadow: 0 0 10px rgba(80, 180, 255, 0.6);
-}
-.ig-muted {
-  color: #8fa9cf;
-  font-size: 0.8rem;
-}
+/* Flashy, animated infographics. Pure CSS/SVG - no extra libraries.
+   Motion is transform/opacity only, and stops for "reduce motion". */
 
 :root {
   --ig-male: #3aa0ff;
   --ig-female: #ff4fa3;
   --ig-total: #20e3c2;
+}
+
+.ig-card {
+  position: relative;
+  isolation: isolate;
+  border-radius: 20px;
+  padding: 22px;
+  color: #e8f1ff;
+  overflow: hidden;
+  box-shadow: 0 12px 44px rgba(10, 40, 130, 0.45), 0 0 34px rgba(40, 140, 255, 0.18);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s;
+}
+.ig-card:hover {
+  transform: translateY(-5px) scale(1.012);
+  box-shadow: 0 20px 60px rgba(20, 70, 190, 0.55), 0 0 60px rgba(60, 190, 255, 0.35);
+}
+
+/* Spinning rainbow-neon border */
+.ig-card::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 50%;
+  width: 320%;
+  aspect-ratio: 1;
+  background: conic-gradient(from 0deg, #20e3c2, #3aa0ff, #8a5cff, #ff4fa3, #ffb347, #20e3c2);
+  animation: ig-spin-border 7s linear infinite;
+  opacity: 0.9;
+}
+/* Dark inner face */
+.ig-card::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 2px;
+  border-radius: 18px;
+  background: radial-gradient(120% 140% at 0% 0%, #16346a 0%, #0b1a38 55%, #070f22 100%);
+}
+.ig-card > * {
+  position: relative;
+  z-index: 2;
+}
+/* Twinkling stars */
+.ig-card > .ig-stars {
+  position: absolute;
+  z-index: 1;
+  inset: 2px;
+  border-radius: 18px;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 38% 70%, #bfe6ff, transparent),
+    radial-gradient(1.5px 1.5px at 62% 18%, #fff, transparent),
+    radial-gradient(1px 1px at 82% 58%, #ffd6ee, transparent),
+    radial-gradient(1.5px 1.5px at 92% 12%, #bffff0, transparent),
+    radial-gradient(1px 1px at 24% 88%, #fff, transparent),
+    radial-gradient(1px 1px at 72% 90%, #bfe6ff, transparent);
+  animation: ig-twinkle 3.6s ease-in-out infinite alternate;
+}
+/* Pointer spotlight */
+.ig-card > .ig-spot {
+  position: absolute;
+  z-index: 1;
+  inset: 2px;
+  border-radius: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(120, 220, 255, 0.22), transparent 65%);
+}
+.ig-card:hover > .ig-spot {
+  opacity: 1;
+}
+
+.ig-card h2 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b5e0ff;
+  margin: 0 0 16px;
+  text-shadow: 0 0 12px rgba(80, 200, 255, 0.85), 0 0 26px rgba(80, 140, 255, 0.5);
+}
+.ig-muted {
+  color: #8fa9cf;
+  font-size: 0.8rem;
 }
 
 /* Big number */
@@ -51,12 +102,12 @@
   flex-wrap: wrap;
 }
 .ig-hero-number {
-  font-size: clamp(3rem, 9vw, 5.5rem);
-  font-weight: 800;
+  font-size: clamp(3.2rem, 9vw, 6rem);
+  font-weight: 900;
   line-height: 1;
   color: #fff;
   text-shadow: 0 0 12px var(--ig-total), 0 0 34px rgba(32, 227, 194, 0.7);
-  animation: ig-pulse 3.2s ease-in-out infinite;
+  animation: ig-pulse 2.6s ease-in-out infinite;
 }
 .ig-chip {
   display: inline-block;
@@ -75,17 +126,35 @@
   width: 200px;
   height: 200px;
   flex-shrink: 0;
+  overflow: visible;
 }
 .ig-donut circle.ig-arc {
   fill: none;
   stroke-width: 16;
   stroke-linecap: round;
-  transition: stroke-dasharray 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: stroke-dasharray 1.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ig-donut .ig-track {
   fill: none;
   stroke: rgba(120, 170, 255, 0.12);
   stroke-width: 16;
+}
+.ig-donut .ig-arcs {
+  animation: ig-breathe 3s ease-in-out infinite;
+}
+.ig-donut .ig-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ig-rotate 9s linear infinite;
+}
+.ig-donut .ig-orbit {
+  fill: none;
+  stroke: rgba(120, 220, 255, 0.35);
+  stroke-width: 1;
+  stroke-dasharray: 2 7;
+}
+.ig-donut .ig-spark {
+  fill: #fff;
 }
 .ig-legend {
   display: flex;
@@ -98,6 +167,7 @@
   height: 11px;
   border-radius: 50%;
   margin-right: 8px;
+  animation: ig-dot 2s ease-in-out infinite;
 }
 .ig-dot.m {
   background: var(--ig-male);
@@ -106,13 +176,14 @@
 .ig-dot.f {
   background: var(--ig-female);
   box-shadow: 0 0 10px var(--ig-female);
+  animation-delay: 1s;
 }
 
 /* Horizontal stacked bars */
 .ig-bars {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 13px;
 }
 .ig-bar-row {
   display: grid;
@@ -127,19 +198,19 @@
   white-space: nowrap;
 }
 .ig-bar-track {
-  height: 14px;
+  height: 16px;
   border-radius: 999px;
   background: rgba(120, 170, 255, 0.12);
-  overflow: hidden;
 }
 .ig-bar-fill {
+  position: relative;
   display: flex;
   height: 100%;
   border-radius: 999px;
-  overflow: hidden;
   width: 0;
-  transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 0 14px rgba(60, 170, 255, 0.55);
+  transition: width 1.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 0 16px rgba(60, 170, 255, 0.65);
+  overflow: hidden;
 }
 .ig-bar-fill .m {
   background: linear-gradient(90deg, #1b6fe0, var(--ig-male));
@@ -147,11 +218,34 @@
 .ig-bar-fill .f {
   background: linear-gradient(90deg, #d6338a, var(--ig-female));
 }
+/* Light sheen sweeping along each bar */
+.ig-bar-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: ig-sheen 2.8s ease-in-out infinite;
+}
+.ig-tip {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 10px 3px rgba(255, 255, 255, 0.9);
+  animation: ig-dot 1.6s ease-in-out infinite;
+}
 .ig-bar-value {
   text-align: right;
-  font-weight: 700;
+  font-weight: 800;
   color: #fff;
-  text-shadow: 0 0 8px rgba(120, 200, 255, 0.7);
+  text-shadow: 0 0 10px rgba(120, 200, 255, 0.9);
 }
 
 /* Vertical columns (ages) */
@@ -184,15 +278,20 @@
   max-width: 18px;
   height: 0;
   border-radius: 6px 6px 2px 2px;
-  transition: height 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: height 1.3s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: ig-breathe 3s ease-in-out infinite;
 }
 .ig-col-bar.m {
   background: linear-gradient(180deg, var(--ig-male), #1b5fc0);
-  box-shadow: 0 0 14px rgba(58, 160, 255, 0.7);
+  box-shadow: 0 0 16px rgba(58, 160, 255, 0.8);
 }
 .ig-col-bar.f {
   background: linear-gradient(180deg, var(--ig-female), #b82a73);
-  box-shadow: 0 0 14px rgba(255, 79, 163, 0.7);
+  box-shadow: 0 0 16px rgba(255, 79, 163, 0.8);
+  animation-delay: 0.6s;
+}
+.ig-col:hover .ig-col-bar {
+  filter: brightness(1.35);
 }
 .ig-col-label {
   margin-top: 6px;
@@ -211,26 +310,53 @@
   color: #8fa9cf;
 }
 
-@keyframes ig-pulse {
-  0%, 100% { text-shadow: 0 0 12px var(--ig-total), 0 0 34px rgba(32, 227, 194, 0.6); }
-  50% { text-shadow: 0 0 18px var(--ig-total), 0 0 54px rgba(32, 227, 194, 0.95); }
+@keyframes ig-spin-border {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-@keyframes ig-drift {
-  from { transform: translate(0, 0); }
-  to { transform: translate(-30px, 20px); }
+@keyframes ig-rotate {
+  to { transform: rotate(360deg); }
+}
+@keyframes ig-twinkle {
+  from { opacity: 0.25; }
+  to { opacity: 1; }
+}
+@keyframes ig-pulse {
+  0%, 100% { text-shadow: 0 0 12px var(--ig-total), 0 0 34px rgba(32, 227, 194, 0.6); transform: scale(1); }
+  50% { text-shadow: 0 0 20px var(--ig-total), 0 0 60px rgba(32, 227, 194, 1); transform: scale(1.04); }
+}
+@keyframes ig-breathe {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
+}
+@keyframes ig-dot {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.5); opacity: 1; }
+}
+@keyframes ig-sheen {
+  0% { transform: translateX(-120%); }
+  60%, 100% { transform: translateX(320%); }
 }
 @keyframes ig-rise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
   to { opacity: 1; transform: none; }
 }
 .ig-rise {
-  animation: ig-rise 0.7s ease both;
+  animation: ig-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ig-card,
   .ig-card::before,
+  .ig-card > .ig-stars,
   .ig-hero-number,
-  .ig-rise {
+  .ig-rise,
+  .ig-donut .ig-arcs,
+  .ig-donut .ig-spin,
+  .ig-dot,
+  .ig-tip,
+  .ig-bar-fill::after,
+  .ig-col-bar {
     animation: none;
   }
   .ig-donut circle.ig-arc,

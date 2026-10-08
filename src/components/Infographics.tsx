@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import "@/styles/infographics.css";
 
 /** Counts up to `value` with an easing curve (skipped for reduced motion). */
@@ -42,8 +42,19 @@ function useGrow(key: unknown): boolean {
 }
 
 export function GlowCard({ title, children, delay = 0 }: { title: string; children: ReactNode; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // A soft spotlight follows the pointer across the card.
+  function onMove(e: MouseEvent<HTMLDivElement>) {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${e.clientX - rect.left}px`);
+    el.style.setProperty("--my", `${e.clientY - rect.top}px`);
+  }
   return (
-    <div className="ig-card ig-rise" style={{ animationDelay: `${delay}ms` }}>
+    <div ref={ref} className="ig-card ig-rise" style={{ animationDelay: `${delay}ms` }} onMouseMove={onMove}>
+      <div className="ig-stars" aria-hidden="true" />
+      <div className="ig-spot" aria-hidden="true" />
       <h2>{title}</h2>
       {children}
     </div>
@@ -73,7 +84,11 @@ export function GlowDonut({ male, female }: { male: number; female: number }) {
           </filter>
         </defs>
         <circle className="ig-track" cx="100" cy="100" r={r} />
-        <g transform="rotate(-90 100 100)" filter="url(#ig-glow)">
+        <g className="ig-spin" aria-hidden="true">
+          <circle className="ig-orbit" cx="100" cy="100" r="95" />
+          <circle className="ig-spark" cx="100" cy="5" r="3.5" filter="url(#ig-glow)" />
+        </g>
+        <g className="ig-arcs" transform="rotate(-90 100 100)" filter="url(#ig-glow)">
           <circle
             className="ig-arc"
             cx="100"
@@ -129,15 +144,16 @@ export function GlowBars({ items }: { items: BarItem[] }) {
   if (items.length === 0) return <div className="ig-empty">No learners match these filters.</div>;
   return (
     <div className="ig-bars">
-      {items.map((it) => {
+      {items.map((it, idx) => {
         const width = grown ? (it.total / max) * 100 : 0;
         return (
           <div className="ig-bar-row" key={it.label} title={`${it.male} male, ${it.female} female`}>
             <div className="ig-bar-label">{it.label}</div>
             <div className="ig-bar-track">
-              <div className="ig-bar-fill" style={{ width: `${width}%` }}>
+              <div className="ig-bar-fill" style={{ width: `${width}%`, transitionDelay: `${idx * 90}ms` }}>
                 <div className="m" style={{ flexGrow: it.male }} />
                 <div className="f" style={{ flexGrow: it.female }} />
+                <span className="ig-tip" />
               </div>
             </div>
             <div className="ig-bar-value">{it.total.toLocaleString()}</div>
@@ -155,12 +171,12 @@ export function GlowColumns({ items }: { items: { age: number; male: number; fem
   if (items.length === 0) return <div className="ig-empty">No learners match these filters.</div>;
   return (
     <div className="ig-cols">
-      {items.map((it) => (
+      {items.map((it, idx) => (
         <div className="ig-col" key={it.age} title={`${it.male} male, ${it.female} female`}>
           <div className="ig-col-count">{it.total}</div>
           <div className="ig-col-bars">
-            <div className="ig-col-bar m" style={{ height: grown ? `${(it.male / max) * 100}%` : 0 }} />
-            <div className="ig-col-bar f" style={{ height: grown ? `${(it.female / max) * 100}%` : 0 }} />
+            <div className="ig-col-bar m" style={{ height: grown ? `${(it.male / max) * 100}%` : 0, transitionDelay: `${idx * 70}ms` }} />
+            <div className="ig-col-bar f" style={{ height: grown ? `${(it.female / max) * 100}%` : 0, transitionDelay: `${idx * 70 + 40}ms` }} />
           </div>
           <div className="ig-col-label">{it.age} yrs</div>
         </div>
