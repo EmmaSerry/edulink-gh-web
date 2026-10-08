@@ -1,9 +1,11 @@
+import { Link } from "react-router-dom";
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CloudSubscriptionService } from "@services/cloud/SubscriptionService";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudDistrictService } from "@services/cloud/DistrictService";
 import { CloudBrandingService } from "@services/cloud/BrandingService";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
+import { LearnerStatsPanel } from "@components/LearnerStatsPanel";
 import type { PendingDistrictRow } from "@services/cloud/DistrictService";
 import type {
   SchoolSubscriptionOverviewRow,
@@ -976,6 +978,8 @@ export function CloudSubscriptionApproval() {
       {actionSuccess && <div className="alert alert-success py-2">{actionSuccess}</div>}
       {actionError && <div className="alert alert-danger py-2">{actionError}</div>}
 
+      <LearnerStatsPanel />
+
       <PlatformBrandingPanel />
 
       <PendingDistrictsPanel />
@@ -1005,7 +1009,13 @@ export function CloudSubscriptionApproval() {
                 return (
                   <tr key={p.id}>
                     <td>
-                      <div className="fw-semibold">{school?.school_name ?? "Unknown school"}</div>
+                      <div className="fw-semibold">
+                        {school ? (
+                          <Link to={`/school-accounts/${school.school_id}?name=${encodeURIComponent(school.school_name)}`}>{school.school_name}</Link>
+                        ) : (
+                          "Unknown school"
+                        )}
+                      </div>
                       <div className="text-muted small">
                         {school?.district_name ?? "No district"} · {new Date(p.created_at).toLocaleDateString()}
                       </div>
@@ -1076,7 +1086,11 @@ export function CloudSubscriptionApproval() {
                 <tr>
                   <td className="text-muted">{index + 1}</td>
                   <td>
-                    <div className="fw-semibold">{row.school_name}</div>
+                    <div className="fw-semibold">
+                      <Link to={`/school-accounts/${row.school_id}?name=${encodeURIComponent(row.school_name)}`} title="Open this school's accounts">
+                        {row.school_name}
+                      </Link>
+                    </div>
                     <div className="text-muted small">
                       {row.district_name ?? "No district"} · {row.is_private ? "Private" : "Public"}
                       {row.approval_status === "pending" && (

@@ -27,6 +27,7 @@ import { CloudTrainingAdmin } from "@pages/cloud/CloudTrainingAdmin";
 import { CloudDistrictAdmins } from "@pages/cloud/CloudDistrictAdmins";
 import { CloudStatistics } from "@pages/cloud/CloudStatistics";
 import { CloudSendDetails } from "@pages/cloud/CloudSendDetails";
+import { CloudSchoolAccounts } from "@pages/cloud/CloudSchoolAccounts";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -147,6 +148,14 @@ export default function App() {
             element={
               <RequireAdmin roles="fees">
                 <CloudFees />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/school-accounts/:schoolId"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudSchoolAccounts />
               </RequireAdmin>
             }
           />
