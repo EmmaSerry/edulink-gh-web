@@ -26,6 +26,7 @@ import { CloudSubscriptionStatus } from "@pages/cloud/CloudSubscriptionStatus";
 import { CloudTrainingAdmin } from "@pages/cloud/CloudTrainingAdmin";
 import { CloudDistrictAdmins } from "@pages/cloud/CloudDistrictAdmins";
 import { CloudStatistics } from "@pages/cloud/CloudStatistics";
+import { CloudSendDetails } from "@pages/cloud/CloudSendDetails";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -70,6 +71,14 @@ export default function App() {
           <Route path="/dashboard" element={<CloudDashboard />} />
           <Route path="/students" element={<CloudStudents />} />
           <Route path="/statistics" element={<CloudStatistics />} />
+          <Route
+            path="/send-details"
+            element={
+              <RequireAdmin>
+                <CloudSendDetails />
+              </RequireAdmin>
+            }
+          />
           <Route
             path="/staff"
             element={
