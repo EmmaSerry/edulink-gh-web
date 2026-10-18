@@ -250,19 +250,20 @@ export function CloudStudents() {
                 <th>Gender</th>
                 <th>Age</th>
                 <th>Status</th>
+                <th style={{ width: 90 }}></th>
               </tr>
             </thead>
             <tbody>
               {rows === null && !error && (
                 <tr>
-                  <td colSpan={10} className="text-center text-muted py-4">
+                  <td colSpan={11} className="text-center text-muted py-4">
                     Loading…
                   </td>
                 </tr>
               )}
               {rows !== null && rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="p-0">
+                  <td colSpan={11} className="p-0">
                     <ListEmptyState
                       title="No learners found"
                       body="Try changing or clearing the filters, or register a learner."
@@ -283,7 +284,11 @@ export function CloudStudents() {
                     <StudentThumb student={s} />
                   </td>
                   <td className="text-muted">{s.student_id}</td>
-                  <td className="fw-medium">{fullNameOf(s)}</td>
+                  <td className="fw-medium">
+                    <Link to={`/students/${s.id}/edit`} className="text-decoration-none" title="Open and edit this learner">
+                      {fullNameOf(s)}
+                    </Link>
+                  </td>
                   <td>{s.school_name}</td>
                   <td>{s.class_name ?? <span className="text-muted">-</span>}</td>
                   <td>{s.level_group ? LEVEL_GROUP_LABEL[s.level_group] ?? s.level_group : <span className="text-muted">-</span>}</td>
@@ -293,6 +298,12 @@ export function CloudStudents() {
                     <span className={`badge ${STATUS_BADGE[s.status] ?? "text-bg-secondary"}`}>
                       {s.status.replace("_", " ")}
                     </span>
+                  </td>
+                  <td className="text-end">
+                    <Link to={`/students/${s.id}/edit`} className="btn btn-outline-primary btn-sm text-nowrap">
+                      <i className="bi bi-pencil-square me-1" />
+                      Edit
+                    </Link>
                   </td>
                 </tr>
               ))}
