@@ -5,7 +5,7 @@ import { CloudTermService } from "@services/cloud/TermService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudSmsService } from "@services/cloud/SmsService";
 import { CloudTemplateSettingsService } from "@services/cloud/TemplateSettingsService";
-import { ReportBillingService, type LockState } from "@services/cloud/ReportBillingService";
+import { ReportBillingService } from "@services/cloud/ReportBillingService";
 import { PlatformPaymentsService, type MessagingPricing } from "@services/cloud/PlatformPaymentsService";
 import { generatePdfFromPages } from "@services/cloud/PdfService";
 import { rest } from "@/lib/supabaseClient";
@@ -54,7 +54,6 @@ export function CloudWhatsApp() {
   const [mode, setMode] = useState<Mode>("report");
   const [classId, setClassId] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
-  const [lock, setLock] = useState<LockState | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
   const [loadingClass, setLoadingClass] = useState(false);
@@ -118,7 +117,6 @@ export function CloudWhatsApp() {
           snapshot: snapByStudent.get(r.student_id) ?? null,
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
-      setLock(lockState);
       setRows(built);
       setSelected(new Set(built.filter((r) => eligible(r, mode)).map((r) => r.studentId)));
     })()
