@@ -28,6 +28,12 @@ import { CloudDistrictAdmins } from "@pages/cloud/CloudDistrictAdmins";
 import { CloudStatistics } from "@pages/cloud/CloudStatistics";
 import { CloudSendDetails } from "@pages/cloud/CloudSendDetails";
 import { CloudSchoolAccounts } from "@pages/cloud/CloudSchoolAccounts";
+import { CloudCredits } from "@pages/cloud/CloudCredits";
+import { CloudPaymentReturn } from "@pages/cloud/CloudPaymentReturn";
+import { CloudWhatsApp } from "@pages/cloud/CloudWhatsApp";
+import { CloudMessagingAdmin } from "@pages/cloud/CloudMessagingAdmin";
+import { CloudReportFees } from "@pages/cloud/CloudReportFees";
+import { CloudReportPaymentsAdmin } from "@pages/cloud/CloudReportPaymentsAdmin";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -156,6 +162,40 @@ export default function App() {
             element={
               <RequireAdmin roles="platform">
                 <CloudSchoolAccounts />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/report-fees"
+            element={
+              <RequireAdmin roles="fees">
+                <CloudReportFees />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/credits"
+            element={
+              <RequireAdmin roles="fees">
+                <CloudCredits />
+              </RequireAdmin>
+            }
+          />
+          <Route path="/payment-return" element={<CloudPaymentReturn />} />
+          <Route path="/whatsapp" element={<CloudWhatsApp />} />
+          <Route
+            path="/messaging-admin"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudMessagingAdmin />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/report-payments"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudReportPaymentsAdmin />
               </RequireAdmin>
             }
           />

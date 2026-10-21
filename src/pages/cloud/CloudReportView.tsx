@@ -7,6 +7,8 @@ import { CloudTemplateSettingsService } from "@services/cloud/TemplateSettingsSe
 import { CloudReportGenerationService } from "@services/cloud/ReportGenerationService";
 import { validateReportPrerequisites, type ReportValidationResult } from "@services/cloud/ReportDataService";
 import { generatePdfFromPages, sanitizeFileNamePart, downloadBlob } from "@services/cloud/PdfService";
+import { ReportBillingService, type LockState } from "@services/cloud/ReportBillingService";
+import { ReportLockShield } from "@components/ReportLockShield";
 import { ReportPrintSurface } from "@reporting/ReportPrintSurface";
 import type { ReportSnapshot } from "@reporting/ReportSnapshot.types";
 import type { TemplateSettings } from "@models/TemplateSettings";
@@ -48,6 +50,8 @@ export function CloudReportView() {
   const [exporting, setExporting] = useState(false);
 
   const [pageElements, setPageElements] = useState<HTMLElement[]>([]);
+  const [lock, setLock] = useState<LockState | null>(null);
+  const [claiming, setClaiming] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +72,19 @@ export function CloudReportView() {
       cancelled = true;
     };
   }, [profile?.school_id]);
+
+  const reloadLock = useCallback(async () => {
+    if (!term) return;
+    try {
+      setLock(await ReportBillingService.getLockState(term.id));
+    } catch {
+      setLock(null);
+    }
+  }, [term]);
+
+  useEffect(() => {
+    void reloadLock();
+  }, [reloadLock]);
 
   useEffect(() => {
     if (!studentId || !term) {
@@ -102,6 +119,24 @@ export function CloudReportView() {
     [report]
   );
 
+  // A report is locked until paid for (or it is the class's one free report).
+  const locked = !!report && !!lock && lock.isLocked(report.student_id);
+  const classFreeUsed = !!report && !!lock && lock.freeClasses.has(report.class_id);
+
+  async function handleUseFree() {
+    if (!term || !studentId) return;
+    setClaiming(true);
+    setStudentError(null);
+    try {
+      await ReportBillingService.claimFree(studentId, term.id);
+      await reloadLock();
+    } catch (err) {
+      setStudentError(err instanceof Error ? err.message : "Could not use the free report.");
+    } finally {
+      setClaiming(false);
+    }
+  }
+
   const handlePagesReady = useCallback((elements: HTMLElement[]) => {
     setPageElements(elements);
   }, []);
@@ -122,7 +157,7 @@ export function CloudReportView() {
   }
 
   async function handleDownloadPdf() {
-    if (!term || !templateSettings || pageElements.length === 0 || !report) return;
+    if (!term || !templateSettings || pageElements.length === 0 || !report || locked) return;
     setExporting(true);
     try {
       const student = students.find((s) => s.id === studentId);
@@ -141,7 +176,7 @@ export function CloudReportView() {
   }
 
   async function handlePrint() {
-    if (!studentId || !term) return;
+    if (!studentId || !term || locked) return;
     window.print();
     try {
       await CloudReportGenerationService.recordPrint(studentId, term.id);
@@ -206,7 +241,7 @@ export function CloudReportView() {
               <button className="btn btn-primary" disabled={generating} onClick={handleGenerate}>
                 {generating ? "Generating…" : report ? "Regenerate report" : "Generate report"}
               </button>
-              {report && (
+              {report && !locked && (
                 <>
                   <button className="btn btn-outline-secondary" disabled={exporting || pageElements.length === 0} onClick={handleDownloadPdf}>
                     {exporting ? "Exporting…" : "Download PDF"}
@@ -216,23 +251,56 @@ export function CloudReportView() {
                   </button>
                 </>
               )}
+              {report && locked && (
+                <Link to="/report-fees" className="btn btn-warning">
+                  <i className="bi bi-unlock me-1" />
+                  Pay to unlock
+                </Link>
+              )}
             </div>
           </div>
+        )}
+
+        {report && locked && (
+          <div className="alert alert-warning">
+            <strong>Locked - blurred preview.</strong> This report stays blurred, and printing, downloading and sending it by SMS
+            are locked until the report fee is paid ({lock ? `GHS ${lock.price.toFixed(2)} per learner` : ""}).
+            {!classFreeUsed ? (
+              <>
+                {" "}Each class gets <strong>one free full report</strong> per term.{" "}
+                <button className="btn btn-sm btn-outline-dark ms-1" disabled={claiming} onClick={handleUseFree}>
+                  {claiming ? "Unlocking…" : "Use this class's free report on this learner"}
+                </button>
+              </>
+            ) : (
+              <> This class has already used its free report this term.</>
+            )}
+          </div>
+        )}
+        {report && !locked && lock?.enforced && (
+          <div className="alert alert-success py-2 small">This report is unlocked.</div>
         )}
       </div>
 
       {snapshot && templateSettings && (
         <div className="d-flex justify-content-center">
-          {/* report-print.css's @media print rule hides every element on
-              the page EXCEPT one carrying this exact class (a common
-              "print only this" technique) - without it, window.print()
-              blanks the entire page, report included. */}
-          <ReportPrintSurface
+          {locked ? (
+            <ReportLockShield>
+            <ReportPrintSurface
             snapshots={[snapshot]}
             settings={templateSettings}
             onReady={handlePagesReady}
             className="actrs-report-print-area"
           />
+            </ReportLockShield>
+          ) : (
+            <ReportPrintSurface
+            snapshots={[snapshot]}
+            settings={templateSettings}
+            onReady={handlePagesReady}
+            className="actrs-report-print-area"
+          />
+          )}
         </div>
       )}
     </div>

@@ -35,6 +35,10 @@ interface NavItem {
    *  edulink_gh_phase1d_subscriptions.sql. Deliberately not shown to
    *  district_admin, unlike every other *Only flag here. */
   platformOnly?: boolean;
+  /** school_admin and bursar only (report-card fees). */
+  reportFeesOnly?: boolean;
+  /** teacher and school_admin (WhatsApp to parents). */
+  whatsappOnly?: boolean;
   /** Only school_admin/bursar - reporting your OWN school's
    *  subscription payment. district_admin/platform_admin have no
    *  single school for this to mean anything. */
@@ -59,8 +63,13 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/reports/sample", label: "Sample report", icon: "bi-file-earmark-ruled", reportSampleOnly: true },
   { path: "/sms", label: "SMS to parents", icon: "bi-chat-dots" },
   { path: "/fees", label: "Fees", icon: "bi-cash-coin", feesOnly: true },
+  { path: "/report-fees", label: "Report fees", icon: "bi-receipt", reportFeesOnly: true },
+  { path: "/credits", label: "SMS & WhatsApp credits", icon: "bi-wallet2", reportFeesOnly: true },
+  { path: "/whatsapp", label: "WhatsApp to parents", icon: "bi-whatsapp", whatsappOnly: true },
   { path: "/subscription", label: "Subscription", icon: "bi-credit-card", subscriptionOnly: true },
   { path: "/billing", label: "Super Admin", icon: "bi-shield-lock", platformOnly: true },
+  { path: "/report-payments", label: "Report payments", icon: "bi-cash-stack", platformOnly: true },
+  { path: "/messaging-admin", label: "Messaging & payments", icon: "bi-megaphone", platformOnly: true },
   { path: "/district-admins", label: "District admins", icon: "bi-person-gear", platformOnly: true },
   { path: "/training", label: "Training environment", icon: "bi-mortarboard", platformOnly: true },
   { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
@@ -95,6 +104,8 @@ export function CloudSidebar() {
   const items = NAV_ITEMS.filter((item) => {
     if (item.districtOnly) return isDistrictAdmin;
     if (item.platformOnly) return isPlatformAdmin;
+    if (item.whatsappOnly) return !!profile && ["school_admin", "teacher"].includes(profile.role);
+    if (item.reportFeesOnly) return !!profile && ["school_admin", "bursar"].includes(profile.role);
     if (item.subscriptionOnly) return isSubscriptionSubmitter;
     if (item.reportSampleOnly) return isReportSampleRole;
     if (item.feesOnly) {

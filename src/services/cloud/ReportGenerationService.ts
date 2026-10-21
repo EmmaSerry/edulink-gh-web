@@ -25,6 +25,7 @@ import { rest } from "@/lib/supabaseClient";
 import { CloudEnrollmentService } from "./EnrollmentService";
 import { CloudReportTemplateService } from "./ReportTemplateService";
 import { CloudSchoolService } from "./SchoolService";
+import { ReportBillingService } from "./ReportBillingService";
 import { validateReportPrerequisites, buildClassSnapshots, buildSnapshotForStudent } from "./ReportDataService";
 import type { ReportSnapshot } from "@reporting/ReportSnapshot.types";
 import type { GeneratedReportRow, TermRow, ScoreRecordRow } from "@/types/database";
@@ -120,6 +121,9 @@ class CloudReportGenerationServiceImpl {
   ): Promise<GenerateResult[]> {
     const snapshots = await buildClassSnapshots(classId, termId);
     const studentIds = onlyStudentIds ?? Array.from(snapshots.keys());
+    // Reports are always generated (and counted) - but only PAID / free ones
+    // are handed back for download. A failed lookup never blocks generation.
+    const lock = await ReportBillingService.getLockState(termId).catch(() => null);
     const results: GenerateResult[] = [];
 
     for (let i = 0; i < studentIds.length; i++) {
@@ -135,7 +139,15 @@ class CloudReportGenerationServiceImpl {
           const snapshot = snapshots.get(studentId);
           if (!snapshot) throw new Error("Could not build a report snapshot for this student");
           const report = await freeze(studentId, termId, classId, snapshot);
-          results.push({ studentId, report });
+          if (lock && lock.isLocked(studentId)) {
+            // generated and counted, but not released until the fee is paid
+            results.push({
+              studentId,
+              error: "Generated and counted - locked until the report fee is paid (see Report fees). Not included in the download.",
+            });
+          } else {
+            results.push({ studentId, report });
+          }
         }
       } catch (err) {
         results.push({ studentId, error: err instanceof Error ? err.message : "Unknown error" });
