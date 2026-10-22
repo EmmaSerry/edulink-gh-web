@@ -43,6 +43,8 @@ export interface SlipData {
   schoolAddress?: string | null;
   headTeacher?: string | null;
   logoDataUrl?: string | null;
+  /** Learner passport photo (data URL), optional. */
+  photoDataUrl?: string | null;
   mockName: string;
   academicYear: string;
   generatedOn: string;
@@ -103,6 +105,21 @@ export function drawSlip(doc: PdfDoc, d: SlipData): void {
 
   /* ---------- header ---------- */
   let textLeft = L;
+  let textRight = R;
+  let headerH = 22;
+  if (d.photoDataUrl) {
+    try {
+      const pf = /^data:image\/(png|jpe?g)/i.exec(d.photoDataUrl)?.[1]?.toUpperCase().replace("JPG", "JPEG") ?? "JPEG";
+      doc.addImage(d.photoDataUrl, pf, R - 26, y - 4, 26, 32);
+      doc.setDrawColor(...NAVY);
+      doc.setLineWidth(0.4);
+      doc.rect(R - 26, y - 4, 26, 32);
+      textRight = R - 30;
+      headerH = 31;
+    } catch {
+      textRight = R;
+    }
+  }
   if (d.logoDataUrl) {
     try {
       const fmt = /^data:image\/(png|jpe?g)/i.exec(d.logoDataUrl)?.[1]?.toUpperCase().replace("JPG", "JPEG") ?? "PNG";
@@ -113,18 +130,18 @@ export function drawSlip(doc: PdfDoc, d: SlipData): void {
     }
   }
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(18);
   doc.setTextColor(...NAVY);
-  doc.text(fit(doc, d.schoolName.toUpperCase(), R - textLeft), textLeft, y + 2);
+  doc.text(fit(doc, d.schoolName.toUpperCase(), textRight - textLeft), textLeft, y + 2);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(10.5);
   doc.setTextColor(...GREY);
-  if (d.schoolAddress) doc.text(fit(doc, d.schoolAddress, R - textLeft), textLeft, y + 7);
+  if (d.schoolAddress) doc.text(fit(doc, d.schoolAddress, textRight - textLeft), textLeft, y + 8);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(14);
   doc.setTextColor(...NAVY);
-  doc.text("MOCK EXAMINATION RESULT SLIP", textLeft, y + 13);
-  y += 20;
+  doc.text("MOCK EXAMINATION RESULT SLIP", textLeft, y + 18);
+  y += headerH;
   doc.setDrawColor(...NAVY);
   doc.setLineWidth(0.6);
   doc.line(L, y, R, y);
@@ -132,123 +149,123 @@ export function drawSlip(doc: PdfDoc, d: SlipData): void {
 
   /* ---------- learner ---------- */
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(10.5);
   doc.setTextColor(...GREY);
   doc.text("Learner", L, y);
   doc.text("Class", L + 100, y);
   doc.text("Candidate no.", L + 135, y);
-  doc.text("Examination", L, y + 11);
-  doc.text("Academic year", L + 100, y + 11);
+  doc.text("Examination", L, y + 12.5);
+  doc.text("Academic year", L + 100, y + 12.5);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
+  doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
-  doc.text(fit(doc, d.learner.fullName, 95), L, y + 5);
-  doc.text(fit(doc, d.learner.className, 30), L + 100, y + 5);
-  doc.text(d.learner.candidateNo, L + 135, y + 5);
-  doc.text(fit(doc, d.mockName, 95), L, y + 16);
-  doc.text(d.academicYear, L + 100, y + 16);
-  y += 23;
+  doc.text(fit(doc, d.learner.fullName, 95), L, y + 6);
+  doc.text(fit(doc, d.learner.className, 30), L + 100, y + 6);
+  doc.text(d.learner.candidateNo, L + 135, y + 6);
+  doc.text(fit(doc, d.mockName, 95), L, y + 18);
+  doc.text(d.academicYear, L + 100, y + 18);
+  y += 26;
 
   /* ---------- marks table ---------- */
   const cols = { subject: L + 2, mark: L + 78, pct: L + 100, grade: L + 118, remark: L + 132 };
   doc.setFillColor(...NAVY);
-  doc.rect(L, y, W, 7, "F");
+  doc.rect(L, y, W, 8, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(10.5);
   doc.setTextColor(255, 255, 255);
-  doc.text("Subject", cols.subject, y + 4.8);
-  doc.text("Mark", cols.mark, y + 4.8, { align: "right" });
-  doc.text("%", cols.pct, y + 4.8, { align: "right" });
-  doc.text("Grade", cols.grade, y + 4.8, { align: "center" });
-  doc.text("Remark", cols.remark, y + 4.8);
-  y += 7;
+  doc.text("Subject", cols.subject, y + 5.6);
+  doc.text("Mark", cols.mark, y + 5.6, { align: "right" });
+  doc.text("%", cols.pct, y + 5.6, { align: "right" });
+  doc.text("Grade", cols.grade, y + 5.6, { align: "center" });
+  doc.text("Remark", cols.remark, y + 5.6);
+  y += 8;
 
   d.rows.forEach((r, i) => {
     if (i % 2 === 1) {
       doc.setFillColor(...LIGHT);
-      doc.rect(L, y, W, 7, "F");
+      doc.rect(L, y, W, 8.2, "F");
     }
     doc.setFont("helvetica", r.counted ? "bold" : "normal");
-    doc.setFontSize(9.5);
+    doc.setFontSize(11.5);
     doc.setTextColor(0, 0, 0);
-    doc.text(fit(doc, r.name + (r.counted ? "  *" : ""), 72), cols.subject, y + 4.8);
+    doc.text(fit(doc, r.name + (r.counted ? "  *" : ""), 72), cols.subject, y + 5.6);
     doc.setFont("helvetica", "normal");
     if (r.absent) {
       doc.setTextColor(...GREY);
-      doc.text("ABS", cols.mark, y + 4.8, { align: "right" });
-      doc.text("Absent", cols.remark, y + 4.8);
+      doc.text("ABS", cols.mark, y + 5.6, { align: "right" });
+      doc.text("Absent", cols.remark, y + 5.6);
     } else if (r.mark === null) {
       doc.setTextColor(...GREY);
-      doc.text("-", cols.mark, y + 4.8, { align: "right" });
-      doc.text("Not yet available", cols.remark, y + 4.8);
+      doc.text("-", cols.mark, y + 5.6, { align: "right" });
+      doc.text("Not yet available", cols.remark, y + 5.6);
     } else {
-      doc.text(`${r.mark}/${r.max}`, cols.mark, y + 4.8, { align: "right" });
-      doc.text(r.pct === null ? "-" : r.pct.toFixed(0), cols.pct, y + 4.8, { align: "right" });
+      doc.text(`${r.mark}/${r.max}`, cols.mark, y + 5.6, { align: "right" });
+      doc.text(r.pct === null ? "-" : r.pct.toFixed(0), cols.pct, y + 5.6, { align: "right" });
       doc.setFont("helvetica", "bold");
-      doc.text(r.grade === null ? "-" : String(r.grade), cols.grade, y + 4.8, { align: "center" });
+      doc.text(r.grade === null ? "-" : String(r.grade), cols.grade, y + 5.6, { align: "center" });
       doc.setFont("helvetica", "normal");
-      doc.text(fit(doc, r.remark, R - cols.remark - 1), cols.remark, y + 4.8);
+      doc.text(fit(doc, r.remark, R - cols.remark - 1), cols.remark, y + 5.6);
     }
-    y += 7;
+    y += 8.2;
   });
   doc.setDrawColor(...NAVY);
   doc.setLineWidth(0.3);
   doc.line(L, y, R, y);
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.5);
   doc.setTextColor(...GREY);
-  doc.text("* counts towards the Mock Aggregate (four core subjects plus the best two other subjects).", L, y + 4);
-  y += 10;
+  doc.text("* counts towards the Mock Aggregate (four core subjects plus the best two other subjects).", L, y + 5);
+  y += 12;
 
   /* ---------- aggregate box ---------- */
   const pass = d.aggregate !== null && d.aggregate <= d.passAggregate;
   const boxColor = d.aggregate === null ? AMBER : pass ? GREEN : RED;
   doc.setDrawColor(...boxColor);
   doc.setLineWidth(0.8);
-  doc.rect(L, y, W, 22);
+  doc.rect(L, y, W, 25);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(10.5);
   doc.setTextColor(...GREY);
   doc.text("MOCK AGGREGATE (lower is better)", L + 4, y + 6);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...boxColor);
   if (d.aggregate !== null) {
-    doc.setFontSize(26);
-    doc.text(String(d.aggregate), L + 4, y + 17);
-    doc.setFontSize(12);
-    doc.text(pass ? "PASS LEVEL" : "BELOW PASS LEVEL", L + 34, y + 15);
+    doc.setFontSize(30);
+    doc.text(String(d.aggregate), L + 4, y + 20);
+    doc.setFontSize(14);
+    doc.text(pass ? "PASS LEVEL" : "BELOW PASS LEVEL", L + 38, y + 17);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(10);
     doc.setTextColor(...GREY);
-    doc.text(`Pass level is aggregate ${d.passAggregate} or better.`, L + 34, y + 19.5);
+    doc.text(`Pass level is aggregate ${d.passAggregate} or better.`, L + 38, y + 22);
   } else {
-    doc.setFontSize(13);
+    doc.setFontSize(15);
     const why = d.status === "absent" ? "Absent from the examination" : "Not yet available";
-    doc.text(why, L + 4, y + 15);
+    doc.text(why, L + 4, y + 17);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(10);
     doc.setTextColor(...GREY);
-    if (d.missing.length) doc.text(fit(doc, `Waiting for: ${d.missing.join(", ")}`, W - 70), L + 70, y + 15);
+    if (d.missing.length) doc.text(fit(doc, `Waiting for: ${d.missing.join(", ")}`, W - 80), L + 80, y + 17);
   }
   if (d.position) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(10);
     doc.setTextColor(...GREY);
     const parts: string[] = [];
     if (d.position.school !== null) parts.push(`School position ${d.position.school} of ${d.position.ofSchool}`);
     if (d.position.class !== null) parts.push(`Class position ${d.position.class} of ${d.position.ofClass}`);
     if (parts.length) doc.text(parts.join("   "), R - 3, y + 6, { align: "right" });
   }
-  y += 28;
+  y += 31;
 
   /* ---------- progress ---------- */
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(12);
   doc.setTextColor(...NAVY);
   doc.text("Progress over the mocks", L, y);
   y += 5;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(10.5);
   doc.setTextColor(0, 0, 0);
   if (d.history.length > 1) {
     const line = d.history.map((h) => `${h.mockName}: ${h.aggregate === null ? "not complete" : h.aggregate}`).join("   >   ");
@@ -273,7 +290,7 @@ export function drawSlip(doc: PdfDoc, d: SlipData): void {
     y += 1.5;
   }
   if (d.strongest || d.weakest) {
-    doc.setFontSize(9);
+    doc.setFontSize(10.5);
     if (d.strongest) {
       doc.setTextColor(...GREEN);
       doc.text(fit(doc, `Strongest: ${d.strongest}`, W / 2 - 2), L, y);
@@ -288,22 +305,22 @@ export function drawSlip(doc: PdfDoc, d: SlipData): void {
   /* ---------- grading key ---------- */
   y += 2;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(10.5);
   doc.setTextColor(...NAVY);
   doc.text("Grading key", L, y);
   y += 4;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(9.5);
   doc.setTextColor(...GREY);
   const sorted = [...d.bands].sort((a, b) => (d.lowerIsBetter ? a.grade - b.grade : b.grade - a.grade));
-  const perRow = 3;
+  const perRow = 2;
   const cellW = W / perRow;
   sorted.forEach((b, i) => {
     const cx = L + (i % perRow) * cellW;
-    const cy = y + Math.floor(i / perRow) * 4.2;
+    const cy = y + Math.floor(i / perRow) * 5;
     doc.text(fit(doc, `Grade ${b.grade}: ${b.min}-${b.max}  ${b.remark}`, cellW - 2), cx, cy);
   });
-  y += Math.ceil(sorted.length / perRow) * 4.2 + 8;
+  y += Math.ceil(sorted.length / perRow) * 5 + 8;
 
   /* ---------- signatures ---------- */
   const sigY = Math.max(y + 6, 240);
@@ -312,7 +329,7 @@ export function drawSlip(doc: PdfDoc, d: SlipData): void {
   doc.line(L, sigY, L + 62, sigY);
   doc.line(R - 62, sigY, R, sigY);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(10);
   doc.setTextColor(...GREY);
   doc.text("Class teacher", L, sigY + 4);
   doc.text(d.headTeacher ? `Headteacher: ${d.headTeacher}` : "Headteacher", R - 62, sigY + 4);
@@ -321,7 +338,7 @@ export function drawSlip(doc: PdfDoc, d: SlipData): void {
   doc.setDrawColor(...NAVY);
   doc.setLineWidth(0.3);
   doc.line(L, 276, R, 276);
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.5);
   doc.setTextColor(...GREY);
   const note = "This is a school mock examination result: a practice estimate, not an official WAEC result or a prediction of one.";
   doc.splitTextToSize(note, W).forEach((ln, i) => doc.text(ln, L, 281 + i * 3.6));

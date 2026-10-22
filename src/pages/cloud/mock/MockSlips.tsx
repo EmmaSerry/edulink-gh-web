@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import JSZip from "jszip";
 import { downloadBlob } from "@utils/downloadBlob";
+import { rest } from "@/lib/supabaseClient";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
 import { MockExamService, type MockFull } from "@/services/cloud/MockExamService";
 import { drawSlip, drawSlips, type PdfDoc, type SlipData } from "@/mock/slipPdf";
@@ -16,6 +17,7 @@ const safe = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ")
 export function MockSlips({ data }: { data: MockFull }) {
   const { all, loading, error } = useMockSnapshots(data);
   const [school, setSchool] = useState<SlipSchool>({ name: data.mock.schoolName });
+  const [photos, setPhotos] = useState<Record<string, string>>({});
   const [cls, setCls] = useState("");
   const [includeIncomplete, setIncludeIncomplete] = useState(false);
   const [includePosition, setIncludePosition] = useState(false);
@@ -37,6 +39,31 @@ export function MockSlips({ data }: { data: MockFull }) {
       .catch(() => undefined);
   }, [data.mock.schoolName]);
 
+  // Passport photos, looked up by student. A learner without a photo simply gets a slip without one.
+  useEffect(() => {
+    let cancelled = false;
+    const ids = [...new Set(data.candidates.map((c) => c.studentId).filter(Boolean))];
+    (async () => {
+      const found: Record<string, string> = {};
+      for (let i = 0; i < ids.length; i += 40) {
+        const chunk = ids.slice(i, i + 40);
+        try {
+          const rows = await rest.select<{ id: string; photo_url: string | null }>("students", {
+            select: "id,photo_url",
+            filters: { id: `in.(${chunk.join(",")})` },
+          });
+          for (const r of rows) if (r.photo_url && r.photo_url.startsWith("data:image")) found[r.id] = r.photo_url;
+        } catch {
+          /* photos are optional */
+        }
+      }
+      if (!cancelled) setPhotos(found);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [data.candidates]);
+
   // A slip only uses mocks up to the one being printed, so an old mock never mentions later ones.
   const history = useMemo(() => {
     const here = data.mock.startDate ?? data.mock.createdAt ?? "";
@@ -51,10 +78,10 @@ export function MockSlips({ data }: { data: MockFull }) {
     const out: Array<{ id: string; slip: SlipData }> = [];
     for (const c of learners) {
       const s = buildSlip(data, c.id, history, school, { includePosition, generatedOn });
-      if (s) out.push({ id: c.id, slip: s });
+      if (s) out.push({ id: c.id, slip: { ...s, photoDataUrl: photos[c.studentId] ?? null } });
     }
     return out;
-  }, [learners, data, history, school, includePosition, generatedOn]);
+  }, [learners, data, history, school, includePosition, generatedOn, photos]);
 
   const ready = slips.filter((x) => includeIncomplete || x.slip.status === "complete");
   const fileBase = `${safe(data.mock.name)} - ${safe(school.name)}`;
