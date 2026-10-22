@@ -12,6 +12,7 @@ import { MockOverview } from "@pages/cloud/mock/MockOverview";
 import { MockSubjects } from "@pages/cloud/mock/MockSubjects";
 import { MockCompare } from "@pages/cloud/mock/MockCompare";
 import { MockLearners } from "@pages/cloud/mock/MockLearners";
+import { MockSlips } from "@pages/cloud/mock/MockSlips";
 import { MockParents } from "@pages/cloud/mock/MockParents";
 import { MockPlans } from "@pages/cloud/mock/MockPlans";
 import { analyseSubjects } from "@/mock/mockAnalysis";
@@ -26,7 +27,7 @@ import {
   type CandidateResult,
 } from "@/mock/mockEngine";
 
-type Tab = "overview" | "entry" | "candidates" | "aggregate" | "subjects" | "compare" | "learners" | "parents" | "plans" | "quality" | "admin";
+type Tab = "overview" | "entry" | "candidates" | "aggregate" | "subjects" | "compare" | "learners" | "parents" | "slips" | "plans" | "quality" | "admin";
 
 const DISCLAIMER =
   "Mock Aggregate: a school-level estimate from internal mock examinations. It is not an official WAEC result or prediction.";
@@ -103,7 +104,7 @@ export function CloudMockExamDetail() {
     ["subjects", "Subjects"],
     ["compare", "Compare with earlier mock"],
     ["learners", "Learner progress"],
-    ...(isDistrict ? [] : ([["parents", "Message parents"]] as Array<[Tab, string]>)),
+    ...(isDistrict ? [] : ([["slips", "Result slips (PDF)"], ["parents", "Message parents"]] as Array<[Tab, string]>)),
     ...(isDistrict || data.role === "teacher" ? [] : ([["plans", "Improvement plans"]] as Array<[Tab, string]>)),
     ["quality", "Data quality"],
     ["admin", "Status & audit"],
@@ -152,6 +153,7 @@ export function CloudMockExamDetail() {
       {tab === "subjects" && <MockSubjects data={data} />}
       {tab === "compare" && <MockCompare data={data} />}
       {tab === "learners" && <MockLearners data={data} />}
+      {tab === "slips" && <MockSlips data={data} />}
       {tab === "parents" && <MockParents data={data} />}
       {tab === "plans" && (
         <MockPlans

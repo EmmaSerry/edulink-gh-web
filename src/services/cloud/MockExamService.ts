@@ -201,6 +201,9 @@ export interface MockMessageRow {
 }
 
 class MockExamServiceImpl {
+  recordSlips(mockId: string, count: number, scope: string, includePosition: boolean) {
+    return rest.rpc<void>("mock_slips_record", { p_mock_id: mockId, p_count: count, p_scope: scope, p_include_position: includePosition });
+  }
   districtOverview() {
     return rest.rpc<DistrictMockRow[]>("mock_district_overview", {});
   }
