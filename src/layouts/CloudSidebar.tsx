@@ -2,15 +2,20 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
+import { BrandMark } from "@components/BrandMark";
 import type { UserRole } from "@/types/database";
 
 const SCHOOL_ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
 const DISTRICT_ADMIN_ROLES: UserRole[] = ["district_admin", "platform_admin"];
-const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin", "platform_admin"];
+// Finances are reserved: district administrators have no access.
+const FEE_MANAGER_ROLES: UserRole[] = ["bursar", "school_admin", "platform_admin"];
 // Narrower than DISTRICT_ADMIN_ROLES - see RequireAdmin.tsx.
 const PLATFORM_ADMIN_ROLES: UserRole[] = ["platform_admin"];
 const SUBSCRIPTION_SUBMIT_ROLES: UserRole[] = ["school_admin", "bursar"];
-// Mock Exams: everyone except bursar and parent.
+// Same four roles as FEE_MANAGER_ROLES today, kept as its own constant
+// for the same reason RequireAdmin.tsx does - see that file's comment.
+const REPORT_SAMPLE_ROLES: UserRole[] = ["bursar", "school_admin", "district_admin", "platform_admin"];
+
 const MOCK_ROLES: UserRole[] = ["school_admin", "teacher", "district_admin", "platform_admin"];
 
 interface NavItem {
@@ -32,12 +37,22 @@ interface NavItem {
    *  edulink_gh_phase1d_subscriptions.sql. Deliberately not shown to
    *  district_admin, unlike every other *Only flag here. */
   platformOnly?: boolean;
+  /** school_admin and bursar only (report-card fees). */
+  reportFeesOnly?: boolean;
+  /** teacher and school_admin (WhatsApp to parents). */
+  whatsappOnly?: boolean;
   /** Only school_admin/bursar - reporting your OWN school's
    *  subscription payment. district_admin/platform_admin have no
    *  single school for this to mean anything. */
   subscriptionOnly?: boolean;
-  /** Mock Exams - school_admin, teacher, district_admin, platform_admin. */
+  /** Only bursar/school_admin/district_admin/platform_admin - the
+   *  Sample report preview screen. Not shown to teacher, who already
+   *  has real students/reports to check via Reports. */
+  reportSampleOnly?: boolean;
+  /** Mock Exams: school_admin, teacher, district_admin, platform_admin. */
   mockOnly?: boolean;
+  /** Mock Exams district view: district_admin, platform_admin. */
+  mockDistrictOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -45,15 +60,26 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/district", label: "District overview", icon: "bi-diagram-3", districtOnly: true },
   { path: "/accounts", label: "Accounts", icon: "bi-people-fill", districtOnly: true },
   { path: "/students", label: "Students", icon: "bi-people" },
+  { path: "/statistics", label: "Statistics", icon: "bi-bar-chart-line" },
   { path: "/staff", label: "Staff", icon: "bi-person-badge", adminOnly: true },
+  { path: "/send-details", label: "Send login details", icon: "bi-send", adminOnly: true },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
-  { path: "/mock-exams", label: "Mock Exams", icon: "bi-mortarboard", mockOnly: true },
+  { path: "/reports/sample", label: "Sample report", icon: "bi-file-earmark-ruled", reportSampleOnly: true },
+  { path: "/mock-exams", label: "Mock Exams", icon: "bi-mortarboard-fill", mockOnly: true },
+  { path: "/mock-exams/district", label: "Mock Exams: district", icon: "bi-graph-up-arrow", mockDistrictOnly: true },
   { path: "/sms", label: "SMS to parents", icon: "bi-chat-dots" },
   { path: "/fees", label: "Fees", icon: "bi-cash-coin", feesOnly: true },
+  { path: "/report-fees", label: "Report fees", icon: "bi-receipt", reportFeesOnly: true },
+  { path: "/credits", label: "SMS & WhatsApp credits", icon: "bi-wallet2", reportFeesOnly: true },
+  { path: "/whatsapp", label: "WhatsApp to parents", icon: "bi-whatsapp", whatsappOnly: true },
   { path: "/subscription", label: "Subscription", icon: "bi-credit-card", subscriptionOnly: true },
   { path: "/billing", label: "Super Admin", icon: "bi-shield-lock", platformOnly: true },
+  { path: "/report-payments", label: "Report payments", icon: "bi-cash-stack", platformOnly: true },
+  { path: "/messaging-admin", label: "Messaging & payments", icon: "bi-megaphone", platformOnly: true },
+  { path: "/district-admins", label: "District admins", icon: "bi-person-gear", platformOnly: true },
+  { path: "/training", label: "Training environment", icon: "bi-mortarboard", platformOnly: true },
   { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
   { path: "/settings", label: "Settings", icon: "bi-gear", adminOnly: true },
 ];
@@ -63,6 +89,7 @@ export function CloudSidebar() {
   const isSchoolAdmin = !!profile && SCHOOL_ADMIN_ROLES.includes(profile.role);
   const isDistrictAdmin = !!profile && DISTRICT_ADMIN_ROLES.includes(profile.role);
   const isFeeManager = !!profile && FEE_MANAGER_ROLES.includes(profile.role);
+  const isReportSampleRole = !!profile && REPORT_SAMPLE_ROLES.includes(profile.role);
 
   // Only a school_admin/bursar's own school needs checking - a
   // district_admin/platform_admin has no single school in the sidebar
@@ -81,13 +108,16 @@ export function CloudSidebar() {
 
   const isPlatformAdmin = !!profile && PLATFORM_ADMIN_ROLES.includes(profile.role);
   const isSubscriptionSubmitter = !!profile && SUBSCRIPTION_SUBMIT_ROLES.includes(profile.role);
-  const canSeeMock = !!profile && MOCK_ROLES.includes(profile.role);
 
   const items = NAV_ITEMS.filter((item) => {
-    if (item.mockOnly) return canSeeMock;
+    if (item.mockOnly) return !!profile && MOCK_ROLES.includes(profile.role);
+    if (item.mockDistrictOnly) return isDistrictAdmin;
     if (item.districtOnly) return isDistrictAdmin;
     if (item.platformOnly) return isPlatformAdmin;
+    if (item.whatsappOnly) return !!profile && ["school_admin", "teacher"].includes(profile.role);
+    if (item.reportFeesOnly) return !!profile && ["school_admin", "bursar"].includes(profile.role);
     if (item.subscriptionOnly) return isSubscriptionSubmitter;
+    if (item.reportSampleOnly) return isReportSampleRole;
     if (item.feesOnly) {
       if (!isFeeManager) return false;
       if (["school_admin", "bursar"].includes(profile?.role ?? "")) return schoolIsPrivate !== false;
@@ -100,7 +130,7 @@ export function CloudSidebar() {
   return (
     <aside className="actrs-sidebar d-flex flex-column p-3" style={{ width: 260 }}>
       <div className="mb-4 px-1 d-flex align-items-center gap-2">
-        <span className="actrs-brand-mark">EG</span>
+        <BrandMark />
         <div className="lh-sm">
           <div className="fw-bold">EduLink GH</div>
           <div className="text-muted" style={{ fontSize: "0.7rem" }}>
@@ -118,7 +148,7 @@ export function CloudSidebar() {
             <li className="nav-item" key={item.path}>
               <NavLink
                 to={item.path}
-                end={item.path !== "/mock-exams"}
+                end
                 className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? "active" : ""}`}
               >
                 <i className={`bi ${item.icon}`} />

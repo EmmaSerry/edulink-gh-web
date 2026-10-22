@@ -8,6 +8,13 @@ import {
   type MockFull,
   type MockStatus,
 } from "@/services/cloud/MockExamService";
+import { MockOverview } from "@pages/cloud/mock/MockOverview";
+import { MockSubjects } from "@pages/cloud/mock/MockSubjects";
+import { MockCompare } from "@pages/cloud/mock/MockCompare";
+import { MockLearners } from "@pages/cloud/mock/MockLearners";
+import { MockParents } from "@pages/cloud/mock/MockParents";
+import { MockPlans } from "@pages/cloud/mock/MockPlans";
+import { analyseSubjects } from "@/mock/mockAnalysis";
 import {
   aggregateStatistics,
   bestCandidates,
@@ -19,7 +26,7 @@ import {
   type CandidateResult,
 } from "@/mock/mockEngine";
 
-type Tab = "dashboard" | "entry" | "candidates" | "aggregate" | "subjects" | "quality" | "admin";
+type Tab = "overview" | "entry" | "candidates" | "aggregate" | "subjects" | "compare" | "learners" | "parents" | "plans" | "quality" | "admin";
 
 const DISCLAIMER =
   "Mock Aggregate: a school-level estimate from internal mock examinations. It is not an official WAEC result or prediction.";
@@ -43,7 +50,7 @@ export function CloudMockExamDetail() {
   const { mockId = "" } = useParams();
   const [data, setData] = useState<MockFull | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -86,15 +93,30 @@ export function CloudMockExamDetail() {
   if (!data || !derived) return null;
 
   const { mock } = data;
+  const isAdmin = data.role === "school_admin" || data.role === "platform_admin";
+  const isDistrict = data.role === "district_admin";
   const tabs: Array<[Tab, string]> = [
-    ["dashboard", "Dashboard"],
+    ["overview", "How are we doing?"],
     ["entry", "Marks entry"],
-    ["candidates", "Candidate broadsheet"],
-    ["aggregate", "Aggregate broadsheet"],
-    ["subjects", "Subject analysis"],
+    ["candidates", "Candidate marks"],
+    ["aggregate", "Aggregates & positions"],
+    ["subjects", "Subjects"],
+    ["compare", "Compare with earlier mock"],
+    ["learners", "Learner progress"],
+    ...(isDistrict ? [] : ([["parents", "Message parents"]] as Array<[Tab, string]>)),
+    ...(isDistrict || data.role === "teacher" ? [] : ([["plans", "Improvement plans"]] as Array<[Tab, string]>)),
     ["quality", "Data quality"],
     ["admin", "Status & audit"],
   ];
+
+  const analysisSuggestions = analyseSubjects(
+    data.subjects,
+    data.candidates.map((c) => ({ id: c.id, status: c.status, gender: c.gender })),
+    data.marks,
+    mock.grading
+  )
+    .filter((s) => s.flagged)
+    .map((s) => ({ code: s.code, name: s.name, reason: s.flagReasons.join(" ") }));
 
   return (
     <div>
@@ -123,11 +145,22 @@ export function CloudMockExamDetail() {
         ))}
       </ul>
 
-      {tab === "dashboard" && <Dashboard data={data} d={derived} />}
+      {tab === "overview" && <MockOverview data={data} />}
       {tab === "entry" && <MarksEntry data={data} reload={load} setError={setError} />}
       {tab === "candidates" && <CandidateBroadsheet data={data} d={derived} />}
       {tab === "aggregate" && <AggregateBroadsheet data={data} d={derived} />}
-      {tab === "subjects" && <SubjectAnalysis data={data} d={derived} />}
+      {tab === "subjects" && <MockSubjects data={data} />}
+      {tab === "compare" && <MockCompare data={data} />}
+      {tab === "learners" && <MockLearners data={data} />}
+      {tab === "parents" && <MockParents data={data} />}
+      {tab === "plans" && (
+        <MockPlans
+          schoolId={data.mock.schoolId}
+          mockId={data.mock.id}
+          canEdit={isAdmin}
+          suggestions={analysisSuggestions}
+        />
+      )}
       {tab === "quality" && <DataQuality data={data} d={derived} />}
       {tab === "admin" && <StatusAndAudit data={data} d={derived} reload={load} setError={setError} />}
     </div>
@@ -142,112 +175,6 @@ interface Derived {
   best: CandidateResult[];
   subjStats: ReturnType<typeof subjectStatistics>;
   dq: ReturnType<typeof summariseDataQuality>;
-}
-
-function Stat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <div className="col-6 col-md-3">
-      <div className="card h-100">
-        <div className="card-body py-3">
-          <div className="text-muted small">{label}</div>
-          <div className="fs-4 fw-bold">{value}</div>
-          {sub && <div className="text-muted small">{sub}</div>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Dashboard({ data, d }: { data: MockFull; d: Derived }) {
-  const { mock, candidates } = data;
-  const sitting = candidates.filter((c) => c.status === "registered").length;
-  const dist = new Map<number, number>();
-  d.results.forEach((r) => {
-    if (r.status === "complete" && r.aggregate !== null) {
-      const bucket = Math.floor((r.aggregate - 6) / 6) * 6 + 6;
-      dist.set(bucket, (dist.get(bucket) ?? 0) + 1);
-    }
-  });
-  const buckets = [...dist.entries()].sort((a, b) => a[0] - b[0]);
-  const maxCount = Math.max(1, ...buckets.map((b) => b[1]));
-  const nameOf = (id: string) => candidates.find((c) => c.id === id)?.fullName ?? "";
-
-  return (
-    <div>
-      <div className="row g-3 mb-3">
-        <Stat label="Candidates sitting" value={sitting} sub={`${d.dq.excluded} excluded · ${d.dq.absentAll} absent all`} />
-        <Stat label="With complete aggregate" value={`${d.aggStats.completeCount} / ${sitting}`} sub={pctText(sitting ? Math.round((d.aggStats.completeCount / sitting) * 1000) / 10 : null)} />
-        <Stat label="Average aggregate" value={d.aggStats.average ?? "—"} sub={d.aggStats.completeCount ? `based on ${d.aggStats.completeCount} candidates` : "Insufficient data"} />
-        <Stat label="Mark entry complete" value={pctText(d.dq.overallPctComplete)} sub={`${d.dq.totalAccountedMarks} of ${d.dq.totalExpectedMarks} records`} />
-        <Stat label="Best aggregate" value={d.aggStats.best ?? "—"} sub={d.best.length ? d.best.map((b) => nameOf(b.candidateId)).join(", ") : "No complete aggregate yet"} />
-        <Stat label="Weakest aggregate" value={d.aggStats.worst ?? "—"} />
-        <Stat
-          label={mock.targetAggregate !== null ? `Meeting target (≤${mock.targetAggregate})` : "Target"}
-          value={d.aggStats.meetingTarget === null ? "Not set" : `${d.aggStats.meetingTarget} / ${d.aggStats.completeCount}`}
-        />
-        <Stat label="Subjects" value={data.subjects.length} />
-      </div>
-
-      {d.dq.issues.length > 0 && (
-        <div className="alert alert-warning">
-          <strong>Reliability notes</strong>
-          <ul className="mb-0">
-            {d.dq.issues.map((i, k) => (
-              <li key={k}>{i.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="row g-3">
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-header">Aggregate distribution (complete aggregates only)</div>
-            <div className="card-body">
-              {buckets.length === 0 ? (
-                <div className="text-muted">Insufficient data — no candidate has a complete aggregate yet.</div>
-              ) : (
-                buckets.map(([start, n]) => (
-                  <div key={start} className="d-flex align-items-center gap-2 mb-1">
-                    <div style={{ width: 70 }} className="small">
-                      {start}–{start + 5}
-                    </div>
-                    <div className="flex-grow-1 bg-light rounded">
-                      <div style={{ width: `${(n / maxCount) * 100}%`, background: "#2f6fed", height: 16, borderRadius: 4 }} />
-                    </div>
-                    <div style={{ width: 30 }} className="small text-end">
-                      {n}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-header">Subject average (% of maximum)</div>
-            <div className="card-body">
-              {d.subjStats.map((s) => (
-                <div key={s.subjectId} className="d-flex align-items-center gap-2 mb-1">
-                  <div style={{ width: 130 }} className="small text-truncate" title={s.name}>
-                    {s.name}
-                  </div>
-                  <div className="flex-grow-1 bg-light rounded">
-                    <div style={{ width: `${s.averagePct ?? 0}%`, background: "#198754", height: 16, borderRadius: 4 }} />
-                  </div>
-                  <div style={{ width: 90 }} className="small text-end">
-                    {s.averagePct === null ? "No data" : `${s.averagePct.toFixed(1)}% (n=${s.validCount})`}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <p className="small text-muted mt-3 mb-0">{DISCLAIMER}</p>
-    </div>
-  );
 }
 
 /* ------------------------------ Marks entry ------------------------------ */
@@ -589,48 +516,6 @@ function AggregateBroadsheet({ data, d }: { data: MockFull; d: Derived }) {
       <p className="small text-muted">
         Aggregate = four core subjects + best two non-core. Tied candidates share a position (1, 1, 3). Candidates without a complete aggregate are not ranked. {DISCLAIMER}
       </p>
-    </div>
-  );
-}
-
-function SubjectAnalysis({ data, d }: { data: MockFull; d: Derived }) {
-  const { mock } = data;
-  const grades = mock.grading.bands.map((b) => b.grade).sort((a, b) => a - b);
-  return (
-    <div className="table-responsive">
-      <table className="table table-sm table-bordered text-center align-middle">
-        <thead className="table-light">
-          <tr>
-            <th className="text-start">Subject</th>
-            <th>Valid marks (n)</th>
-            <th>Average</th>
-            <th>Average %</th>
-            <th>Highest</th>
-            <th>Lowest</th>
-            {grades.map((g) => (
-              <th key={g}>G{g}</th>
-            ))}
-            <th>Meeting target</th>
-          </tr>
-        </thead>
-        <tbody>
-          {d.subjStats.map((s) => (
-            <tr key={s.subjectId}>
-              <td className="text-start">{s.name}</td>
-              <td>{s.validCount}</td>
-              <td>{s.average ?? "—"}</td>
-              <td>{s.averagePct === null ? "—" : s.averagePct.toFixed(1)}</td>
-              <td>{s.highest ?? "—"}</td>
-              <td>{s.lowest ?? "—"}</td>
-              {grades.map((g) => (
-                <td key={g}>{s.gradeDistribution[g] ?? 0}</td>
-              ))}
-              <td>{s.targetPct === null ? "No target" : `${s.meetingTarget}/${s.validCount} (${pctText(s.pctMeetingTarget)})`}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="small text-muted">Every figure uses only candidates with a valid mark in that subject (n). Absent and not-yet-entered candidates are excluded, never counted as zero.</p>
     </div>
   );
 }

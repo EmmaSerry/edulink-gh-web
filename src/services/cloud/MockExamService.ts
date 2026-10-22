@@ -19,6 +19,7 @@ export interface MockListItem {
   startDate: string | null;
   endDate: string | null;
   seriesKey: string | null;
+  createdAt?: string;
   candidates: number;
   subjects: number;
   marksRecorded: number;
@@ -69,6 +70,7 @@ export interface MockDetails {
   grading: GradingConfig;
   targetAggregate: number | null;
   finalisedAt: string | null;
+  createdAt?: string;
 }
 
 export interface StoredResult {
@@ -134,7 +136,117 @@ export interface AuditEntry {
   at: string;
 }
 
+export interface DistrictSubjectRow {
+  code: string;
+  name: string;
+  isCore: boolean;
+  valid: number;
+  passed: number;
+  gradeSum: number;
+}
+
+export interface DistrictMockRow {
+  mockId: string;
+  schoolId: string;
+  schoolName: string;
+  circuit: string | null;
+  mockName: string;
+  seriesKey: string | null;
+  academicYear: string;
+  status: MockStatus;
+  startDate: string | null;
+  lowerIsBetter: boolean;
+  registered: number;
+  present: number;
+  assessed: number;
+  pass: number;
+  a06: number;
+  a07_09: number;
+  a10_19: number;
+  a20_30: number;
+  a31_36: number;
+  a37plus: number;
+  sumAggregate: number;
+  bestAggregate: number | null;
+  subjects: DistrictSubjectRow[];
+}
+
+export interface InterventionPlan {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  mockId: string | null;
+  subjectCode: string | null;
+  subjectName: string | null;
+  title: string;
+  action: string | null;
+  responsible: string | null;
+  dueDate: string | null;
+  status: "planned" | "in_progress" | "done" | "cancelled";
+  outcome: string | null;
+  startedByRole: string;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface MockMessageRow {
+  id: string;
+  candidateId: string;
+  channel: "sms" | "whatsapp";
+  status: "accepted" | "failed" | "skipped";
+  detail: string | null;
+  message: string;
+  by: string | null;
+  at: string;
+}
+
 class MockExamServiceImpl {
+  districtOverview() {
+    return rest.rpc<DistrictMockRow[]>("mock_district_overview", {});
+  }
+  interventions(schoolId?: string | null) {
+    return rest.rpc<InterventionPlan[]>("mock_interventions_list", { p_school_id: schoolId ?? null });
+  }
+  saveIntervention(p: {
+    id?: string | null;
+    schoolId?: string | null;
+    mockId?: string | null;
+    subjectCode?: string | null;
+    subjectName?: string | null;
+    title: string;
+    action?: string;
+    responsible?: string;
+    dueDate?: string | null;
+    status: InterventionPlan["status"];
+    outcome?: string;
+  }) {
+    return rest.rpc<string>("mock_intervention_save", {
+      p_id: p.id ?? null,
+      p_school_id: p.schoolId ?? null,
+      p_mock_id: p.mockId ?? null,
+      p_subject_code: p.subjectCode ?? null,
+      p_subject_name: p.subjectName ?? null,
+      p_title: p.title,
+      p_action: p.action ?? null,
+      p_responsible: p.responsible ?? null,
+      p_due_date: p.dueDate || null,
+      p_status: p.status,
+      p_outcome: p.outcome ?? null,
+    });
+  }
+  recordMessage(mockId: string, candidateId: string, channel: "sms" | "whatsapp", status: "accepted" | "failed" | "skipped", message: string, detail?: string) {
+    return rest.rpc<void>("mock_message_record", {
+      p_mock_id: mockId,
+      p_candidate_id: candidateId,
+      p_channel: channel,
+      p_status: status,
+      p_message: message,
+      p_detail: detail ?? null,
+    });
+  }
+  messages(mockId: string) {
+    return rest.rpc<MockMessageRow[]>("mock_messages_list", { p_mock_id: mockId });
+  }
   list(academicYearId?: string | null) {
     return rest.rpc<MockListItem[]>("mock_list", { p_academic_year_id: academicYearId ?? null });
   }

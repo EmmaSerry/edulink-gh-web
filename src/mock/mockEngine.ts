@@ -63,6 +63,7 @@ export interface MockCandidate {
   studentId: string;
   candidateNo: string;
   fullName: string;
+  gender?: string | null;
   className: string;
   classId?: string | null;
   status: CandidateStatus;
