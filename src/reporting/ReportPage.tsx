@@ -14,11 +14,14 @@ interface Props {
 }
 
 /**
- * Module 2 - the one shared page wrapper every template (KG, Lower
- * Primary, Upper Primary, JHS) renders through. Paper size, orientation,
- * margins, font and colours all come from `TemplateSettings` (Module
- * 12) so an administrator's changes apply automatically everywhere
- * without touching any template component - see docs/PHASE4_REPORTS.md.
+ * The one shared page wrapper every template (KG, Lower Primary, Upper
+ * Primary, JHS) renders through. Paper size, orientation, margins, font and
+ * colours all come from `TemplateSettings`, so an administrator's changes
+ * apply automatically everywhere without touching any template component.
+ *
+ * Redesign: every page now sits inside a decorative double-line frame with
+ * corner studs, drawn in the school's own two brand colours. The frame is
+ * purely visual - it never affects the content area or the print pipeline.
  */
 export function ReportPage({ settings, school, children, isLastPage = true }: Props) {
   const style: CSSProperties & Record<string, string> = {
@@ -40,6 +43,12 @@ export function ReportPage({ settings, school, children, isLastPage = true }: Pr
 
   return (
     <div className={classes} style={style}>
+      <div className="actrs-report-frame" aria-hidden="true">
+        <i className="stud tl" />
+        <i className="stud tr" />
+        <i className="stud bl" />
+        <i className="stud br" />
+      </div>
       {settings.showWatermark && school.reportWatermarkDataUrl && (
         <div className="actrs-report-watermark" style={{ opacity: settings.watermarkOpacity }}>
           <img src={school.reportWatermarkDataUrl} alt="" />

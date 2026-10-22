@@ -1,26 +1,19 @@
 /**
- * Report rendering stylesheet (Phase 4, refreshed Module 15 - visual
- * redesign) - deliberately separate from theme.css (the app UI's
- * Bootstrap theme). A report page has its own fixed physical
- * dimensions, print rules and typography driven by TemplateSettings,
- * and must render identically in the on-screen Preview, the
- * html2canvas/jsPDF export, and the browser's native print dialog.
- * Imported once by ReportPage.tsx (the shared wrapper every template
- * renders through), not globally in main.tsx, so it never affects the
- * rest of the application's UI.
+ * Report rendering stylesheet - deliberately separate from theme.css (the
+ * app UI's Bootstrap theme). A report page has its own fixed physical
+ * dimensions, print rules and typography driven by TemplateSettings, and must
+ * render identically in the on-screen Preview, the html2canvas/jsPDF export
+ * and the browser's native print dialog. Imported once by ReportPage.tsx.
  *
- * Visual redesign notes: the school's own two brand colours
- * (`--report-primary`/`--report-secondary`, from TemplateSettings)
- * still drive the header, title and table - but each section below
- * also gets its own distinct, fixed accent colour (amber for the
- * overall-total row, and a five-colour rotation for the remarks
- * block) so the page reads as organised sections rather than one flat
- * block of colour. No web fonts are used (the app is fully offline) -
- * typographic variety instead comes from font-weight, letter-spacing,
- * text-transform and a serif display face for the title, layered on
- * top of whichever body font the school configured. Avoids CSS
- * features with patchy older-browser support (e.g. color-mix()) since
- * this opens in whatever default browser a school PC happens to have.
+ * REDESIGN: framed page (double line + corner studs), colour header banner,
+ * title ribbon, "performance at a glance" strip, score bars + colour-coded
+ * grade chips, tinted remark cards with label pills, date chips. The school's
+ * own two brand colours (--report-primary / --report-secondary from
+ * TemplateSettings) still drive the frame, banner, ribbon, table header,
+ * pills and rules, so colour customisation keeps working everywhere.
+ *
+ * Only features the PDF rasteriser handles are used (no clip-path, conic
+ * gradients, masks or backdrop filters). Colours are forced to print.
  */
 
 .actrs-report-page {
@@ -30,8 +23,8 @@
   --report-font-size: 11pt;
   --report-margin: 15mm;
 
-  /* Fixed accent palette used for section variety - independent of
-     the school's configurable brand colours above. */
+  /* Fixed accent palette used for section variety - independent of the
+     school's configurable brand colours above. */
   --report-accent-amber: #b8860b;
   --report-accent-amber-bg: #fdf3d9;
   --report-accent-teal: #0e7c7b;
@@ -49,13 +42,21 @@
   font-size: var(--report-font-size);
   width: 210mm;
   min-height: 297mm;
-  padding: var(--report-margin);
+  /* never let a small configured margin run into the decorative frame */
+  padding: max(var(--report-margin), 12mm);
   margin: 0 auto 16px auto;
   box-shadow: 0 0 0 1px #d7dde5, 0 4px 16px rgba(0, 0, 0, 0.08);
   position: relative;
   box-sizing: border-box;
-  line-height: 1.38;
+  line-height: 1.36;
   -webkit-font-smoothing: antialiased;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.actrs-report-page * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .actrs-report-page.paper-letter {
@@ -72,6 +73,40 @@
   width: 279mm;
   min-height: 216mm;
 }
+
+/* ---------- Decorative frame ---------- */
+
+.actrs-report-frame {
+  position: absolute;
+  inset: 5mm;
+  border: 0.9mm solid var(--report-primary);
+  border-radius: 3mm;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.actrs-report-frame::before {
+  content: "";
+  position: absolute;
+  inset: 1.3mm;
+  border: 0.3mm solid var(--report-secondary);
+  border-radius: 1.8mm;
+}
+
+.actrs-report-frame .stud {
+  position: absolute;
+  width: 3.6mm;
+  height: 3.6mm;
+  border-radius: 50%;
+  background: var(--report-secondary);
+  border: 0.8mm solid #fff;
+  box-shadow: 0 0 0 0.35mm var(--report-primary);
+}
+
+.actrs-report-frame .stud.tl { top: -2.4mm; left: -2.4mm; }
+.actrs-report-frame .stud.tr { top: -2.4mm; right: -2.4mm; }
+.actrs-report-frame .stud.bl { bottom: -2.4mm; left: -2.4mm; }
+.actrs-report-frame .stud.br { bottom: -2.4mm; right: -2.4mm; }
 
 .actrs-report-watermark {
   position: absolute;
@@ -94,82 +129,120 @@
   z-index: 1;
 }
 
-/* ---------- Header (school branding) ---------- */
+/* ---------- Header banner ---------- */
+
+.actrs-report-topline {
+  text-align: center;
+  font-size: 0.78em;
+  color: #4a5361;
+  margin-bottom: 3px;
+}
 
 .actrs-report-header {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 12px 10px;
+  gap: 14px;
+  padding: 9px 14px;
   margin: 0 0 4px;
-  border-radius: 6px 6px 0 0;
-  background: #f7f9fc;
+  border-radius: 8px;
+  color: #fff;
+  /* school colours, with a light darkening layer so white text stays readable
+     whichever colours the school chose */
+  background-color: var(--report-primary);
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16)),
+    linear-gradient(105deg, var(--report-primary) 0%, var(--report-secondary) 100%);
 }
+
+/* soft decorative discs on the banner */
+.actrs-report-header::before,
+.actrs-report-header::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+.actrs-report-header::before { width: 90px; height: 90px; right: -22px; top: -38px; }
+.actrs-report-header::after { width: 56px; height: 56px; left: 38%; bottom: -34px; }
+
+.actrs-report-header > * { position: relative; z-index: 1; }
 
 .actrs-report-header img.logo {
-  width: 68px;
-  height: 68px;
+  width: 62px;
+  height: 62px;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: 50%;
   background: #fff;
-  padding: 2px;
-  box-shadow: 0 0 0 1px #e1e6ec;
-}
-
-/* The district's logo - same treatment as the school's, smaller and
-   pinned to the right edge of the header (margin-left: auto on a flex
-   item pushes it, and everything after it, to the far side of the
-   row) so the header reads "school on the left, district on the
-   right" without needing to touch the text block in between. Omitted
-   entirely when the district hasn't uploaded one - see ReportHeader.tsx. */
-.actrs-report-header img.district-logo {
-  width: 56px;
-  height: 56px;
-  margin-left: auto;
+  padding: 3px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.65);
   flex-shrink: 0;
 }
 
+.actrs-report-header img.district-logo {
+  width: 52px;
+  height: 52px;
+  margin-left: auto;
+}
+
+.actrs-report-header .header-text { flex: 1; min-width: 0; }
+
 .actrs-report-header .school-name {
-  color: var(--report-primary);
+  color: #fff;
   font-weight: 800;
-  font-size: 1.32em;
+  font-size: 1.28em;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .actrs-report-header .school-meta {
-  font-size: 0.82em;
-  color: #333c48;
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.92);
 }
 
-/* Gradient divider between the branding header and the report title -
-   a subtle "vary the colour" flourish using both brand colours plus
-   the amber accent, rather than a single flat rule. */
+.actrs-report-header .school-meta.motto { font-style: italic; margin-top: 1px; }
+
+/* kept for any template that still draws a plain divider */
 .actrs-report-header-rule {
   height: 3px;
   border-radius: 2px;
   margin-bottom: 10px;
-  background: linear-gradient(
-    90deg,
-    var(--report-primary) 0%,
-    var(--report-secondary) 55%,
-    var(--report-accent-amber) 100%
-  );
+  background: linear-gradient(90deg, var(--report-primary) 0%, var(--report-secondary) 55%, var(--report-accent-amber) 100%);
 }
+
+/* ---------- Title ribbon ---------- */
 
 .actrs-report-title {
   text-align: center;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--report-secondary);
-  margin: 4px 0 12px;
-  font-size: 1.15em;
-  font-family: Georgia, "Cambria", "Times New Roman", serif;
+  margin: 8px 0 8px;
 }
 
-.actrs-report-title div {
+.actrs-report-title .ribbon {
+  display: inline-block;
+  padding: 3px 26px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--report-primary);
+  border: 1.5px solid var(--report-primary);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px var(--report-secondary);
+  font-family: Georgia, "Cambria", "Times New Roman", serif;
+  font-weight: 700;
+  font-size: 1.08em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.actrs-report-title .term-line {
   font-family: var(--report-font);
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--report-secondary);
+  margin-top: 8px;
 }
 
 /* ---------- Student info + photo ---------- */
@@ -177,55 +250,65 @@
 .actrs-report-student-block {
   display: flex;
   align-items: stretch;
-  gap: 14px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .actrs-report-info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 5px 24px;
-  font-size: 1.05em;
-  margin-bottom: 10px;
-  align-content: start;
+  gap: 4px 22px;
+  font-size: 1em;
+  margin-bottom: 8px;
+  align-content: center;
   flex: 1;
-  background: #f8fafc;
-  border: 1px solid #e3e8ee;
-  border-left: 3px solid var(--report-primary);
-  border-radius: 4px;
-  padding: 10px 14px;
+  background: #f7f9fc;
+  border: 1px solid #dfe5ec;
+  border-radius: 8px;
+  padding: 8px 14px;
 }
 
-.actrs-report-student-block .actrs-report-info-grid {
-  margin-bottom: 0;
+.actrs-report-student-block .actrs-report-info-grid { margin-bottom: 0; }
+
+/* Label above value would cost height; instead: small-caps label + bold value on one line */
+.actrs-report-info-grid > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border-bottom: 1px dotted #cfd7e1;
+  padding-bottom: 2px;
+  min-width: 0;
 }
 
 .actrs-report-info-grid .label {
-  color: #3d4652;
+  color: var(--report-secondary);
   font-weight: 700;
+  font-size: 0.74em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  min-width: 88px;
+  flex-shrink: 0;
   display: inline-block;
-  min-width: 128px;
 }
+
+.actrs-report-info-grid .value { font-weight: 600; color: #202733; }
 
 .actrs-report-photo {
   flex-shrink: 0;
-  width: 92px;
-  height: 110px;
-  border: 2px solid var(--report-primary);
-  border-radius: 5px;
+  width: 84px;
+  height: 100px;
+  border: 2px solid #fff;
+  border-radius: 10px;
   overflow: hidden;
   background: #eef1f5;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 0 0 2px var(--report-primary), 0 2px 6px rgba(0, 0, 0, 0.18);
+  align-self: center;
 }
 
-.actrs-report-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.actrs-report-photo img { width: 100%; height: 100%; object-fit: cover; }
 
 .actrs-report-photo .placeholder {
   font-size: 2.1em;
@@ -235,33 +318,85 @@
   font-family: Georgia, serif;
 }
 
+/* ---------- Performance at a glance ---------- */
+
+.actrs-report-stats {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.actrs-report-stats .stat {
+  flex: 1;
+  text-align: center;
+  padding: 5px 6px 4px;
+  border-radius: 8px;
+  border: 1px solid #dfe5ec;
+  background: #fff;
+  box-shadow: inset 0 3px 0 var(--report-secondary);
+}
+
+.actrs-report-stats .stat:nth-child(2) { box-shadow: inset 0 3px 0 var(--report-accent-green); }
+.actrs-report-stats .stat:nth-child(3) { box-shadow: inset 0 3px 0 var(--report-accent-amber); }
+.actrs-report-stats .stat:nth-child(4) { box-shadow: inset 0 3px 0 var(--report-accent-plum); }
+
+.actrs-report-stats .stat-value {
+  font-family: Georgia, "Cambria", "Times New Roman", serif;
+  font-size: 1.55em;
+  font-weight: 700;
+  color: var(--report-primary);
+  line-height: 1.15;
+  margin-top: 2px;
+}
+
+.actrs-report-stats .stat-label {
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5c6674;
+}
+
+.actrs-report-stats .stat-ring { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.actrs-report-stats .stat-ring .ring { display: block; margin-top: 1px; }
+.actrs-report-stats .stat-ring .stat-label { margin-top: 0; }
+
 /* ---------- Subjects / skills table ---------- */
 
 .actrs-report-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.88em;
-  margin-bottom: 10px;
-  border-radius: 4px;
+  margin-bottom: 8px;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px #dbe1e8;
+  border: 1px solid #cfd7e1;
 }
 
 .actrs-report-table th,
 .actrs-report-table td {
-  border: 1px solid #dbe1e8;
-  padding: 4px 7px;
+  border-bottom: 1px solid #e3e8ee;
+  border-right: 1px solid #e3e8ee;
+  padding: 3px 7px;
   text-align: center;
 }
 
+.actrs-report-table th:last-child,
+.actrs-report-table td:last-child { border-right: none; }
+.actrs-report-table tbody tr:last-child td { border-bottom: none; }
+
 .actrs-report-table th {
-  background: var(--report-primary);
-  border-bottom: 2px solid var(--report-secondary);
+  background-color: var(--report-primary);
+  background-image: linear-gradient(105deg, var(--report-primary), var(--report-secondary));
+  border-bottom: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-size: 0.92em;
+  font-size: 0.86em;
+  padding: 5px 7px;
 }
 
 .actrs-report-table td.subject-name {
@@ -270,8 +405,39 @@
   color: #202733;
 }
 
-.actrs-report-table tbody tr:nth-child(even) {
-  background: #f5f8fb;
+.actrs-report-table tbody tr:nth-child(even) { background: #f5f8fb; }
+
+/* total cell: number + mini score bar */
+.actrs-report-table td.total-cell { white-space: nowrap; }
+.actrs-report-table .total-num { display: inline-block; min-width: 24px; font-weight: 700; margin-right: 5px; }
+.actrs-report-table .bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 46px;
+  height: 6px;
+  border-radius: 3px;
+  background: #e3e8ef;
+  overflow: hidden;
+}
+.actrs-report-table .bar i { display: block; height: 100%; border-radius: 3px; }
+
+/* performance bands (0-100 totals) */
+.band-a { background: #2f9e5b; }
+.band-b { background: #1f9aa8; }
+.band-c { background: #d9a21b; }
+.band-d { background: #e07a2b; }
+.band-e { background: #c8424f; }
+.band-none { background: #9aa4b2; }
+
+.actrs-report-table .grade-chip {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95em;
+  line-height: 1.5;
 }
 
 .actrs-report-table tr.overall-row {
@@ -291,63 +457,71 @@
   font-weight: 600;
 }
 
-/* ---------- Remarks ---------- */
-/* Five-colour rotation so each remark reads as its own labelled
-   callout rather than a uniform grey list - "vary the colours for
-   various sections". */
+/* ---------- Remarks (tinted cards with label pills) ---------- */
 
 .actrs-report-remarks {
   font-size: 0.9em;
-  margin-bottom: 6px;
-  padding: 5px 9px;
-  border-radius: 3px;
-  border-left: 3px solid var(--report-primary);
+  margin-bottom: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid #dfe5ec;
+  border-left: 4px solid var(--report-primary);
   background: #f7f9fc;
 }
 
 .actrs-report-remarks .remark-label {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--report-primary);
+  color: #fff;
   font-weight: 700;
-  color: var(--report-primary);
+  font-size: 0.8em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.6;
 }
 
-.actrs-report-remarks.accent-teal {
-  border-left-color: var(--report-accent-teal);
-  background: var(--report-accent-teal-bg);
-}
-.actrs-report-remarks.accent-teal .remark-label {
-  color: var(--report-accent-teal);
+.actrs-report-remarks.accent-teal { border-color: #bfe3e1; border-left-color: var(--report-accent-teal); background: var(--report-accent-teal-bg); }
+.actrs-report-remarks.accent-teal .remark-label { background: var(--report-accent-teal); }
+.actrs-report-remarks.accent-plum { border-color: #dccdf0; border-left-color: var(--report-accent-plum); background: var(--report-accent-plum-bg); }
+.actrs-report-remarks.accent-plum .remark-label { background: var(--report-accent-plum); }
+.actrs-report-remarks.accent-rose { border-color: #f1c9d0; border-left-color: var(--report-accent-rose); background: var(--report-accent-rose-bg); }
+.actrs-report-remarks.accent-rose .remark-label { background: var(--report-accent-rose); }
+.actrs-report-remarks.accent-green { border-color: #c5e5d1; border-left-color: var(--report-accent-green); background: var(--report-accent-green-bg); }
+.actrs-report-remarks.accent-green .remark-label { background: var(--report-accent-green); }
+.actrs-report-remarks.accent-amber { border-color: #f0dfae; border-left-color: var(--report-accent-amber); background: var(--report-accent-amber-bg); }
+.actrs-report-remarks.accent-amber .remark-label { background: var(--report-accent-amber); }
+
+.actrs-report-remarks.promo { font-weight: 700; text-align: center; border-left-width: 1px; border-style: dashed; }
+
+/* ---------- Dates ---------- */
+
+.actrs-report-dates {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 2px;
+  font-size: 0.86em;
 }
 
-.actrs-report-remarks.accent-plum {
-  border-left-color: var(--report-accent-plum);
-  background: var(--report-accent-plum-bg);
-}
-.actrs-report-remarks.accent-plum .remark-label {
-  color: var(--report-accent-plum);
-}
-
-.actrs-report-remarks.accent-rose {
-  border-left-color: var(--report-accent-rose);
-  background: var(--report-accent-rose-bg);
-}
-.actrs-report-remarks.accent-rose .remark-label {
-  color: var(--report-accent-rose);
+.actrs-report-dates .date-chip {
+  flex: 1;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #cfd7e1;
+  background: #fff;
+  font-weight: 600;
+  text-align: center;
 }
 
-.actrs-report-remarks.accent-green {
-  border-left-color: var(--report-accent-green);
-  background: var(--report-accent-green-bg);
-}
-.actrs-report-remarks.accent-green .remark-label {
-  color: var(--report-accent-green);
-}
-
-.actrs-report-remarks.accent-amber {
-  border-left-color: var(--report-accent-amber);
-  background: var(--report-accent-amber-bg);
-}
-.actrs-report-remarks.accent-amber .remark-label {
-  color: var(--report-accent-amber);
+.actrs-report-dates .date-chip .label {
+  color: var(--report-secondary);
+  font-size: 0.82em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-right: 4px;
 }
 
 /* ---------- KG legend ---------- */
@@ -358,17 +532,13 @@
   gap: 10px;
   font-size: 0.95em;
   border: 1px solid #dbe1e8;
-  border-radius: 5px;
+  border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 10px;
   background: #f7f9fc;
 }
 
-.actrs-report-legend .legend-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
+.actrs-report-legend .legend-item { display: flex; align-items: center; gap: 4px; }
 
 .actrs-report-legend .legend-swatch {
   width: 14px;
@@ -383,34 +553,32 @@
 .actrs-report-signatures {
   display: flex;
   justify-content: space-between;
-  margin-top: 30px;
+  margin-top: 22px;
   font-size: 0.88em;
 }
 
-.actrs-report-signatures .signature {
-  width: 42%;
-  text-align: center;
-}
+.actrs-report-signatures .signature { width: 42%; text-align: center; }
 
 .actrs-report-signatures .signature .line {
-  border-top: 1.5px solid var(--report-primary);
+  border-top: 1.5px dashed var(--report-primary);
   margin-bottom: 3px;
   padding-top: 4px;
   font-weight: 600;
 }
 
 .actrs-report-signatures .signature .text-muted {
-  font-size: 0.86em;
-  letter-spacing: 0.03em;
+  font-size: 0.8em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #5c6674 !important;
+  color: var(--report-secondary) !important;
+  font-weight: 700;
 }
 
 /* ---------- Footer ---------- */
 
 .actrs-report-footer {
-  margin-top: 14px;
-  padding-top: 7px;
+  margin-top: 10px;
+  padding-top: 6px;
   border-top: 2px solid;
   border-image: linear-gradient(90deg, var(--report-primary), var(--report-secondary)) 1;
   font-size: 0.74em;
@@ -419,44 +587,24 @@
 }
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
+  body * { visibility: hidden; }
   .actrs-report-print-area,
-  .actrs-report-print-area * {
-    visibility: visible;
-  }
-  .actrs-report-print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-  }
+  .actrs-report-print-area * { visibility: visible; }
+  .actrs-report-print-area { position: absolute; left: 0; top: 0; }
   .actrs-report-page {
     box-shadow: none;
     margin: 0;
     page-break-after: always;
   }
-  .actrs-report-page.is-last-page {
-    page-break-after: auto;
-  }
-  .no-print {
-    display: none !important;
-  }
+  .actrs-report-page.is-last-page { page-break-after: auto; }
+  .no-print { display: none !important; }
 }
 
 /* ---------------------------------------------------------------------
- * KG report redesign (Module 15b) - cover page, per-skill G/S/B
- * checkmark table, and the general-comments box. Appended rather than
- * interleaved with the sections above so every existing template's
- * CSS is untouched; KGReportTemplate.tsx is the only consumer of the
- * classes below.
+ * KG report - cover page, per-skill G/S/B checkmark table, and the
+ * general-comments box (KGReportTemplate.tsx is the only consumer).
  * --------------------------------------------------------------------- */
 
-/* Letterhead row: district seal + wordmark on the left, a slot for
-   the school's own logo on the right - mirrors the physical office
-   letterhead (seal + printed directorate name side by side) the
-   school sent as the target layout, with the school logo slot added
-   to the same row rather than stacked below the title. */
 .kg-cover-letterhead {
   display: flex;
   align-items: center;
@@ -466,23 +614,12 @@
   margin-bottom: 6mm;
 }
 
-.kg-cover-district {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex: 1;
-  min-width: 0;
-}
+.kg-cover-district { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
 
-.kg-cover-district .district-logo {
-  width: 130px;
-  height: 130px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
+.kg-cover-district .district-logo { width: 130px; height: 130px; object-fit: contain; flex-shrink: 0; }
 
 .kg-cover-district .wordmark {
-  border-left: 3px solid #1a1a1a;
+  border-left: 4px solid var(--report-primary);
   padding-left: 14px;
   font-weight: 800;
   font-size: 1.28em;
@@ -508,21 +645,17 @@
   width: 118px;
   height: 118px;
   flex-shrink: 0;
-  border: 2px solid var(--report-secondary);
-  border-radius: 10px;
+  border: 3px solid #fff;
+  border-radius: 50%;
   background: #fff;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 0 0 2px var(--report-secondary), 0 2px 6px rgba(0, 0, 0, 0.16);
 }
 
-.kg-cover-school-logo-box img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
+.kg-cover-school-logo-box img { width: 100%; height: 100%; object-fit: contain; }
 
 .kg-cover-school-logo-box .placeholder {
   font-size: 0.78em;
@@ -534,50 +667,41 @@
   letter-spacing: 0.03em;
 }
 
-.kg-cover-titles {
-  text-align: center;
-  margin-bottom: 7mm;
-}
+.kg-cover-titles { text-align: center; margin-bottom: 7mm; }
 
 .kg-cover-titles .form-title {
+  display: inline-block;
+  padding: 4px 28px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1.5px solid var(--report-primary);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px var(--report-secondary);
   font-family: Georgia, "Cambria", "Times New Roman", serif;
   font-weight: 700;
-  font-size: 1.55em;
-  letter-spacing: 0.03em;
+  font-size: 1.35em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--report-secondary);
+  color: var(--report-primary);
 }
 
-.kg-cover-titles .form-subtitle {
-  font-size: 0.95em;
-  color: #3d4652;
-  margin-top: 3px;
-}
+.kg-cover-titles .form-subtitle { font-size: 0.95em; color: var(--report-secondary); font-weight: 600; margin-top: 10px; }
 
-.kg-cover-photo-centered {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 6mm;
-}
+.kg-cover-photo-centered { display: flex; justify-content: center; margin-bottom: 6mm; }
 
 .kg-cover-learner-photo {
   width: 160px;
   height: 192px;
-  border: 3px solid var(--report-primary);
-  border-radius: 8px;
+  border: 3px solid #fff;
+  border-radius: 14px;
   background: #eef1f5;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 0 0 3px var(--report-primary), 0 3px 10px rgba(0, 0, 0, 0.18);
 }
 
-.kg-cover-learner-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.kg-cover-learner-photo img { width: 100%; height: 100%; object-fit: cover; }
 
 .kg-cover-learner-photo .placeholder {
   font-size: 3em;
@@ -592,76 +716,35 @@
   font-weight: 800;
   font-size: 1.5em;
   color: var(--report-secondary);
-  text-decoration: underline;
-  text-underline-offset: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
   margin-bottom: 8mm;
 }
 
 /* ---------- KG skill table: Gold / Silver / Bronze checkmark columns --------- */
 
-.kg-skill-table {
-  font-size: 1.08em;
-}
-
+.kg-skill-table { font-size: 1.08em; }
 .kg-skill-table th,
-.kg-skill-table td {
-  padding: 6px 8px;
-}
-
+.kg-skill-table td { padding: 6px 8px; }
 .kg-skill-table th.col-skill,
-.kg-skill-table td.col-skill {
-  text-align: left;
-  width: auto;
-}
-
+.kg-skill-table td.col-skill { text-align: left; width: auto; }
 .kg-skill-table th.col-rating,
-.kg-skill-table td.col-rating {
-  width: 62px;
-}
-
-.kg-skill-table th.col-comment {
-  width: 22%;
-  text-align: left;
-}
-
-.kg-skill-table td.col-comment {
-  width: 22%;
-  text-align: left;
-  font-size: 1em;
-  color: #333c48;
-}
-
-.kg-skill-table td.col-rating .check {
-  display: inline-block;
-  font-weight: 900;
-  font-size: 1.25em;
-  line-height: 1;
-}
-
-.kg-skill-table td.col-rating.gold .check {
-  color: #b8860b;
-}
-
-.kg-skill-table td.col-rating.silver .check {
-  color: #6b7280;
-}
-
-.kg-skill-table td.col-rating.bronze .check {
-  color: #a05a2c;
-}
-
-.kg-skill-table td.col-status {
-  font-size: 0.92em;
-  font-style: italic;
-  color: #5c6674;
-}
+.kg-skill-table td.col-rating { width: 62px; }
+.kg-skill-table th.col-comment { width: 22%; text-align: left; }
+.kg-skill-table td.col-comment { width: 22%; text-align: left; font-size: 1em; color: #333c48; }
+.kg-skill-table td.col-rating .check { display: inline-block; font-weight: 900; font-size: 1.25em; line-height: 1; }
+.kg-skill-table td.col-rating.gold.active { background: #fdf3d9; }
+.kg-skill-table td.col-rating.silver.active { background: #eceef2; }
+.kg-skill-table td.col-rating.bronze.active { background: #f6e6d9; }
+.kg-skill-table td.col-rating.gold .check { color: #b8860b; }
+.kg-skill-table td.col-rating.silver .check { color: #6b7280; }
+.kg-skill-table td.col-rating.bronze .check { color: #a05a2c; }
+.kg-skill-table td.col-status { font-size: 0.92em; font-style: italic; color: #5c6674; }
 
 .kg-comments-box {
   min-height: 20mm;
   border: 1px solid #dbe1e8;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px 14px;
   font-size: 0.95em;
   line-height: 1.6;

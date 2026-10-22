@@ -8,29 +8,54 @@ import { formatDateForDisplay } from "@utils/dateUtils";
 
 /**
  * Shared layout for every "scored" report (Lower Primary, Upper Primary,
- * JHS - Modules 3/4/5). The brief itself says Upper Primary must be
- * "identical in layout and calculations to the current Upper Primary
- * report card" and Lower/Upper/JHS all share the same
- * subject-table/attendance/remarks/promotion/signature structure - only
- * the subject list differs, and that is already 100% data-driven via
- * Phase 1 `Subject.levelIds`. Rather than triplicate ~200 lines of JSX
- * three times (one per Module), each level's template component
- * (`LowerPrimaryReportTemplate.tsx` etc.) is a thin wrapper that renders
- * THIS shared layout with a level-specific title - this is what "modular,
- * template-driven, future templates easily added" means in practice
- * here: a new scored-level template is a new one-line wrapper, not a
- * copy-pasted page.
+ * JHS). Each level's template component is a thin wrapper that renders THIS
+ * layout with a level-specific title; the subject list is entirely
+ * data-driven, and every subject row reads its own values from its own
+ * `snapshot.subjects[i]` (so one subject can never show another's position).
  *
- * JHS Social Studies/Science bug fix: every subject row below reads its
- * own `subject.total`/`subject.positionText` from
- * `snapshot.subjects[i]` - the array element built by
- * `ReportDataService` FOR THAT SPECIFIC SUBJECT (keyed by its own
- * subjectId, see that file's comment). There is no shared variable, no
- * copy-pasted merge field, and no column-index coincidence that could
- * make one subject display another's position - see
- * docs/PHASE4_REPORTS.md "JHS Social Studies bug fix" for the executable
- * proof.
+ * Redesign: framed page, colour header banner, a "performance at a glance"
+ * strip (average, grade, class position, attendance ring), score bars and
+ * colour-coded grade chips in the subject table, and tinted remark cards.
+ * All colours that come from the school's settings still apply everywhere.
  */
+
+/** Performance band for a 0-100 total - drives the bar and grade chip colour. */
+function bandOf(total: number | null): "a" | "b" | "c" | "d" | "e" | "none" {
+  if (total === null || total === undefined) return "none";
+  if (total >= 80) return "a";
+  if (total >= 65) return "b";
+  if (total >= 50) return "c";
+  if (total >= 40) return "d";
+  return "e";
+}
+
+/** Attendance ring. Drawn as inline SVG with literal colours (CSS variables
+ *  do not survive the PDF rasteriser's SVG handling). */
+function AttendanceRing({ percent, color }: { percent: number; color: string }) {
+  const pct = Math.max(0, Math.min(100, percent));
+  const r = 17;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width="46" height="46" viewBox="0 0 46 46" className="ring" aria-hidden="true">
+      <circle cx="23" cy="23" r={r} fill="none" stroke="#e3e8ef" strokeWidth="5" />
+      <circle
+        cx="23"
+        cy="23"
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray={`${(pct / 100) * c} ${c}`}
+        transform="rotate(-90 23 23)"
+      />
+      <text x="23" y="26.5" textAnchor="middle" fontSize="10" fontWeight="700" fill="#202733">
+        {Math.round(pct)}%
+      </text>
+    </svg>
+  );
+}
+
 export function ScoredReportLayout({
   snapshot,
   settings,
@@ -50,19 +75,21 @@ export function ScoredReportLayout({
 
       <div className="actrs-report-student-block">
         <div className="actrs-report-info-grid">
-          <div><span className="label">Student's Name:</span> {student.fullName}</div>
-          <div><span className="label">Student ID:</span> {student.studentId}</div>
-          <div><span className="label">Class:</span> {student.className}</div>
-          <div><span className="label">Gender:</span> {student.gender === "M" ? "Male" : "Female"}</div>
-          <div><span className="label">Date of Birth:</span> {formatDateForDisplay(student.dateOfBirth)}</div>
-          <div><span className="label">Age:</span> {student.ageAtGeneration}</div>
+          <div><span className="label">Student's Name</span><span className="value">{student.fullName}</span></div>
+          <div><span className="label">Student ID</span><span className="value">{student.studentId}</span></div>
+          <div><span className="label">Class</span><span className="value">{student.className}</span></div>
+          <div><span className="label">Gender</span><span className="value">{student.gender === "M" ? "Male" : "Female"}</span></div>
+          <div><span className="label">Date of Birth</span><span className="value">{formatDateForDisplay(student.dateOfBirth)}</span></div>
+          <div><span className="label">Age</span><span className="value">{student.ageAtGeneration}</span></div>
           <div>
-            <span className="label">Attendance:</span>{" "}
-            {attendance.daysPresent !== null
-              ? `${attendance.daysPresent} / ${attendance.totalSchoolDays} days (${attendance.attendancePercentage}%)`
-              : "Not recorded"}
+            <span className="label">Attendance</span>
+            <span className="value">
+              {attendance.daysPresent !== null
+                ? `${attendance.daysPresent} / ${attendance.totalSchoolDays} days`
+                : "Not recorded"}
+            </span>
           </div>
-          <div><span className="label">Class Size:</span> {overall?.classSize ?? "-"}</div>
+          <div><span className="label">Class Size</span><span className="value">{overall?.classSize ?? "-"}</span></div>
         </div>
         <div className="actrs-report-photo">
           {student.photoDataUrl ? (
@@ -73,28 +100,63 @@ export function ScoredReportLayout({
         </div>
       </div>
 
+      {overall && (
+        <div className="actrs-report-stats">
+          <div className="stat">
+            <div className="stat-value">{overall.average.toFixed(1)}</div>
+            <div className="stat-label">Average score</div>
+          </div>
+          <div className="stat">
+            <div className="stat-value">{overall.gradeCode ?? "-"}</div>
+            <div className="stat-label">{overall.gradeLabel ?? "Overall grade"}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-value">{overall.positionText ?? "-"}</div>
+            <div className="stat-label">Position (of {overall.classSize})</div>
+          </div>
+          {attendance.attendancePercentage !== null && (
+            <div className="stat stat-ring">
+              <AttendanceRing percent={attendance.attendancePercentage} color={settings.secondaryColorHex} />
+              <div className="stat-label">Attendance</div>
+            </div>
+          )}
+        </div>
+      )}
+
       <table className="actrs-report-table">
         <thead>
           <tr>
             <th style={{ textAlign: "left" }}>Subject</th>
             <th>SBA (50)</th>
             <th>Exam (50)</th>
-            <th>Total (100)</th>
+            <th className="col-total">Total (100)</th>
             <th>Grade</th>
             <th>Position</th>
           </tr>
         </thead>
         <tbody>
-          {(subjects ?? []).map((subject) => (
-            <tr key={subject.subjectId}>
-              <td className="subject-name">{subject.subjectName}</td>
-              <td>{subject.sba ?? "-"}</td>
-              <td>{subject.exam ?? "-"}</td>
-              <td>{subject.total ?? "-"}</td>
-              <td>{subject.gradeCode ?? "-"}</td>
-              <td>{subject.positionText ?? "-"}</td>
-            </tr>
-          ))}
+          {(subjects ?? []).map((subject) => {
+            const band = bandOf(subject.total);
+            return (
+              <tr key={subject.subjectId}>
+                <td className="subject-name">{subject.subjectName}</td>
+                <td>{subject.sba ?? "-"}</td>
+                <td>{subject.exam ?? "-"}</td>
+                <td className="total-cell">
+                  <span className="total-num">{subject.total ?? "-"}</span>
+                  {subject.total !== null && subject.total !== undefined && (
+                    <span className="bar">
+                      <i className={`band-${band}`} style={{ width: `${Math.max(0, Math.min(100, subject.total))}%` }} />
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {subject.gradeCode ? <span className={`grade-chip band-${band}`}>{subject.gradeCode}</span> : "-"}
+                </td>
+                <td>{subject.positionText ?? "-"}</td>
+              </tr>
+            );
+          })}
           {overall && (
             <tr className="overall-row">
               <td className="subject-name">Overall</td>
@@ -106,41 +168,35 @@ export function ScoredReportLayout({
           )}
         </tbody>
       </table>
-      {overall && (
-        <div className="actrs-report-summary-line">
-          Average: {overall.average.toFixed(1)} | Overall Grade: {overall.gradeLabel ?? "-"} | Class Position:{" "}
-          {overall.positionText ?? "-"} of {overall.classSize}
-        </div>
-      )}
 
       <div className="actrs-report-remarks accent-teal">
-        <span className="remark-label">Conduct: </span>
+        <span className="remark-label">Conduct</span>
         {scoredRemarks?.conductRemark || "-"}
       </div>
       <div className="actrs-report-remarks accent-plum">
-        <span className="remark-label">Interest: </span>
+        <span className="remark-label">Interest</span>
         {scoredRemarks?.interestRemark || "-"}
       </div>
       <div className="actrs-report-remarks accent-rose">
-        <span className="remark-label">Attitude: </span>
+        <span className="remark-label">Attitude</span>
         {scoredRemarks?.attitudeRemark || "-"}
       </div>
       <div className="actrs-report-remarks">
-        <span className="remark-label">Class Teacher's Remark: </span>
+        <span className="remark-label">Class Teacher's Remark</span>
         {scoredRemarks?.classTeacherRemark || "-"}
       </div>
       <div className="actrs-report-remarks accent-amber">
-        <span className="remark-label">Headteacher's Remark: </span>
+        <span className="remark-label">Headteacher's Remark</span>
         {scoredRemarks?.headteacherRemark || "-"}
       </div>
-      <div className="actrs-report-remarks accent-green">
-        <span className="remark-label">Promoted To: </span>
+      <div className="actrs-report-remarks accent-green promo">
+        <span className="remark-label">Promoted To</span>
         {scoredRemarks?.promotion || "-"}
       </div>
 
-      <div className="actrs-report-info-grid" style={{ marginTop: 10 }}>
-        <div><span className="label">Vacation Date:</span> {formatDateForDisplay(term.vacationDate)}</div>
-        <div><span className="label">Reopening Date:</span> {formatDateForDisplay(term.reopeningDate)}</div>
+      <div className="actrs-report-dates">
+        <div className="date-chip"><span className="label">Vacation Date</span> {formatDateForDisplay(term.vacationDate)}</div>
+        <div className="date-chip"><span className="label">Reopening Date</span> {formatDateForDisplay(term.reopeningDate)}</div>
       </div>
 
       <ReportFeesSection feeSummary={feeSummary} />
