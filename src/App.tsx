@@ -3,7 +3,6 @@ import { CloudAuthLayout } from "@layouts/CloudAuthLayout";
 import { CloudAppLayout } from "@layouts/CloudAppLayout";
 import { CloudLogin } from "@pages/cloud/CloudLogin";
 import { CloudSchoolSignup } from "@pages/cloud/CloudSchoolSignup";
-import { CloudDistrictSignup } from "@pages/cloud/CloudDistrictSignup";
 import { CloudDashboard } from "@pages/cloud/CloudDashboard";
 import { CloudStudents } from "@pages/cloud/CloudStudents";
 import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
@@ -11,7 +10,6 @@ import { CloudStudentEdit } from "@pages/cloud/CloudStudentEdit";
 import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace";
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudBatchReportGeneration } from "@pages/cloud/CloudBatchReportGeneration";
-import { CloudSampleReportPreview } from "@pages/cloud/CloudSampleReportPreview";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
@@ -23,17 +21,8 @@ import { CloudSmsToParents } from "@pages/cloud/CloudSmsToParents";
 import { CloudFees } from "@pages/cloud/CloudFees";
 import { CloudSubscriptionApproval } from "@pages/cloud/CloudSubscriptionApproval";
 import { CloudSubscriptionStatus } from "@pages/cloud/CloudSubscriptionStatus";
-import { CloudTrainingAdmin } from "@pages/cloud/CloudTrainingAdmin";
-import { CloudDistrictAdmins } from "@pages/cloud/CloudDistrictAdmins";
-import { CloudStatistics } from "@pages/cloud/CloudStatistics";
-import { CloudSendDetails } from "@pages/cloud/CloudSendDetails";
-import { CloudSchoolAccounts } from "@pages/cloud/CloudSchoolAccounts";
-import { CloudCredits } from "@pages/cloud/CloudCredits";
-import { CloudPaymentReturn } from "@pages/cloud/CloudPaymentReturn";
-import { CloudWhatsApp } from "@pages/cloud/CloudWhatsApp";
-import { CloudMessagingAdmin } from "@pages/cloud/CloudMessagingAdmin";
-import { CloudReportFees } from "@pages/cloud/CloudReportFees";
-import { CloudReportPaymentsAdmin } from "@pages/cloud/CloudReportPaymentsAdmin";
+import { CloudMockExams } from "@pages/cloud/CloudMockExams";
+import { CloudMockExamDetail } from "@pages/cloud/CloudMockExamDetail";
 import { PublicHome } from "@pages/public/PublicHome";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -48,11 +37,6 @@ import { ThemeProvider } from "@contexts/ThemeContext";
  * Everything that used to live at "/" (the actual dashboard) moved to
  * "/dashboard" to make room for it; CloudSidebar's Dashboard link and
  * CloudLogin's post-sign-in redirect both point there now.
- *
- * "/signup" registers a single school; "/signup/district" (new)
- * registers a whole district, for a district office wanting its own
- * account that other schools sign up under - see
- * edulink_gh_district_signup.sql and CloudDistrictSignup.tsx.
  */
 export default function App() {
   return (
@@ -63,7 +47,6 @@ export default function App() {
         <Route element={<CloudAuthLayout />}>
           <Route path="/login" element={<CloudLogin />} />
           <Route path="/signup" element={<CloudSchoolSignup />} />
-          <Route path="/signup/district" element={<CloudDistrictSignup />} />
         </Route>
 
         <Route
@@ -77,15 +60,6 @@ export default function App() {
         >
           <Route path="/dashboard" element={<CloudDashboard />} />
           <Route path="/students" element={<CloudStudents />} />
-          <Route path="/statistics" element={<CloudStatistics />} />
-          <Route
-            path="/send-details"
-            element={
-              <RequireAdmin>
-                <CloudSendDetails />
-              </RequireAdmin>
-            }
-          />
           <Route
             path="/staff"
             element={
@@ -101,10 +75,18 @@ export default function App() {
           <Route path="/reports" element={<CloudReportView />} />
           <Route path="/reports/batch" element={<CloudBatchReportGeneration />} />
           <Route
-            path="/reports/sample"
+            path="/mock-exams"
             element={
-              <RequireAdmin roles="reportSample">
-                <CloudSampleReportPreview />
+              <RequireAdmin roles="mock">
+                <CloudMockExams />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/mock-exams/:mockId"
+            element={
+              <RequireAdmin roles="mock">
+                <CloudMockExamDetail />
               </RequireAdmin>
             }
           />
@@ -158,48 +140,6 @@ export default function App() {
             }
           />
           <Route
-            path="/school-accounts/:schoolId"
-            element={
-              <RequireAdmin roles="platform">
-                <CloudSchoolAccounts />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/report-fees"
-            element={
-              <RequireAdmin roles="fees">
-                <CloudReportFees />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/credits"
-            element={
-              <RequireAdmin roles="fees">
-                <CloudCredits />
-              </RequireAdmin>
-            }
-          />
-          <Route path="/payment-return" element={<CloudPaymentReturn />} />
-          <Route path="/whatsapp" element={<CloudWhatsApp />} />
-          <Route
-            path="/messaging-admin"
-            element={
-              <RequireAdmin roles="platform">
-                <CloudMessagingAdmin />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/report-payments"
-            element={
-              <RequireAdmin roles="platform">
-                <CloudReportPaymentsAdmin />
-              </RequireAdmin>
-            }
-          />
-          <Route
             path="/billing"
             element={
               <RequireAdmin roles="platform">
@@ -212,22 +152,6 @@ export default function App() {
             element={
               <RequireAdmin roles="subscription">
                 <CloudSubscriptionStatus />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/district-admins"
-            element={
-              <RequireAdmin roles="platform">
-                <CloudDistrictAdmins />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/training"
-            element={
-              <RequireAdmin roles="platform">
-                <CloudTrainingAdmin />
               </RequireAdmin>
             }
           />
