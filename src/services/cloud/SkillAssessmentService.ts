@@ -15,6 +15,14 @@ class CloudSkillAssessmentServiceImpl {
     });
   }
 
+  /** Only the given learners' ratings (a class). */
+  async getForStudents(termId: string, studentIds: string[]): Promise<SkillAssessmentRecordRow[]> {
+    if (studentIds.length === 0) return [];
+    return rest.select<SkillAssessmentRecordRow>("skill_assessment_records", {
+      filters: { term_id: `eq.${termId}`, student_id: `in.(${studentIds.join(",")})` },
+    });
+  }
+
   async upsertRating(
     studentId: string,
     termId: string,

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudLevelService } from "@services/cloud/LevelService";
@@ -7,12 +6,10 @@ import { CloudSubjectService } from "@services/cloud/SubjectService";
 import { CloudLearningAreaService } from "@services/cloud/LearningAreaService";
 import { CloudSkillService } from "@services/cloud/SkillService";
 import { CloudSkillAssessmentService } from "@services/cloud/SkillAssessmentService";
-import { CloudSkillSelectionService } from "@services/cloud/SkillSelectionService";
 import { CloudEnrollmentService } from "@services/cloud/EnrollmentService";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudScoreRecordService } from "@services/cloud/ScoreRecordService";
 import { CloudAssessmentSessionService } from "@services/cloud/AssessmentSessionService";
-import { downloadCsv } from "@/lib/csvExport";
 import type {
   TermRow,
   ClassRow,
@@ -32,26 +29,6 @@ const STATUS_LABEL: Record<AssessmentSessionStatus, string> = {
   VERIFIED: "Verified",
   FINALIZED: "Finalized",
 };
-
-/** Item 12 of the KG report redesign - the standard quick-fill text
- *  for each proficiency rating's Comments column, applied automatically
- *  the first time a rating is picked (see handleRatingSelect below).
- *  Deliberately doesn't cover X/O - those aren't proficiency levels, so
- *  there's no "how they did" comment to suggest. */
-const DEFAULT_SKILL_COMMENT: Record<string, string> = {
-  G: "Keep it up",
-  S: "Can do better",
-  B: "More room for improvement",
-};
-
-/** Every phrase this app has ever auto-filled - used to tell "the
- *  teacher typed their own note" apart from "this is still whatever we
- *  last auto-filled" so correcting a rating can safely replace the
- *  comment instead of only filling it in when blank (see
- *  handleRatingSelect below - this was the actual bug behind "when I
- *  change the level again for the same skill... the old comment still
- *  remains"). */
-const KNOWN_DEFAULT_COMMENTS = new Set(Object.values(DEFAULT_SKILL_COMMENT));
 
 const STATUS_BADGE: Record<AssessmentSessionStatus, string> = {
   DRAFT: "text-bg-secondary",
@@ -108,27 +85,19 @@ export function CloudAssessmentWorkspace() {
   const [ratings, setRatings] = useState<Map<string, { rating: SkillRating | null; comment: string | null }>>(
     new Map()
   );
-  // Item 10 of the KG redesign: which official skills a teacher has
-  // chosen to leave off THIS class's report card this term - map of
-  // skillId -> isIncluded. A skill with no entry here is included by
-  // default (see CloudSkillSelectionService/report_skill_selection).
-  const [skillSelection, setSkillSelection] = useState<Map<string, boolean>>(new Map());
-  const [skillSelectionBusy, setSkillSelectionBusy] = useState<string | null>(null);
 
   const [loadingClass, setLoadingClass] = useState(false);
   const [classError, setClassError] = useState<string | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
-  const { profile } = useCloudAuth();
-
   useEffect(() => {
     let cancelled = false;
-    Promise.all([CloudTermService.getActive(profile?.school_id), CloudClassService.list(undefined, profile?.school_id), CloudLevelService.list(profile?.school_id)])
+    Promise.all([CloudTermService.getActive(), CloudClassService.list(), CloudLevelService.list()])
       .then(([activeTerm, classRows, levelRows]) => {
         if (cancelled) return;
         setTerm(activeTerm);
-        setClasses(CloudClassService.forRole(classRows, profile));
+        setClasses(classRows);
         setLevels(levelRows);
       })
       .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load setup data."))
@@ -164,14 +133,28 @@ export function CloudAssessmentWorkspace() {
     setLoadingClass(true);
     setClassError(null);
 
+    // Load only this class: roster first (small), then just those learners
+    // and their marks - not the whole school's students and scores.
     const rosterPromise = Promise.all([
       CloudAssessmentSessionService.getOrCreate(classId, term.id),
       CloudEnrollmentService.getRoster(term.id, classId),
-      CloudStudentService.list(),
-    ]);
+    ]).then(async ([sessionRow, roster]) => {
+      const ids = roster.map((e) => e.student_id);
+      const classStudents = await CloudStudentService.listByIds(ids);
+      return [sessionRow, roster, classStudents] as const;
+    });
 
     if (isScoredLevel) {
-      Promise.all([rosterPromise, CloudSubjectService.listForLevel(selectedLevel.id), CloudScoreRecordService.getForTerm(term.id)])
+      Promise.all([
+        rosterPromise,
+        CloudSubjectService.listForLevel(selectedLevel.id),
+        CloudEnrollmentService.getRoster(term.id, classId).then((r) =>
+          CloudScoreRecordService.getForStudents(
+            term.id,
+            r.map((e) => e.student_id)
+          )
+        ),
+      ])
         .then(async ([[sessionRow, roster, allStudents], subjectRows, allScores]) => {
           if (cancelled) return;
           setSession(sessionRow);
@@ -203,10 +186,14 @@ export function CloudAssessmentWorkspace() {
       Promise.all([
         rosterPromise,
         CloudLearningAreaService.listForLevel(selectedLevel.id),
-        CloudSkillAssessmentService.getForTerm(term.id),
-        CloudSkillSelectionService.listForClassTerm(classId, term.id),
+        CloudEnrollmentService.getRoster(term.id, classId).then((r) =>
+          CloudSkillAssessmentService.getForStudents(
+            term.id,
+            r.map((e) => e.student_id)
+          )
+        ),
       ])
-        .then(async ([[sessionRow, roster, allStudents], areaRows, allRatings, selectionRows]) => {
+        .then(async ([[sessionRow, roster, allStudents], areaRows, allRatings]) => {
           if (cancelled) return;
           setSession(sessionRow);
           setSubjects([]);
@@ -228,10 +215,6 @@ export function CloudAssessmentWorkspace() {
             ratingMap.set(`${rec.student_id}:${rec.skill_id}`, { rating: rec.rating, comment: rec.comment });
           }
           setRatings(ratingMap);
-
-          const selectionMap = new Map<string, boolean>();
-          for (const row of selectionRows) selectionMap.set(row.skill_id, row.is_included);
-          setSkillSelection(selectionMap);
         })
         .catch((err) => !cancelled && setClassError(err instanceof Error ? err.message : "Could not load this class."))
         .finally(() => !cancelled && setLoadingClass(false));
@@ -326,46 +309,12 @@ export function CloudAssessmentWorkspace() {
     }
   }
 
-  async function toggleSkillIncluded(skillIdToToggle: string, nextIncluded: boolean) {
-    if (!classId || !term) return;
-    setSkillSelectionBusy(skillIdToToggle);
-    setClassError(null);
-    try {
-      await CloudSkillSelectionService.setIncluded(classId, term.id, skillIdToToggle, nextIncluded);
-      setSkillSelection((prev) => {
-        const next = new Map(prev);
-        next.set(skillIdToToggle, nextIncluded);
-        return next;
-      });
-    } catch (err) {
-      setClassError(err instanceof Error ? err.message : "Could not update this skill's report visibility.");
-    } finally {
-      setSkillSelectionBusy(null);
-    }
-  }
-
   function handleRatingSelect(studentId: string, raw: string) {
     const key = `${studentId}:${skillId}`;
     const existing = ratings.get(key) ?? { rating: null, comment: null };
     const rating = (raw === "" ? null : raw) as SkillRating | null;
     if (existing.rating === rating) return;
-    // Item 12 of the KG redesign: Gold/Silver/Bronze each have a
-    // standard quick-fill comment. Applied whenever the comment cell
-    // is empty OR still holds a previous auto-fill (KNOWN_DEFAULT_
-    // COMMENTS) - so correcting a mis-picked rating (Gold -> Silver,
-    // say) updates the comment to match instead of leaving the old
-    // rating's default behind. A comment the teacher actually typed
-    // themselves is never touched.
-    const existingIsBlankOrDefault =
-      !existing.comment || existing.comment.trim() === "" || KNOWN_DEFAULT_COMMENTS.has(existing.comment.trim());
-    // X (not assessed) and O (absent) have no default comment of their
-    // own - if the cell only held a leftover default from an earlier
-    // G/S/B pick, clear it rather than show it next to "Not assessed"/
-    // "Absent" on the printed report.
-    const comment = existingIsBlankOrDefault
-      ? DEFAULT_SKILL_COMMENT[rating ?? ""] ?? null
-      : existing.comment;
-    void saveSkillRating(studentId, rating, comment);
+    void saveSkillRating(studentId, rating, existing.comment);
   }
 
   function handleCommentBlur(studentId: string, raw: string) {
@@ -473,39 +422,6 @@ export function CloudAssessmentWorkspace() {
         </div>
       </div>
 
-      {classId && isSkillLevel && learningAreaId && skills.length > 0 && (
-        <div className="actrs-card p-3 mb-4">
-          <h2 className="h6 fw-bold mb-1">
-            Report skills - {learningAreas.find((a) => a.id === learningAreaId)?.name ?? "this learning area"}
-          </h2>
-          <p className="text-muted small mb-2">
-            Uncheck a skill to leave it off {selectedClass?.name ?? "this class"}'s report cards this term - it
-            stays available here for rating either way. Everything is checked (shown) by default. Switch learning
-            areas above to manage another area's skills.
-          </p>
-          <div className="d-flex flex-column gap-1">
-            {skills.map((s) => {
-              const included = skillSelection.get(s.id) ?? true;
-              return (
-                <label key={s.id} className="form-check d-flex align-items-start gap-2 mb-0">
-                  <input
-                    type="checkbox"
-                    className="form-check-input mt-1"
-                    checked={included}
-                    disabled={skillSelectionBusy === s.id}
-                    onChange={(e) => toggleSkillIncluded(s.id, e.target.checked)}
-                  />
-                  <span className="form-check-label small">
-                    {s.serial_number != null ? `${s.serial_number}. ` : ""}
-                    {s.description}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {classId && isScoredLevel && (
         <>
           {classError && <div className="alert alert-danger">{classError}</div>}
@@ -517,25 +433,6 @@ export function CloudAssessmentWorkspace() {
                 <span className={`badge ${STATUS_BADGE[session.status]}`}>{STATUS_LABEL[session.status]}</span>
               </div>
               <div className="d-flex gap-2">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary btn-sm"
-                  disabled={students.length === 0}
-                  onClick={() => {
-                    const subjectName = subjects.find((s) => s.id === subjectId)?.name ?? "subject";
-                    downloadCsv(
-                      `${selectedClass?.name ?? "class"}-${subjectName}-scores.csv`,
-                      ["Student ID", "Student name", "SBA (50)", "Exam (50)"],
-                      students.map((student) => {
-                        const cell = scores.get(`${student.id}:${subjectId}`) ?? { sba: null, exam: null };
-                        return [student.student_id, fullNameOf(student), cell.sba ?? "", cell.exam ?? ""];
-                      })
-                    );
-                  }}
-                >
-                  <i className="bi bi-download me-1" />
-                  Export CSV
-                </button>
                 {CloudAssessmentSessionService.nextStatusOptions(session.status).map((next) => (
                   <button
                     key={next}
@@ -635,25 +532,6 @@ export function CloudAssessmentWorkspace() {
                 <span className={`badge ${STATUS_BADGE[session.status]}`}>{STATUS_LABEL[session.status]}</span>
               </div>
               <div className="d-flex gap-2">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary btn-sm"
-                  disabled={students.length === 0}
-                  onClick={() => {
-                    const skillName = skills.find((s) => s.id === skillId)?.description ?? "skill";
-                    downloadCsv(
-                      `${selectedClass?.name ?? "class"}-${skillName}-ratings.csv`,
-                      ["Student ID", "Student name", "Rating", "Comment"],
-                      students.map((student) => {
-                        const cell = ratings.get(`${student.id}:${skillId}`) ?? { rating: null, comment: null };
-                        return [student.student_id, fullNameOf(student), cell.rating ?? "", cell.comment ?? ""];
-                      })
-                    );
-                  }}
-                >
-                  <i className="bi bi-download me-1" />
-                  Export CSV
-                </button>
                 {CloudAssessmentSessionService.nextStatusOptions(session.status).map((next) => (
                   <button
                     key={next}

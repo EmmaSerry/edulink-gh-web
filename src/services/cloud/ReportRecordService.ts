@@ -25,6 +25,14 @@ class CloudReportRecordServiceImpl {
     });
   }
 
+  /** Only the given learners' report records (a class). */
+  async getForStudents(termId: string, studentIds: string[]): Promise<ReportRecordRow[]> {
+    if (studentIds.length === 0) return [];
+    return rest.select<ReportRecordRow>("report_records", {
+      filters: { term_id: `eq.${termId}`, student_id: `in.(${studentIds.join(",")})` },
+    });
+  }
+
   async upsertFields(
     studentId: string,
     termId: string,

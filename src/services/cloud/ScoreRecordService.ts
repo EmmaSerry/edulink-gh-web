@@ -25,6 +25,14 @@ class CloudScoreRecordServiceImpl {
     });
   }
 
+  /** Only the given learners' scores (a class), so the screen does not pull the whole school. */
+  async getForStudents(termId: string, studentIds: string[]): Promise<ScoreRecordRow[]> {
+    if (studentIds.length === 0) return [];
+    return rest.select<ScoreRecordRow>("score_records", {
+      filters: { term_id: `eq.${termId}`, student_id: `in.(${studentIds.join(",")})` },
+    });
+  }
+
   async upsertField(
     studentId: string,
     termId: string,
