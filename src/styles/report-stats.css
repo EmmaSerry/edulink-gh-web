@@ -1,0 +1,100 @@
+/**
+ * "Performance at a glance" tiles on scored report cards. Loaded after
+ * report-print.css so it refines the older look. Each tile is filled with one
+ * of the school's brand colours and its text colour is chosen automatically
+ * (colorContrast.ts) so it is readable whatever colours the school picks.
+ * Only features the PDF rasteriser supports: flex, gradients, radius, rgba.
+ */
+
+.actrs-report-page .actrs-report-stats {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.actrs-report-page .actrs-report-stats .stat.tile {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 19mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 7px 8px 6px;
+  border: none;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* soft decorative disc, same language as the page header */
+.actrs-report-page .actrs-report-stats .stat.tile::before {
+  content: "";
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  right: -14px;
+  top: -18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+}
+
+.actrs-report-page .actrs-report-stats .stat.tile > * {
+  position: relative;
+}
+
+.actrs-report-page .actrs-report-stats .tile .stat-value {
+  color: inherit;
+  font-family: Georgia, "Cambria", "Times New Roman", serif;
+  font-size: 1.7em;
+  font-weight: 700;
+  line-height: 1.1;
+  margin: 0 0 3px;
+  letter-spacing: 0.01em;
+}
+
+.actrs-report-page .actrs-report-stats .tile .stat-label {
+  color: inherit;
+  font-size: 0.66em;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.actrs-report-page .actrs-report-stats .tile.stat-ring .ring {
+  display: block;
+  margin: 0 auto 2px;
+}
+
+.actrs-report-page .actrs-report-stats .tile.stat-ring .stat-label {
+  margin-top: 0;
+}
+
+/* ---------- Auto-contrast for the school's colours elsewhere on the page ----
+ * ReportPage sets --on-header, --on-header-soft, --on-primary, --on-th
+ * from the school's colours, so text stays readable on any palette. */
+
+.actrs-report-page .actrs-report-header { color: var(--on-header, #fff); }
+.actrs-report-page .actrs-report-header .school-name {
+  color: var(--on-header, #fff);
+  text-shadow: var(--on-header-shadow, 0 1px 2px rgba(0, 0, 0, 0.25));
+}
+.actrs-report-page .actrs-report-header .school-meta { color: var(--on-header-soft, rgba(255, 255, 255, 0.92)); }
+
+.actrs-report-page .actrs-report-table th {
+  color: var(--on-th, #fff);
+  border-right-color: var(--on-th-line, rgba(255, 255, 255, 0.25));
+}
+
+.actrs-report-page .actrs-report-remarks .remark-label { color: var(--on-primary, #fff); }
+
+/* amber / orange chips are too light for white text */
+.actrs-report-page .actrs-report-table .grade-chip.band-c,
+.actrs-report-page .actrs-report-table .grade-chip.band-d { color: #101828; }

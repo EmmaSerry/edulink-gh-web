@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { ReportSnapshot } from "./ReportSnapshot.types";
 import type { TemplateSettings } from "@models/TemplateSettings";
 import { ReportPage } from "./ReportPage";
@@ -5,6 +6,7 @@ import { ReportHeader } from "./ReportHeader";
 import { ReportFeesSection } from "./ReportFeesSection";
 import { SignatureBlock } from "./SignatureBlock";
 import { formatDateForDisplay } from "@utils/dateUtils";
+import { mixHex, safeHex, shade, tileFor } from "./colorContrast";
 
 /**
  * Shared layout for every "scored" report (Lower Primary, Upper Primary,
@@ -13,10 +15,8 @@ import { formatDateForDisplay } from "@utils/dateUtils";
  * data-driven, and every subject row reads its own values from its own
  * `snapshot.subjects[i]` (so one subject can never show another's position).
  *
- * Redesign: framed page, colour header banner, a "performance at a glance"
- * strip (average, grade, class position, attendance ring), score bars and
- * colour-coded grade chips in the subject table, and tinted remark cards.
- * All colours that come from the school's settings still apply everywhere.
+ * The "performance at a glance" tiles are filled with the school's own
+ * colours, and their text colour is chosen automatically for contrast.
  */
 
 /** Performance band for a 0-100 total - drives the bar and grade chip colour. */
@@ -29,27 +29,37 @@ function bandOf(total: number | null): "a" | "b" | "c" | "d" | "e" | "none" {
   return "e";
 }
 
-/** Attendance ring. Drawn as inline SVG with literal colours (CSS variables
- *  do not survive the PDF rasteriser's SVG handling). */
-function AttendanceRing({ percent, color }: { percent: number; color: string }) {
+/** Attendance ring. Inline SVG with literal colours (CSS variables do not
+ *  survive the PDF rasteriser's SVG handling). */
+function AttendanceRing({
+  percent,
+  track,
+  arc,
+  textColor,
+}: {
+  percent: number;
+  track: string;
+  arc: string;
+  textColor: string;
+}) {
   const pct = Math.max(0, Math.min(100, percent));
   const r = 17;
   const c = 2 * Math.PI * r;
   return (
     <svg width="46" height="46" viewBox="0 0 46 46" className="ring" aria-hidden="true">
-      <circle cx="23" cy="23" r={r} fill="none" stroke="#e3e8ef" strokeWidth="5" />
+      <circle cx="23" cy="23" r={r} fill="none" stroke={track} strokeWidth="5" />
       <circle
         cx="23"
         cy="23"
         r={r}
         fill="none"
-        stroke={color}
+        stroke={arc}
         strokeWidth="5"
         strokeLinecap="round"
         strokeDasharray={`${(pct / 100) * c} ${c}`}
         transform="rotate(-90 23 23)"
       />
-      <text x="23" y="26.5" textAnchor="middle" fontSize="10" fontWeight="700" fill="#202733">
+      <text x="23" y="26.6" textAnchor="middle" fontSize="10" fontWeight="700" fill={textColor}>
         {Math.round(pct)}%
       </text>
     </svg>
@@ -68,6 +78,21 @@ export function ScoredReportLayout({
   isLastPage?: boolean;
 }) {
   const { school, student, term, attendance, subjects, overall, scoredRemarks, feeSummary } = snapshot;
+
+  // Tile fills come from the school's two colours; text colour is automatic.
+  const primary = safeHex(settings.primaryColorHex, "#1f3864");
+  const secondary = safeHex(settings.secondaryColorHex, "#2f6fb0");
+  const tiles = [
+    tileFor(primary),
+    tileFor(secondary),
+    tileFor(mixHex(primary, secondary, 0.5)),
+    tileFor(shade(primary, -0.1)),
+  ];
+  const tileStyle = (i: number): CSSProperties => ({
+    color: tiles[i].text,
+    backgroundColor: tiles[i].from,
+    backgroundImage: `linear-gradient(135deg, ${tiles[i].from} 0%, ${tiles[i].to} 100%)`,
+  });
 
   return (
     <ReportPage settings={settings} school={school} isLastPage={isLastPage}>
@@ -102,21 +127,26 @@ export function ScoredReportLayout({
 
       {overall && (
         <div className="actrs-report-stats">
-          <div className="stat">
+          <div className="stat tile" style={tileStyle(0)}>
             <div className="stat-value">{overall.average.toFixed(1)}</div>
             <div className="stat-label">Average score</div>
           </div>
-          <div className="stat">
+          <div className="stat tile" style={tileStyle(1)}>
             <div className="stat-value">{overall.gradeCode ?? "-"}</div>
             <div className="stat-label">{overall.gradeLabel ?? "Overall grade"}</div>
           </div>
-          <div className="stat">
+          <div className="stat tile" style={tileStyle(2)}>
             <div className="stat-value">{overall.positionText ?? "-"}</div>
             <div className="stat-label">Position (of {overall.classSize})</div>
           </div>
           {attendance.attendancePercentage !== null && (
-            <div className="stat stat-ring">
-              <AttendanceRing percent={attendance.attendancePercentage} color={settings.secondaryColorHex} />
+            <div className="stat tile stat-ring" style={tileStyle(3)}>
+              <AttendanceRing
+                percent={attendance.attendancePercentage}
+                track={mixHex(tiles[3].from, tiles[3].text, 0.3)}
+                arc={tiles[3].text}
+                textColor={tiles[3].text}
+              />
               <div className="stat-label">Attendance</div>
             </div>
           )}

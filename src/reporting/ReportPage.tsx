@@ -1,7 +1,9 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { TemplateSettings } from "@models/TemplateSettings";
 import type { ReportSnapshotSchoolInfo } from "./ReportSnapshot.types";
+import { readableOn, safeHex, shade } from "./colorContrast";
 import "@styles/report-print.css";
+import "@styles/report-stats.css";
 
 interface Props {
   settings: TemplateSettings;
@@ -19,17 +21,31 @@ interface Props {
  * colours all come from `TemplateSettings`, so an administrator's changes
  * apply automatically everywhere without touching any template component.
  *
- * Redesign: every page now sits inside a decorative double-line frame with
- * corner studs, drawn in the school's own two brand colours. The frame is
- * purely visual - it never affects the content area or the print pipeline.
+ * Text that sits on the school's colours (banner, table header, label pills)
+ * is chosen automatically - white or near-black, whichever reads better - so
+ * any colour an admin picks stays legible.
  */
 export function ReportPage({ settings, school, children, isLastPage = true }: Props) {
+  const primary = safeHex(settings.primaryColorHex, "#1f3864");
+  const secondary = safeHex(settings.secondaryColorHex, "#2f6fb0");
+
+  // the banner has a 16% darkening layer over the colour gradient
+  const onHeader = readableOn(shade(primary, -0.16), shade(secondary, -0.16));
+  const onTh = readableOn(primary, secondary);
+  const onPrimary = readableOn(primary);
+
   const style: CSSProperties & Record<string, string> = {
-    "--report-primary": settings.primaryColorHex,
-    "--report-secondary": settings.secondaryColorHex,
+    "--report-primary": primary,
+    "--report-secondary": secondary,
     "--report-font": settings.fontFamily,
     "--report-font-size": `${settings.fontSizePt}pt`,
     "--report-margin": `${settings.marginMm}mm`,
+    "--on-header": onHeader.text,
+    "--on-header-soft": onHeader.muted,
+    "--on-header-shadow": onHeader.isLightText ? "0 1px 2px rgba(0, 0, 0, 0.25)" : "none",
+    "--on-th": onTh.text,
+    "--on-th-line": onTh.faint,
+    "--on-primary": onPrimary.text,
   };
 
   const classes = [
