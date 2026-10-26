@@ -29,43 +29,6 @@ function bandOf(total: number | null): "a" | "b" | "c" | "d" | "e" | "none" {
   return "e";
 }
 
-/** Attendance ring. Inline SVG with literal colours (CSS variables do not
- *  survive the PDF rasteriser's SVG handling). */
-function AttendanceRing({
-  percent,
-  track,
-  arc,
-  textColor,
-}: {
-  percent: number;
-  track: string;
-  arc: string;
-  textColor: string;
-}) {
-  const pct = Math.max(0, Math.min(100, percent));
-  const r = 17;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg width="46" height="46" viewBox="0 0 46 46" className="ring" aria-hidden="true">
-      <circle cx="23" cy="23" r={r} fill="none" stroke={track} strokeWidth="5" />
-      <circle
-        cx="23"
-        cy="23"
-        r={r}
-        fill="none"
-        stroke={arc}
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeDasharray={`${(pct / 100) * c} ${c}`}
-        transform="rotate(-90 23 23)"
-      />
-      <text x="23" y="26.6" textAnchor="middle" fontSize="10" fontWeight="700" fill={textColor}>
-        {Math.round(pct)}%
-      </text>
-    </svg>
-  );
-}
-
 export function ScoredReportLayout({
   snapshot,
   settings,
@@ -141,13 +104,17 @@ export function ScoredReportLayout({
             <div className="stat-label">Position (of {overall.classSize})</div>
           </div>
           {attendance.attendancePercentage !== null && (
-            <div className="stat tile stat-ring" style={tileStyle(3)}>
-              <AttendanceRing
-                percent={attendance.attendancePercentage}
-                track={mixHex(tiles[3].from, tiles[3].text, 0.3)}
-                arc={tiles[3].text}
-                textColor={tiles[3].text}
-              />
+            <div className="stat tile stat-attend" style={tileStyle(3)}>
+              <div className="stat-value">{Math.round(Math.max(0, Math.min(100, attendance.attendancePercentage)))}%</div>
+              <div className="attend-track" style={{ backgroundColor: mixHex(tiles[3].from, tiles[3].text, 0.3) }}>
+                <div
+                  className="attend-fill"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, attendance.attendancePercentage))}%`,
+                    backgroundColor: tiles[3].text,
+                  }}
+                />
+              </div>
               <div className="stat-label">Attendance</div>
             </div>
           )}

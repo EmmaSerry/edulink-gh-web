@@ -62,14 +62,18 @@
   text-align: center;
 }
 
-.actrs-report-page .actrs-report-stats .tile.stat-ring {
-  padding-top: 5px;
-  padding-bottom: 5px;
+/* Attendance: big % plus a plain-HTML progress bar (PDF-safe, no SVG) */
+.actrs-report-page .actrs-report-stats .attend-track {
+  height: 6px;
+  width: 70%;
+  margin: 0 auto 5px;
+  border-radius: 3px;
+  overflow: hidden;
 }
 
-.actrs-report-page .actrs-report-stats .tile.stat-ring .ring {
-  display: block;
-  margin: 0 auto 2px;
+.actrs-report-page .actrs-report-stats .attend-fill {
+  height: 6px;
+  border-radius: 3px;
 }
 
 /* ---------- Auto-contrast for the school's colours elsewhere on the page ----
