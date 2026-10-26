@@ -6,13 +6,15 @@ import {
   type PaymentSettings,
   type SchoolBillingRow,
 } from "@services/cloud/ReportBillingService";
+import { ReportUnlockPanel } from "@components/ReportUnlockPanel";
 
 function money(n: number): string {
   return `GHS ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** Super Admin: set the report price, the onboarding-fee switch, per-school
- *  prices, and approve / reject report payment claims. */
+ *  prices, approve / reject report payment claims, and manually unlock
+ *  reports (Privilege / Manual payment). */
 export function CloudReportPaymentsAdmin() {
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [price, setPrice] = useState("");
@@ -189,6 +191,8 @@ export function CloudReportPaymentsAdmin() {
           </div>
         )}
       </div>
+
+      <ReportUnlockPanel />
 
       <div className="actrs-card p-3 mb-4">
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">

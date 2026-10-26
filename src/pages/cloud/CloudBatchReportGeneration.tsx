@@ -1,45 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import JSZip from "jszip";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudClassService } from "@services/cloud/ClassService";
-import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudTemplateSettingsService } from "@services/cloud/TemplateSettingsService";
-import { CloudReportGenerationService, type GenerateResult } from "@services/cloud/ReportGenerationService";
+import { CloudReportGenerationService } from "@services/cloud/ReportGenerationService";
+import { BatchReportService, type BatchItem, type BatchFailure } from "@services/cloud/BatchReportService";
+import { ReportBillingService, type LockState } from "@services/cloud/ReportBillingService";
 import { generatePdfFromPages, sanitizeFileNamePart, downloadBlob } from "@services/cloud/PdfService";
 import { ReportPrintSurface } from "@reporting/ReportPrintSurface";
-import type { ReportSnapshot } from "@reporting/ReportSnapshot.types";
 import type { TemplateSettings } from "@models/TemplateSettings";
-import type { TermRow, ClassRow, StudentRow } from "@/types/database";
+import type { TermRow, ClassRow } from "@/types/database";
 
-function fullNameOf(s: { first_name: string; middle_name: string | null; last_name: string }): string {
-  return [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" ");
+interface Job {
+  items: BatchItem[];
+  mode: "single" | "zip";
 }
-
-interface QueueItem {
-  studentId: string;
-  studentName: string;
-  snapshot: ReportSnapshot;
-}
-
-type ZipStatus = "idle" | "rendering" | "done" | "error";
 
 /**
- * "Generate for a whole class" (item 5 of the fixes batch) - the small
- * extension CloudReportView.tsx's own doc comment always said would
- * come once single-report generation was trusted. Reuses that same
- * generation/PDF machinery (CloudReportGenerationService.generateForClass,
- * generatePdfFromPages) rather than reinventing it; the one new piece
- * is packing every student's PDF into a single .zip (JSZip) instead of
- * N separate downloads, which is what was actually asked for.
+ * Whole-class reports.
  *
- * Rendering is deliberately sequential - one student's ReportPrintSurface
- * mounted at a time (see `renderIndex` below) - rather than mounting an
- * entire class's worth of report pages off-screen at once. A class can
- * be 30-40 KG pupils at 3 pages each; one at a time keeps this light on
- * the browser and gives an honest "3 of 27" progress readout instead of
- * a long silent pause.
+ * Generation is now quick: everything is checked and saved in one pass
+ * (see BatchReportService) and NO PDF files are rendered up front. When it
+ * finishes, the first learner's report is shown open on screen - free, if the
+ * class's one free report has not been used. Everyone else appears below as a
+ * PDF card: unlocked cards can be viewed or downloaded, locked cards show
+ * "Pay to unlock". A PDF is only built at the moment someone asks for it.
  */
 export function CloudBatchReportGeneration() {
   const { profile } = useCloudAuth();
@@ -51,18 +38,20 @@ export function CloudBatchReportGeneration() {
   const [contextError, setContextError] = useState<string | null>(null);
 
   const [classId, setClassId] = useState("");
-  const [students, setStudents] = useState<StudentRow[]>([]);
-
   const [generating, setGenerating] = useState(false);
-  const [generateResults, setGenerateResults] = useState<GenerateResult[] | null>(null);
-  const [generateProgress, setGenerateProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [items, setItems] = useState<BatchItem[]>([]);
+  const [failed, setFailed] = useState<BatchFailure[]>([]);
+  const [hasRun, setHasRun] = useState(false);
+  const [lock, setLock] = useState<LockState | null>(null);
+  const [autoFreeNote, setAutoFreeNote] = useState<string | null>(null);
+  const [viewId, setViewId] = useState<string | null>(null);
 
-  const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [renderIndex, setRenderIndex] = useState(0);
-  const [zipStatus, setZipStatus] = useState<ZipStatus>("idle");
-  const [zipParts, setZipParts] = useState<Map<string, Blob>>(new Map());
-  const [zipError, setZipError] = useState<string | null>(null);
+  const [job, setJob] = useState<Job | null>(null);
+  const [jobIndex, setJobIndex] = useState(0);
+  const [jobError, setJobError] = useState<string | null>(null);
+  const partsRef = useRef(new Map<string, Blob>());
 
   useEffect(() => {
     let cancelled = false;
@@ -82,57 +71,63 @@ export function CloudBatchReportGeneration() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    setGenerateResults(null);
+    setItems([]);
+    setFailed([]);
+    setHasRun(false);
     setGenerateError(null);
-    setQueue([]);
-    setRenderIndex(0);
-    setZipStatus("idle");
-    setZipParts(new Map());
-    setZipError(null);
-    if (!classId) {
-      setStudents([]);
-      return;
-    }
-    CloudStudentService.list({ status: "ACTIVE" })
-      .then((all) => setStudents(all))
-      .catch(() => setStudents([]));
+    setAutoFreeNote(null);
+    setViewId(null);
+    setJob(null);
+    setJobError(null);
   }, [classId]);
 
   const selectedClass = useMemo(() => classes.find((c) => c.id === classId) ?? null, [classes, classId]);
+
+  const isLocked = useCallback((id: string) => (lock ? lock.isLocked(id) : false), [lock]);
+  const unlockedItems = useMemo(() => items.filter((i) => !isLocked(i.studentId)), [items, isLocked]);
+  const lockedItems = useMemo(() => items.filter((i) => isLocked(i.studentId)), [items, isLocked]);
+  const viewItem = useMemo(
+    () => items.find((i) => i.studentId === viewId && !isLocked(i.studentId)) ?? unlockedItems[0] ?? null,
+    [items, viewId, unlockedItems, isLocked]
+  );
 
   async function handleGenerateAll() {
     if (!classId || !term) return;
     setGenerating(true);
     setGenerateError(null);
-    setGenerateResults(null);
-    setGenerateProgress({ done: 0, total: 0 });
+    setAutoFreeNote(null);
+    setProgress({ done: 0, total: 0 });
     try {
-      const results = await CloudReportGenerationService.generateForClass(classId, term.id, undefined, (done, total) =>
-        setGenerateProgress({ done, total })
-      );
-      setGenerateResults(results);
-      const succeeded = results.filter((r) => r.report);
-      const items: QueueItem[] = succeeded.map((r) => {
-        const student = students.find((s) => s.id === r.studentId);
-        return {
-          studentId: r.studentId,
-          studentName: student ? fullNameOf(student) : r.studentId,
-          snapshot: r.report!.snapshot_data as unknown as ReportSnapshot,
-        };
-      });
-      // Reset the render/zip cursor explicitly - regenerating the same
-      // class a second time must start the sequential render loop over
-      // from item 0, not resume from wherever the previous run's
-      // renderIndex was left (which could otherwise satisfy "renderIndex
-      // >= queue.length" immediately and try to zip nothing).
-      setRenderIndex(0);
-      setZipStatus("idle");
-      setZipParts(new Map());
-      setZipError(null);
-      setQueue(items);
+      const out = await BatchReportService.generateClass(classId, term.id, (done, total) => setProgress({ done, total }));
+      let lockState: LockState | null = await ReportBillingService.getLockState(term.id).catch(() => null);
+
+      // The first candidate's report is free: open it automatically if this
+      // class has not used its free report yet and nobody is unlocked.
+      if (
+        lockState &&
+        lockState.enforced &&
+        out.items.length > 0 &&
+        !lockState.freeClasses.has(classId) &&
+        !out.items.some((i) => !lockState!.isLocked(i.studentId))
+      ) {
+        try {
+          await ReportBillingService.claimFree(out.items[0].studentId, term.id);
+          lockState = await ReportBillingService.getLockState(term.id).catch(() => lockState);
+          setAutoFreeNote(`${out.items[0].name}'s report is opened free of charge (one free report per class each term).`);
+        } catch {
+          /* leave everything locked - the user can still pay */
+        }
+      }
+
+      setItems(out.items);
+      setFailed(out.failed);
+      setLock(lockState);
+      setViewId(null);
+      setHasRun(true);
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "Could not generate reports for this class.");
     } finally {
@@ -140,84 +135,78 @@ export function CloudBatchReportGeneration() {
     }
   }
 
-  const currentItem = queue[renderIndex] ?? null;
+  // ---- on-demand PDF building (one learner, or a zip of the unlocked ones) ----
+  function startJob(list: BatchItem[], mode: "single" | "zip") {
+    if (list.length === 0) return;
+    partsRef.current = new Map();
+    setJobError(null);
+    setJobIndex(0);
+    setJob({ items: list, mode });
+  }
 
-  const handleCurrentReady = useCallback(
+  const currentJobItem = job ? job.items[jobIndex] ?? null : null;
+
+  const handleJobReady = useCallback(
     async (pageElements: HTMLElement[]) => {
-      if (!currentItem || !templateSettings) return;
-      // No page elements would otherwise stall the whole batch forever
-      // (nothing else advances renderIndex) - treat it as a skip, same
-      // as a render failure below, rather than hanging.
-      if (pageElements.length === 0) {
-        setZipError(`Could not render ${currentItem.studentName}'s report - it was skipped from the zip.`);
-        setRenderIndex((i) => i + 1);
-        return;
-      }
+      if (!job || !currentJobItem || !templateSettings || !term) return;
       try {
+        if (pageElements.length === 0) throw new Error("empty");
         const blob = await generatePdfFromPages(pageElements, {
           paperSize: templateSettings.paperSize,
           orientation: templateSettings.orientation,
         });
-        setZipParts((prev) => {
-          const next = new Map(prev);
-          next.set(currentItem.studentId, blob);
-          return next;
-        });
-        void CloudReportGenerationService.recordExport(currentItem.studentId, term!.id, "batch");
+        partsRef.current.set(currentJobItem.studentId, blob);
+        void Promise.resolve(
+          CloudReportGenerationService.recordExport(currentJobItem.studentId, term.id, job.mode === "zip" ? "batch" : "single")
+        ).catch(() => undefined);
       } catch {
-        setZipError(`Could not render ${currentItem.studentName}'s report - it was skipped from the zip.`);
+        setJobError(`Could not build ${currentJobItem.name}'s PDF - it was skipped.`);
       } finally {
-        setRenderIndex((i) => i + 1);
+        setJobIndex((i) => i + 1);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentItem, templateSettings]
+    [job, currentJobItem, templateSettings, term]
   );
 
   useEffect(() => {
-    if (queue.length === 0) return;
-    if (renderIndex === 0) {
-      setZipStatus("rendering");
-      setZipParts(new Map());
-      setZipError(null);
-    }
-    if (renderIndex >= queue.length && zipStatus === "rendering") {
-      buildAndDownloadZip();
-    }
+    if (!job || jobIndex < job.items.length) return;
+    const finished = job;
+    setJob(null);
+    void (async () => {
+      try {
+        const termName = sanitizeFileNamePart(term?.term_name ?? "term");
+        if (finished.mode === "single") {
+          const only = finished.items[0];
+          const blob = partsRef.current.get(only.studentId);
+          if (blob) downloadBlob(blob, `${sanitizeFileNamePart(only.name)}-${termName}.pdf`);
+          return;
+        }
+        const zip = new JSZip();
+        let count = 0;
+        for (const item of finished.items) {
+          const blob = partsRef.current.get(item.studentId);
+          if (!blob) continue;
+          zip.file(`${sanitizeFileNamePart(item.name)}.pdf`, blob);
+          count += 1;
+        }
+        if (count === 0) {
+          setJobError("No reports could be built.");
+          return;
+        }
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        downloadBlob(zipBlob, `${sanitizeFileNamePart(selectedClass?.name ?? "class")}-${termName}-reports.zip`);
+      } catch (err) {
+        setJobError(err instanceof Error ? err.message : "Could not build the download.");
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderIndex, queue.length]);
-
-  async function buildAndDownloadZip() {
-    try {
-      const zip = new JSZip();
-      let count = 0;
-      for (const item of queue) {
-        const blob = zipParts.get(item.studentId);
-        if (!blob) continue;
-        zip.file(`${sanitizeFileNamePart(item.studentName)}.pdf`, blob);
-        count += 1;
-      }
-      if (count === 0) {
-        setZipStatus("error");
-        setZipError("No reports could be rendered for this class.");
-        return;
-      }
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      const fileName = `${sanitizeFileNamePart(selectedClass?.name ?? "class")}-${sanitizeFileNamePart(term?.term_name ?? "term")}-reports.zip`;
-      downloadBlob(zipBlob, fileName);
-      setZipStatus("done");
-    } catch (err) {
-      setZipStatus("error");
-      setZipError(err instanceof Error ? err.message : "Could not build the zip file.");
-    }
-  }
+  }, [jobIndex, job]);
 
   if (loadingContext) return <p className="text-muted">Loading…</p>;
   if (contextError) return <div className="alert alert-danger">{contextError}</div>;
   if (!term) return <div className="alert alert-warning">Your school doesn't have an active term set up yet.</div>;
 
-  const failed = generateResults?.filter((r) => r.error) ?? [];
-  const succeeded = generateResults?.filter((r) => r.report) ?? [];
+  const building = job !== null;
 
   return (
     <div>
@@ -241,65 +230,147 @@ export function CloudBatchReportGeneration() {
 
       {classId && (
         <div className="actrs-card p-3 mb-4">
-          <button className="btn btn-primary" disabled={generating || zipStatus === "rendering"} onClick={handleGenerateAll}>
+          <button className="btn btn-primary" disabled={generating || building} onClick={handleGenerateAll}>
             {generating
-              ? generateProgress
-                ? `Generating ${generateProgress.done} of ${generateProgress.total}…`
+              ? progress && progress.total > 0
+                ? `Generating ${progress.done} of ${progress.total}…`
                 : "Generating…"
-              : "Generate reports for this class"}
+              : hasRun
+                ? "Generate again"
+                : "Generate reports for this class"}
           </button>
           <p className="text-muted small mt-2 mb-0">
-            Checks and (re)generates every enrolled student's report, same rules as the single-student screen - a
-            student missing remarks, attendance, or a finalized assessment is skipped with a reason, not silently
-            left out.
+            Checks and saves every enrolled learner's report. Anyone missing remarks, attendance or a finalized
+            assessment is listed below with the reason.
           </p>
         </div>
       )}
 
       {generateError && <div className="alert alert-danger">{generateError}</div>}
 
-      {generateResults && (
+      {hasRun && (
         <div className="actrs-card p-3 mb-4">
-          <p className="mb-2">
-            <strong>{succeeded.length}</strong> generated, <strong>{failed.length}</strong> skipped.
+          <p className="mb-1">
+            <strong>{items.length}</strong> generated, <strong>{failed.length}</strong> skipped.
           </p>
           {failed.length > 0 && (
             <ul className="small text-muted mb-0 ps-3">
-              {failed.map((r) => {
-                const student = students.find((s) => s.id === r.studentId);
-                return (
-                  <li key={r.studentId}>
-                    {student ? fullNameOf(student) : r.studentId}: {r.error}
-                  </li>
-                );
-              })}
+              {failed.map((f) => (
+                <li key={f.studentId}>
+                  {f.name}: {f.error}
+                </li>
+              ))}
             </ul>
           )}
         </div>
       )}
 
-      {queue.length > 0 && zipStatus === "rendering" && (
-        <div className="actrs-card p-3 mb-4">
-          <p className="mb-0">
-            Rendering {Math.min(renderIndex + 1, queue.length)} of {queue.length}
-            {currentItem ? ` — ${currentItem.studentName}…` : "…"}
-          </p>
+      {autoFreeNote && <div className="alert alert-success py-2 small">{autoFreeNote}</div>}
+      {jobError && <div className="alert alert-warning py-2 small">{jobError}</div>}
+      {building && job && (
+        <div className="alert alert-info py-2 small">
+          Building PDF {Math.min(jobIndex + 1, job.items.length)} of {job.items.length}
+          {currentJobItem ? ` - ${currentJobItem.name}…` : "…"}
         </div>
       )}
 
-      {zipStatus === "done" && (
-        <div className="alert alert-success">Zip downloaded - {zipParts.size} report(s) included.</div>
-      )}
-      {zipStatus === "error" && zipError && <div className="alert alert-danger">{zipError}</div>}
-      {zipError && zipStatus === "rendering" && <div className="alert alert-warning py-2">{zipError}</div>}
+      {hasRun && items.length > 0 && (
+        <>
+          {viewItem ? (
+            <div className="actrs-card p-3 mb-4">
+              <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <div>
+                  <div className="fw-semibold">{viewItem.name}</div>
+                  <div className="small text-muted">
+                    {lock?.enforced ? "Unlocked report" : "Report"} - shown below
+                  </div>
+                </div>
+                <div className="d-flex gap-2">
+                  <button className="btn btn-outline-secondary btn-sm" disabled={building} onClick={() => startJob([viewItem], "single")}>
+                    <i className="bi bi-download me-1" />
+                    Download PDF
+                  </button>
+                  {unlockedItems.length > 1 && (
+                    <button className="btn btn-outline-primary btn-sm" disabled={building} onClick={() => startJob(unlockedItems, "zip")}>
+                      <i className="bi bi-file-earmark-zip me-1" />
+                      Download all unlocked ({unlockedItems.length}) as zip
+                    </button>
+                  )}
+                </div>
+              </div>
+              {templateSettings && (
+                <div className="d-flex justify-content-center" style={{ overflowX: "auto" }}>
+                  <ReportPrintSurface
+                    key={`view-${viewItem.studentId}`}
+                    snapshots={[viewItem.snapshot]}
+                    settings={templateSettings}
+                    onReady={() => undefined}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="alert alert-warning">
+              No report is unlocked for this class yet. Pay to unlock below
+              {lock?.enforced ? ` (GHS ${lock.price.toFixed(2)} per learner)` : ""}.
+            </div>
+          )}
 
-      {currentItem && templateSettings && (
+          <div className="actrs-card p-3 mb-4">
+            <h2 className="h6 fw-bold mb-3">All reports ({items.length})</h2>
+            <div className="row g-3">
+              {items.map((item) => {
+                const locked = isLocked(item.studentId);
+                const open = viewItem?.studentId === item.studentId;
+                return (
+                  <div className="col-6 col-md-4 col-lg-3" key={item.studentId}>
+                    <div
+                      className="border rounded p-3 h-100 text-center"
+                      style={{ opacity: locked ? 0.65 : 1, background: open ? "rgba(13,110,253,0.08)" : undefined }}
+                    >
+                      <div style={{ fontSize: "2.6rem", lineHeight: 1 }} className={locked ? "text-secondary" : "text-danger"}>
+                        <i className={`bi ${locked ? "bi-file-earmark-lock2" : "bi-file-earmark-pdf"}`} />
+                      </div>
+                      <div className="small fw-semibold mt-2 text-truncate" title={item.name}>
+                        {item.name}
+                      </div>
+                      {locked ? (
+                        <Link to="/report-fees" className="btn btn-warning btn-sm mt-2 w-100">
+                          <i className="bi bi-unlock me-1" />
+                          Pay to unlock
+                        </Link>
+                      ) : (
+                        <div className="d-flex gap-1 mt-2">
+                          <button className="btn btn-outline-primary btn-sm flex-fill" disabled={open} onClick={() => setViewId(item.studentId)}>
+                            {open ? "Viewing" : "View"}
+                          </button>
+                          <button className="btn btn-outline-secondary btn-sm flex-fill" disabled={building} onClick={() => startJob([item], "single")}>
+                            <i className="bi bi-download" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {lockedItems.length > 0 && lock?.enforced && (
+              <p className="text-muted small mt-3 mb-0">
+                {lockedItems.length} report(s) are locked: they can't be viewed or downloaded until the report fee
+                (GHS {lock.price.toFixed(2)} per learner) is paid. Each class gets one free report per term.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {currentJobItem && templateSettings && (
         <div style={{ position: "fixed", left: -10000, top: 0 }}>
           <ReportPrintSurface
-            key={currentItem.studentId}
-            snapshots={[currentItem.snapshot]}
+            key={`job-${currentJobItem.studentId}`}
+            snapshots={[currentJobItem.snapshot]}
             settings={templateSettings}
-            onReady={handleCurrentReady}
+            onReady={handleJobReady}
             hidden
           />
         </div>

@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudTermService } from "@services/cloud/TermService";
+import { CloudClassService } from "@services/cloud/ClassService";
+import { CloudEnrollmentService } from "@services/cloud/EnrollmentService";
 import { CloudStudentService } from "@services/cloud/StudentService";
 import { CloudTemplateSettingsService } from "@services/cloud/TemplateSettingsService";
 import { CloudReportGenerationService } from "@services/cloud/ReportGenerationService";
@@ -12,20 +14,18 @@ import { ReportLockShield } from "@components/ReportLockShield";
 import { ReportPrintSurface } from "@reporting/ReportPrintSurface";
 import type { ReportSnapshot } from "@reporting/ReportSnapshot.types";
 import type { TemplateSettings } from "@models/TemplateSettings";
-import type { TermRow, StudentRow, GeneratedReportRow } from "@/types/database";
+import type { TermRow, ClassRow, StudentRow, GeneratedReportRow } from "@/types/database";
 
 function fullNameOf(s: StudentRow): string {
   return [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" ");
 }
 
 /**
- * The payoff screen: turns everything built so far (registration,
- * assessment entry, the grading engine, the freeze step) into an actual
- * report card a parent could be handed. Deliberately student-at-a-time
- * rather than a batch/class view - proving one report end to end
- * correctly matters more right now than covering every workflow at
- * once; a "generate for a whole class" screen is a small extension of
- * this once this is trusted.
+ * Reports for one learner. Pick the CLASS first, then the learner from that
+ * class (so a school with hundreds of learners never has to scroll one long
+ * list). The first report opened in a class is free (one free report per class
+ * each term) - it is unlocked automatically; later ones show a locked preview
+ * until the report fee is paid.
  *
  * Renders through the exact same ReportPrintSurface/ReportPage/template
  * components the offline app uses (see @reporting/*) - nothing here is
@@ -35,11 +35,14 @@ export function CloudReportView() {
   const { profile } = useCloudAuth();
 
   const [term, setTerm] = useState<TermRow | null>(null);
+  const [classes, setClasses] = useState<ClassRow[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [templateSettings, setTemplateSettings] = useState<TemplateSettings | null>(null);
   const [loadingContext, setLoadingContext] = useState(true);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [loadingRoster, setLoadingRoster] = useState(false);
 
+  const [classId, setClassId] = useState("");
   const [studentId, setStudentId] = useState("");
   const [validation, setValidation] = useState<ReportValidationResult | null>(null);
   const [report, setReport] = useState<GeneratedReportRow | null>(null);
@@ -52,18 +55,20 @@ export function CloudReportView() {
   const [pageElements, setPageElements] = useState<HTMLElement[]>([]);
   const [lock, setLock] = useState<LockState | null>(null);
   const [claiming, setClaiming] = useState(false);
+  const [autoFreeNote, setAutoFreeNote] = useState<string | null>(null);
+  const autoTriedRef = useRef(new Set<string>());
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       CloudTermService.getActive(profile?.school_id),
-      CloudStudentService.list({ status: "ACTIVE" }),
+      CloudClassService.list(undefined, profile?.school_id),
       profile?.school_id ? CloudTemplateSettingsService.get(profile.school_id) : Promise.resolve(null),
     ])
-      .then(([activeTerm, studentRows, settings]) => {
+      .then(([activeTerm, classRows, settings]) => {
         if (cancelled) return;
         setTerm(activeTerm);
-        setStudents(studentRows);
+        setClasses(CloudClassService.forRole(classRows, profile));
         setTemplateSettings(settings);
       })
       .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load setup data."))
@@ -71,7 +76,32 @@ export function CloudReportView() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.school_id]);
+
+  // Learners of the chosen class only.
+  useEffect(() => {
+    setStudentId("");
+    setStudents([]);
+    if (!classId || !term) return;
+    let cancelled = false;
+    setLoadingRoster(true);
+    CloudEnrollmentService.getRoster(term.id, classId)
+      .then((roster) => CloudStudentService.listByIds(roster.map((e) => e.student_id)))
+      .then((rows) => {
+        if (cancelled) return;
+        setStudents(
+          rows
+            .filter((s) => s.status === "ACTIVE")
+            .sort((a, b) => fullNameOf(a).localeCompare(fullNameOf(b)))
+        );
+      })
+      .catch((err) => !cancelled && setContextError(err instanceof Error ? err.message : "Could not load this class."))
+      .finally(() => !cancelled && setLoadingRoster(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [classId, term]);
 
   const reloadLock = useCallback(async () => {
     if (!term) return;
@@ -91,11 +121,13 @@ export function CloudReportView() {
       setValidation(null);
       setReport(null);
       setStale(false);
+      setAutoFreeNote(null);
       return;
     }
     let cancelled = false;
     setLoadingStudent(true);
     setStudentError(null);
+    setAutoFreeNote(null);
     setPageElements([]);
     Promise.all([
       validateReportPrerequisites(studentId, term.id),
@@ -122,6 +154,22 @@ export function CloudReportView() {
   // A report is locked until paid for (or it is the class's one free report).
   const locked = !!report && !!lock && lock.isLocked(report.student_id);
   const classFreeUsed = !!report && !!lock && lock.freeClasses.has(report.class_id);
+
+  // The first report opened in a class is free - unlock it automatically.
+  useEffect(() => {
+    if (!report || !lock || !term || !locked || classFreeUsed) return;
+    if (autoTriedRef.current.has(report.student_id)) return;
+    autoTriedRef.current.add(report.student_id);
+    void (async () => {
+      try {
+        await ReportBillingService.claimFree(report.student_id, term.id);
+        await reloadLock();
+        setAutoFreeNote("This is the class's free report for this term - opened free of charge.");
+      } catch {
+        /* stays locked; the manual button below still works */
+      }
+    })();
+  }, [report, lock, term, locked, classFreeUsed, reloadLock]);
 
   async function handleUseFree() {
     if (!term || !studentId) return;
@@ -199,15 +247,37 @@ export function CloudReportView() {
         </p>
 
         <div className="actrs-card p-3 mb-4">
-          <label className="form-label small">Student</label>
-          <select className="form-select" value={studentId} onChange={(e) => setStudentId(e.target.value)} style={{ maxWidth: 420 }}>
-            <option value="">Select a student…</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {fullNameOf(s)} ({s.student_id})
-              </option>
-            ))}
-          </select>
+          <div className="row g-3">
+            <div className="col-md-5">
+              <label className="form-label small">1. Class</label>
+              <select className="form-select" value={classId} onChange={(e) => setClassId(e.target.value)}>
+                <option value="">Select a class…</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-5">
+              <label className="form-label small">2. Learner</label>
+              <select
+                className="form-select"
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                disabled={!classId || loadingRoster}
+              >
+                <option value="">
+                  {!classId ? "Choose a class first" : loadingRoster ? "Loading learners…" : students.length === 0 ? "No learners in this class" : "Select a learner…"}
+                </option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {fullNameOf(s)} ({s.student_id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {studentError && <div className="alert alert-danger">{studentError}</div>}
@@ -277,7 +347,8 @@ export function CloudReportView() {
             )}
           </div>
         )}
-        {report && !locked && lock?.enforced && (
+        {autoFreeNote && !locked && <div className="alert alert-success py-2 small">{autoFreeNote}</div>}
+        {report && !locked && lock?.enforced && !autoFreeNote && (
           <div className="alert alert-success py-2 small">This report is unlocked.</div>
         )}
       </div>
@@ -286,20 +357,20 @@ export function CloudReportView() {
         <div className="d-flex justify-content-center">
           {locked ? (
             <ReportLockShield>
-            <ReportPrintSurface
-            snapshots={[snapshot]}
-            settings={templateSettings}
-            onReady={handlePagesReady}
-            className="actrs-report-print-area"
-          />
+              <ReportPrintSurface
+                snapshots={[snapshot]}
+                settings={templateSettings}
+                onReady={handlePagesReady}
+                className="actrs-report-print-area"
+              />
             </ReportLockShield>
           ) : (
             <ReportPrintSurface
-            snapshots={[snapshot]}
-            settings={templateSettings}
-            onReady={handlePagesReady}
-            className="actrs-report-print-area"
-          />
+              snapshots={[snapshot]}
+              settings={templateSettings}
+              onReady={handlePagesReady}
+              className="actrs-report-print-area"
+            />
           )}
         </div>
       )}
