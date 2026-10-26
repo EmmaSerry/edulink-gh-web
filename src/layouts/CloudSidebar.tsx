@@ -53,6 +53,8 @@ interface NavItem {
   mockOnly?: boolean;
   /** Mock Exams district view: district_admin, platform_admin. */
   mockDistrictOnly?: boolean;
+  /** Daily attendance register: teacher and school_admin. */
+  attendanceOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -63,6 +65,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/statistics", label: "Statistics", icon: "bi-bar-chart-line" },
   { path: "/staff", label: "Staff", icon: "bi-person-badge", adminOnly: true },
   { path: "/send-details", label: "Send login details", icon: "bi-send", adminOnly: true },
+  { path: "/attendance", label: "Daily attendance", icon: "bi-calendar-check", attendanceOnly: true },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
@@ -110,6 +113,7 @@ export function CloudSidebar() {
   const isSubscriptionSubmitter = !!profile && SUBSCRIPTION_SUBMIT_ROLES.includes(profile.role);
 
   const items = NAV_ITEMS.filter((item) => {
+    if (item.attendanceOnly) return !!profile && ["school_admin", "teacher"].includes(profile.role);
     if (item.mockOnly) return !!profile && MOCK_ROLES.includes(profile.role);
     if (item.mockDistrictOnly) return isDistrictAdmin;
     if (item.districtOnly) return isDistrictAdmin;

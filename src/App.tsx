@@ -13,6 +13,7 @@ import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudBatchReportGeneration } from "@pages/cloud/CloudBatchReportGeneration";
 import { CloudSampleReportPreview } from "@pages/cloud/CloudSampleReportPreview";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
+import { CloudDailyAttendance } from "@pages/cloud/CloudDailyAttendance";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
 import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
@@ -48,15 +49,9 @@ import { ThemeProvider } from "@contexts/ThemeContext";
  * EduLink GH cloud app routes.
  *
  * "/" is the public marketing homepage (PublicHome) - unauthenticated,
- * always reachable, works for a visitor who's never signed in.
- * Everything that used to live at "/" (the actual dashboard) moved to
- * "/dashboard" to make room for it; CloudSidebar's Dashboard link and
- * CloudLogin's post-sign-in redirect both point there now.
- *
- * "/signup" registers a single school; "/signup/district" (new)
- * registers a whole district, for a district office wanting its own
- * account that other schools sign up under - see
- * edulink_gh_district_signup.sql and CloudDistrictSignup.tsx.
+ * always reachable. The actual dashboard lives at "/dashboard".
+ * "/signup" registers a single school; "/signup/district" registers a
+ * whole district. "/attendance" is the daily attendance register.
  */
 export default function App() {
   return (
@@ -101,6 +96,7 @@ export default function App() {
           <Route path="/students/register" element={<CloudStudentRegister />} />
           <Route path="/students/:id/edit" element={<CloudStudentEdit />} />
           <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
+          <Route path="/attendance" element={<CloudDailyAttendance />} />
           <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
           <Route path="/reports" element={<CloudReportView />} />
           <Route path="/reports/batch" element={<CloudBatchReportGeneration />} />
