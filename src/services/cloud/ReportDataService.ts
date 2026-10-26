@@ -166,7 +166,12 @@ export async function validateReportPrerequisites(
     issues.push({ code: "MISSING_ATTENDANCE", message: "Attendance (days present) has not been recorded yet." });
   }
 
-  if (!reportRecord?.progression?.trim()) {
+  const [term] = await rest.select<TermRow>("terms", { filters: { id: `eq.${termId}` }, limit: 1 });
+
+  // The promotion/progression decision only exists at the end of the year
+  // (Term 3). In Term 1 and Term 2 nobody is promoted, so it must not block
+  // a report - it is only required when the term being reported is Term 3.
+  if (term?.term_number === 3 && !reportRecord?.progression?.trim()) {
     issues.push({
       code: "MISSING_PROMOTION",
       message: isKg
@@ -175,7 +180,6 @@ export async function validateReportPrerequisites(
     });
   }
 
-  const [term] = await rest.select<TermRow>("terms", { filters: { id: `eq.${termId}` }, limit: 1 });
   if (!term?.vacation_date || !term?.reopening_date || !term?.total_school_days) {
     issues.push({
       code: "INCOMPLETE_TERM",
@@ -231,7 +235,9 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
     studentIds.length > 0
       ? await rest.select<StudentRow>("students", { filters: { id: inList(studentIds) } })
       : [];
-  const reportRecords = await CloudReportRecordService.getForTerm(termId);
+  // Only this class's report rows (not the whole school's) - keeps batch
+  // generation fast on big schools.
+  const reportRecords = await CloudReportRecordService.getForStudents(termId, studentIds);
   const reportRecordByStudent = new Map<string, ReportRecordRow>(
     reportRecords.filter((r) => studentIds.includes(r.student_id)).map((r) => [r.student_id, r])
   );
@@ -331,7 +337,7 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
     const allRatings =
       studentIds.length > 0
         ? await rest.select<SkillAssessmentRecordRow>("skill_assessment_records", {
-            filters: { term_id: `eq.${termId}` },
+            filters: { term_id: `eq.${termId}`, student_id: inList(studentIds) },
           })
         : [];
 
@@ -432,7 +438,9 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
 
   const allScores =
     studentIds.length > 0
-      ? await rest.select<ScoreRecordRow>("score_records", { filters: { term_id: `eq.${termId}` } })
+      ? await rest.select<ScoreRecordRow>("score_records", {
+          filters: { term_id: `eq.${termId}`, student_id: inList(studentIds) },
+        })
       : [];
 
   // scoresByStudentAndSubject: the ONLY lookup used to build a subject's
