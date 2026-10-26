@@ -92,6 +92,7 @@ export function ScoredReportLayout({
     color: tiles[i].text,
     backgroundColor: tiles[i].from,
     backgroundImage: `linear-gradient(135deg, ${tiles[i].from} 0%, ${tiles[i].to} 100%)`,
+    borderColor: tiles[i].to,
   });
 
   return (
