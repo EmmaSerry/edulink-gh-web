@@ -55,6 +55,8 @@ interface NavItem {
   mockDistrictOnly?: boolean;
   /** Daily attendance register: teacher and school_admin. */
   attendanceOnly?: boolean;
+  /** Attendance reports: teacher, school_admin, district_admin, platform_admin. */
+  attendanceReportsOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -66,6 +68,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/staff", label: "Staff", icon: "bi-person-badge", adminOnly: true },
   { path: "/send-details", label: "Send login details", icon: "bi-send", adminOnly: true },
   { path: "/attendance", label: "Daily attendance", icon: "bi-calendar-check", attendanceOnly: true },
+  { path: "/attendance/reports", label: "Attendance reports", icon: "bi-graph-up", attendanceReportsOnly: true },
   { path: "/assessments", label: "Assessment entry", icon: "bi-clipboard-check" },
   { path: "/report-remarks", label: "Remarks & attendance", icon: "bi-journal-text" },
   { path: "/reports", label: "Reports", icon: "bi-file-earmark-text" },
@@ -113,6 +116,8 @@ export function CloudSidebar() {
   const isSubscriptionSubmitter = !!profile && SUBSCRIPTION_SUBMIT_ROLES.includes(profile.role);
 
   const items = NAV_ITEMS.filter((item) => {
+    if (item.attendanceReportsOnly)
+      return !!profile && ["teacher", "school_admin", "district_admin", "platform_admin"].includes(profile.role);
     if (item.attendanceOnly) return !!profile && ["school_admin", "teacher"].includes(profile.role);
     if (item.mockOnly) return !!profile && MOCK_ROLES.includes(profile.role);
     if (item.mockDistrictOnly) return isDistrictAdmin;

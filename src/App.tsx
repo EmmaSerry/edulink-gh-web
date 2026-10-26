@@ -14,6 +14,7 @@ import { CloudBatchReportGeneration } from "@pages/cloud/CloudBatchReportGenerat
 import { CloudSampleReportPreview } from "@pages/cloud/CloudSampleReportPreview";
 import { CloudReportRemarksEntry } from "@pages/cloud/CloudReportRemarksEntry";
 import { CloudDailyAttendance } from "@pages/cloud/CloudDailyAttendance";
+import { CloudAttendanceReports } from "@pages/cloud/CloudAttendanceReports";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
 import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
@@ -97,6 +98,7 @@ export default function App() {
           <Route path="/students/:id/edit" element={<CloudStudentEdit />} />
           <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
           <Route path="/attendance" element={<CloudDailyAttendance />} />
+          <Route path="/attendance/reports" element={<CloudAttendanceReports />} />
           <Route path="/report-remarks" element={<CloudReportRemarksEntry />} />
           <Route path="/reports" element={<CloudReportView />} />
           <Route path="/reports/batch" element={<CloudBatchReportGeneration />} />
