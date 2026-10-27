@@ -1,0 +1,52 @@
+/* "How it works" section and screen showcase on the public home page. */
+.hw-section { padding: 3.5rem 0; }
+.hw-lead { max-width: 760px; margin: 0 auto 2.5rem; text-align: center; font-size: 1.1rem; }
+
+.hw-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.25rem; counter-reset: hw; }
+.hw-step { position: relative; padding: 1.4rem 1.25rem 1.25rem; }
+.hw-step-num {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: linear-gradient(135deg, #123363, #0ea5c4); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 1.15rem; margin-bottom: 0.85rem;
+  box-shadow: 0 3px 10px rgba(18, 51, 99, 0.35);
+}
+.hw-step h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; }
+.hw-step p { margin: 0; font-size: 0.95rem; }
+.hw-step ul { margin: 0.6rem 0 0; padding-left: 1.1rem; font-size: 0.9rem; }
+
+.hw-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-top: 2.5rem; }
+.hw-role { padding: 1.1rem 1.2rem; }
+.hw-role .bi { font-size: 1.5rem; color: #0ea5c4; }
+.hw-role h4 { font-size: 1rem; font-weight: 700; margin: 0.4rem 0 0.25rem; }
+.hw-role p { margin: 0; font-size: 0.9rem; }
+
+.hw-showcase { max-width: 980px; margin: 0 auto; }
+.hw-showcase-stage {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #0b1a30, #123363 60%, #0b7fa8);
+  border-radius: 18px; padding: 1.2rem; min-height: 280px;
+  box-shadow: 0 14px 40px rgba(11, 26, 48, 0.35);
+}
+.hw-frame { width: 100%; border-radius: 10px; overflow: hidden; background: #fff; animation: hwFade 0.6s ease both; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); }
+.hw-frame img { display: block; width: 100%; height: auto; }
+.hw-frame.is-portrait { width: auto; max-width: 62%; }
+.hw-frame.is-portrait img { max-height: 520px; width: auto; max-width: 100%; margin: 0 auto; }
+@keyframes hwFade { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+.hw-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 42px; height: 42px; border-radius: 50%; border: 0;
+  background: rgba(255, 255, 255, 0.92); color: #123363; font-size: 1.1rem;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.hw-prev { left: 10px; } .hw-next { right: 10px; }
+.hw-showcase-caption { text-align: center; margin-top: 1rem; }
+.hw-showcase-title { font-size: 1.25rem; font-weight: 800; }
+.hw-showcase-text { font-size: 1rem; margin-top: 0.15rem; }
+.hw-showcase-note { font-size: 0.78rem; opacity: 0.7; margin-top: 0.25rem; }
+.hw-dots { display: flex; gap: 8px; justify-content: center; margin-top: 0.8rem; }
+.hw-dots button { width: 11px; height: 11px; border-radius: 50%; border: 0; background: #9aa7b8; padding: 0; cursor: pointer; }
+.hw-dots button.on { background: #123363; width: 28px; border-radius: 6px; }
+[data-bs-theme="dark"] .hw-dots button.on { background: #0ea5c4; }
+
+@media (prefers-reduced-motion: reduce) { .hw-frame { animation: none; } }
