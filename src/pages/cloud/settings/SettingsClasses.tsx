@@ -9,11 +9,10 @@ import type { ClassRow, LevelRow, UserProfileRow } from "@/types/database";
 const BLANK_FORM = { levelId: "", name: "", code: "", capacity: "" };
 
 /**
- * Settings -> Classes. The other half of what phase0o closes: creating
- * a class, and - the specific gap that was blocking testing the
- * teacher-scoped RLS from phase0l - assigning which staff member is
- * that class's teacher. Nothing here works until Settings -> Staff has
- * at least one teacher account to assign.
+ * Settings -> Classes. Creating a class, and assigning which staff
+ * member is that class's teacher. The class-teacher list offers active
+ * teachers AND school administrators, so a head teacher who also teaches
+ * a class can pick himself without needing a second teacher account.
  */
 export function SettingsClasses() {
   const { profile } = useCloudAuth();
@@ -31,7 +30,17 @@ export function SettingsClasses() {
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
 
-  const teachers = useMemo(() => staff.filter((s) => s.role === "teacher" && s.is_active), [staff]);
+  // Teachers first, then school administrators (labelled), each by name.
+  const teachers = useMemo(
+    () =>
+      staff
+        .filter((s) => (s.role === "teacher" || s.role === "school_admin") && s.is_active)
+        .sort((a, b) => {
+          if (a.role !== b.role) return a.role === "teacher" ? -1 : 1;
+          return a.full_name.localeCompare(b.full_name);
+        }),
+    [staff]
+  );
   const levelName = (id: string) => levels.find((l) => l.id === id)?.name ?? "Unknown level";
 
   function load() {
@@ -99,7 +108,7 @@ export function SettingsClasses() {
       {assignError && <div className="alert alert-danger py-2">{assignError}</div>}
       {teachers.length === 0 && !loading && (
         <div className="alert alert-warning py-2 small">
-          No teacher accounts yet - add one under Settings → Staff before you can assign a class teacher.
+          No staff available to assign yet - add a teacher under Staff before you can assign a class teacher.
         </div>
       )}
 
@@ -170,7 +179,7 @@ export function SettingsClasses() {
               <tr>
                 <th>Class</th>
                 <th>Level</th>
-                <th style={{ width: 260 }}>Class teacher</th>
+                <th style={{ width: 280 }}>Class teacher</th>
                 <th style={{ width: 120 }}></th>
               </tr>
             </thead>
@@ -193,6 +202,7 @@ export function SettingsClasses() {
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.full_name}
+                          {t.role === "school_admin" ? " (administrator)" : ""}
                         </option>
                       ))}
                     </select>
