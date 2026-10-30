@@ -299,7 +299,12 @@ export async function buildClassSnapshots(classId: string, termId: string): Prom
     name: school?.name ?? "",
     schoolCode: school?.school_code ?? "",
     circuit: school?.circuit ?? "",
-    district: district?.name ?? "",
+    // A school whose district is not on EduLink GH yet prints the district name
+    // it typed itself (Settings -> School profile).
+    district:
+      district?.name ??
+      (school as (typeof school & { district_name_manual?: string | null }) | null | undefined)?.district_name_manual ??
+      "",
     region: school?.region ?? "",
     postalAddress: school?.postal_address ?? undefined,
     digitalAddress: school?.digital_address ?? undefined,

@@ -131,7 +131,7 @@ export function CloudStudents() {
           <h1 className="h4 mb-0">Learners</h1>
           <div className="text-muted small">{rows === null ? "Loading…" : `${total} learner${total === 1 ? "" : "s"}`}</div>
         </div>
-        <div className="d-flex align-items-center gap-2">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
           <button
             type="button"
             className="btn btn-outline-secondary text-nowrap"
@@ -141,6 +141,20 @@ export function CloudStudents() {
             <i className="bi bi-download me-1" />
             Export CSV
           </button>
+          <a
+            href="/tools/photo-editor.html"
+            target="_blank"
+            rel="noopener"
+            className="btn btn-outline-primary text-nowrap"
+            title="Crop, clean and resize a whole class's photos at once (opens in a new tab, works offline)"
+          >
+            <i className="bi bi-images me-1" />
+            Photo editor
+          </a>
+          <Link to="/students/photos" className="btn btn-outline-primary text-nowrap" title="Attach finished photos to a class">
+            <i className="bi bi-person-bounding-box me-1" />
+            Import photos
+          </Link>
           <Link to="/students/register" className="btn btn-primary text-nowrap">
             <i className="bi bi-person-plus me-1" />
             Register student

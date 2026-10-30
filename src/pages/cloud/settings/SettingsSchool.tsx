@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
 import { CloudCircuitService } from "@services/cloud/CircuitService";
+import { rest } from "@/lib/supabaseClient";
 import { resizeImageToDataUrl } from "@/lib/imageResize";
-import type { SchoolRow, CircuitRow } from "@/types/database";
+import type { SchoolRow, CircuitRow, DistrictRow } from "@/types/database";
+
+/** A school row, plus the district name a school can type by hand when its
+ *  district is not on EduLink GH yet (see STEP-1_independent_schools.sql). */
+type SchoolWithManualDistrict = SchoolRow & { district_name_manual?: string | null };
 
 type FormState = {
   name: string;
   school_code: string;
+  district_name_manual: string;
   circuit: string;
   region: string;
   postal_address: string;
@@ -25,6 +31,7 @@ type FormState = {
 const BLANK: FormState = {
   name: "",
   school_code: "",
+  district_name_manual: "",
   circuit: "",
   region: "",
   postal_address: "",
@@ -40,10 +47,11 @@ const BLANK: FormState = {
   report_footer: "",
 };
 
-function rowToForm(row: SchoolRow): FormState {
+function rowToForm(row: SchoolWithManualDistrict): FormState {
   return {
     name: row.name ?? "",
     school_code: row.school_code ?? "",
+    district_name_manual: row.district_name_manual ?? "",
     circuit: row.circuit ?? "",
     region: row.region ?? "",
     postal_address: row.postal_address ?? "",
@@ -71,12 +79,19 @@ function rowToForm(row: SchoolRow): FormState {
  * shown here read-only: it doubles as the school administrator's
  * sign-in name, and the database no longer lets it be edited, so it is
  * deliberately left out of what gets saved below.
+ *
+ * District: a school connected to a district on EduLink GH just shows
+ * that district's name (read-only, and picks its circuit from the
+ * district's list). A school whose district has not joined yet - an
+ * "independent" school - types its district name and circuit by hand
+ * here; the Super Admin connects it to the real district later.
  */
 export function SettingsSchool() {
-  const [school, setSchool] = useState<SchoolRow | null>(null);
+  const [school, setSchool] = useState<SchoolWithManualDistrict | null>(null);
   const [form, setForm] = useState<FormState>(BLANK);
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [circuits, setCircuits] = useState<CircuitRow[]>([]);
+  const [linkedDistrictName, setLinkedDistrictName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -89,12 +104,19 @@ export function SettingsSchool() {
     CloudSchoolService.getProfile()
       .then(async (row) => {
         if (cancelled || !row) return;
-        setSchool(row);
-        setForm(rowToForm(row));
-        setLogoDataUrl(row.logo_data_url);
-        if (row.district_id) {
-          const circuitRows = await CloudCircuitService.list(row.district_id);
+        const r = row as SchoolWithManualDistrict;
+        setSchool(r);
+        setForm(rowToForm(r));
+        setLogoDataUrl(r.logo_data_url);
+        if (r.district_id) {
+          const circuitRows = await CloudCircuitService.list(r.district_id);
           if (!cancelled) setCircuits(circuitRows);
+          try {
+            const [d] = await rest.select<DistrictRow>("districts", { filters: { id: `eq.${r.district_id}` }, limit: 1 });
+            if (!cancelled && d) setLinkedDistrictName(d.name);
+          } catch {
+            /* the district name is only a label; the page works without it */
+          }
         }
       })
       .catch((err) => !cancelled && setLoadError(err instanceof Error ? err.message : "Could not load school profile."))
@@ -131,16 +153,19 @@ export function SettingsSchool() {
     setSaved(false);
     try {
       // school_code is assigned automatically and locked - never sent.
-      const { school_code, ...editable } = form;
+      const { school_code, district_name_manual, ...editable } = form;
       void school_code;
-      const updated = await CloudSchoolService.saveProfile(school.id, {
+      const payload = {
         ...editable,
         logo_data_url: logoDataUrl,
-      });
+        // The typed district name only applies while the school has no real district.
+        ...(school.district_id ? {} : { district_name_manual: district_name_manual.trim() || null }),
+      };
+      const updated = await CloudSchoolService.saveProfile(school.id, payload);
       if (!updated) {
         throw new Error("Your changes could not be saved - you may not have permission to edit this school's profile.");
       }
-      setSchool(updated);
+      setSchool(updated as SchoolWithManualDistrict);
       setSaved(true);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Could not save changes.");
@@ -152,6 +177,8 @@ export function SettingsSchool() {
   if (loading) return <p className="text-muted">Loading school profile…</p>;
   if (loadError) return <div className="alert alert-danger">{loadError}</div>;
   if (!school) return <div className="alert alert-warning">No school record found for your account.</div>;
+
+  const hasDistrict = !!school.district_id;
 
   return (
     <form onSubmit={handleSubmit}>
@@ -226,11 +253,33 @@ export function SettingsSchool() {
               <input className="form-control" {...field("circuit")} />
             )}
           </div>
+
+          <div className="col-md-6">
+            <label className="form-label small">District</label>
+            {hasDistrict ? (
+              <>
+                <input className="form-control" value={linkedDistrictName || "Your district"} readOnly disabled />
+                <div className="form-text">Your school is connected to this district on EduLink GH.</div>
+              </>
+            ) : (
+              <>
+                <input
+                  className="form-control"
+                  placeholder="e.g. Tarkwa Nsuaem Municipal"
+                  {...field("district_name_manual")}
+                />
+                <div className="form-text">
+                  Your district is not on EduLink GH yet, so type its name here. It will print on your report
+                  cards. When your district joins, EduLink GH will connect your school to it.
+                </div>
+              </>
+            )}
+          </div>
           <div className="col-md-6">
             <label className="form-label small">Region</label>
             <input className="form-control" {...field("region")} />
           </div>
-          <div className="col-md-6">
+          <div className="col-12">
             <label className="form-label small">Motto</label>
             <input className="form-control" {...field("motto")} />
           </div>

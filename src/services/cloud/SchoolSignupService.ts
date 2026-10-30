@@ -1,18 +1,26 @@
 /**
  * Self-service school registration - see
- * edulink_gh_phase0w_school_self_signup.sql. listDistricts()/
- * listCircuits() are callable before signing in (that's the whole
- * point - populating the form's dropdowns); register() must run AFTER
- * auth.signUpAndSignIn() has put a fresh session in place, since the
- * underlying RPC identifies which account it's setting up via
- * auth.uid(), not a parameter the browser could tamper with.
+ * edulink_gh_phase0w_school_self_signup.sql and
+ * STEP-1_independent_schools.sql. listDistricts()/listCircuits() are
+ * callable before signing in (that's the whole point - populating the
+ * form's dropdowns); register() must run AFTER auth.signUpAndSignIn()
+ * has put a fresh session in place, since the underlying RPC identifies
+ * which account it's setting up via auth.uid(), not a parameter the
+ * browser could tamper with.
+ *
+ * districtId may be null: the school's district is not on EduLink GH
+ * yet. Such an "independent" school can type its district name by hand
+ * (districtName) and is linked to the real district later by the Super
+ * Admin.
  */
 import { rest } from "@/lib/supabaseClient";
 import type { DistrictOption, CircuitOption } from "@/types/database";
 
 export interface SchoolSignupInput {
   schoolName: string;
-  districtId: string;
+  districtId: string | null;
+  /** Typed by hand when the district is not on the list. */
+  districtName?: string;
   circuit: string;
   region: string;
   isPrivate: boolean;
@@ -46,6 +54,7 @@ class CloudSchoolSignupServiceImpl {
       p_is_private: input.isPrivate,
       p_full_name: input.fullName,
       p_phone: input.phone || null,
+      p_district_name: input.districtName?.trim() ? input.districtName.trim() : null,
     });
   }
 }

@@ -8,6 +8,8 @@ import { CloudDashboard } from "@pages/cloud/CloudDashboard";
 import { CloudStudents } from "@pages/cloud/CloudStudents";
 import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
 import { CloudStudentEdit } from "@pages/cloud/CloudStudentEdit";
+import { CloudPhotoImport } from "@pages/cloud/CloudPhotoImport";
+import { CloudIndependentSchools } from "@pages/cloud/CloudIndependentSchools";
 import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace";
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudBatchReportGeneration } from "@pages/cloud/CloudBatchReportGeneration";
@@ -53,6 +55,10 @@ import { ThemeProvider } from "@contexts/ThemeContext";
  * always reachable. The actual dashboard lives at "/dashboard".
  * "/signup" registers a single school; "/signup/district" registers a
  * whole district. "/attendance" is the daily attendance register.
+ * "/independent-schools" (Super Admin) connects schools whose district is not on
+ * EduLink GH yet to their district once it has joined.
+ * "/students/photos" attaches finished photos (from the Batch Photo
+ * Editor at /tools/photo-editor.html) to a class.
  */
 export default function App() {
   return (
@@ -95,6 +101,7 @@ export default function App() {
             }
           />
           <Route path="/students/register" element={<CloudStudentRegister />} />
+          <Route path="/students/photos" element={<CloudPhotoImport />} />
           <Route path="/students/:id/edit" element={<CloudStudentEdit />} />
           <Route path="/assessments" element={<CloudAssessmentWorkspace />} />
           <Route path="/attendance" element={<CloudDailyAttendance />} />
@@ -246,6 +253,14 @@ export default function App() {
             element={
               <RequireAdmin roles="platform">
                 <CloudDistrictAdmins />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/independent-schools"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudIndependentSchools />
               </RequireAdmin>
             }
           />

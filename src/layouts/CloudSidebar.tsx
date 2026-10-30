@@ -85,6 +85,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/report-payments", label: "Report payments", icon: "bi-cash-stack", platformOnly: true },
   { path: "/messaging-admin", label: "Messaging & payments", icon: "bi-megaphone", platformOnly: true },
   { path: "/district-admins", label: "District admins", icon: "bi-person-gear", platformOnly: true },
+  { path: "/independent-schools", label: "Independent schools", icon: "bi-buildings", platformOnly: true },
   { path: "/training", label: "Training environment", icon: "bi-mortarboard", platformOnly: true },
   { path: "/audit-log", label: "Audit log", icon: "bi-clock-history", adminOnly: true },
   { path: "/settings", label: "Settings", icon: "bi-gear", adminOnly: true },

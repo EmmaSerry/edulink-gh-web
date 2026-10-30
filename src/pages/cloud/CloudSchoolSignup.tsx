@@ -5,12 +5,21 @@ import { auth } from "@/lib/supabaseClient";
 import { CloudSchoolSignupService } from "@services/cloud/SchoolSignupService";
 import type { DistrictOption, CircuitOption } from "@/types/database";
 
+/** The drop-down value meaning "my district is not on EduLink GH yet". */
+const NOT_LISTED = "__not_listed__";
+
 /**
  * Public "Register your school" page - the self-service replacement
  * for me setting up a new school by hand via SQL. See
  * edulink_gh_phase0w_school_self_signup.sql for what actually happens
  * server-side (school + admin profile + a full starter curriculum, all
  * in one RPC).
+ *
+ * A school whose district has not joined EduLink GH yet can still
+ * register: it picks "My district is not listed", may type its district
+ * and circuit by hand (both can also be added later under Settings ->
+ * School profile), and works as an independent school until the Super
+ * Admin links it to its district. See STEP-1_independent_schools.sql.
  *
  * The person filling this in becomes the school's ADMINISTRATOR
  * account (role school_admin) - not necessarily the head teacher.
@@ -34,7 +43,8 @@ export function CloudSchoolSignup() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [schoolName, setSchoolName] = useState("");
-  const [districtId, setDistrictId] = useState("");
+  const [districtChoice, setDistrictChoice] = useState("");
+  const [manualDistrict, setManualDistrict] = useState("");
   const [circuitChoice, setCircuitChoice] = useState("");
   const [customCircuit, setCustomCircuit] = useState("");
   const [region, setRegion] = useState("");
@@ -49,10 +59,14 @@ export function CloudSchoolSignup() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const notListed = districtChoice === NOT_LISTED;
+  // The real district id, or "" when nothing is chosen / the district is not listed.
+  const districtId = districtChoice && !notListed ? districtChoice : "";
+
   // Name-already-taken check (see edulink_gh_phase1l_school_name_check.sql).
-  // null = not checked yet / nothing to check. If the check itself
-  // fails (e.g. a dropped connection) it fails OPEN - registration is
-  // never blocked just because this helper couldn't be reached.
+  // Only for schools under a listed district. null = not checked yet / nothing
+  // to check. If the check itself fails (e.g. a dropped connection) it fails
+  // OPEN - registration is never blocked just because this helper couldn't be reached.
   const [nameTaken, setNameTaken] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -96,13 +110,13 @@ export function CloudSchoolSignup() {
     () =>
       schoolName.trim().length > 0 &&
       nameTaken !== true &&
-      districtId.length > 0 &&
+      districtChoice.length > 0 &&
       fullName.trim().length > 0 &&
       phone.trim().length > 0 &&
       email.trim().length > 0 &&
       password.length >= 6 &&
       passwordsMatch,
-    [schoolName, nameTaken, districtId, fullName, phone, email, password, passwordsMatch]
+    [schoolName, nameTaken, districtChoice, fullName, phone, email, password, passwordsMatch]
   );
 
   async function handleSubmit(e: FormEvent) {
@@ -113,19 +127,22 @@ export function CloudSchoolSignup() {
       // Re-check right before creating anything, in case the on-screen
       // check hadn't finished (or a name was taken in the meantime).
       // Fails open if the check can't be reached.
-      const taken = await CloudSchoolSignupService.isNameTaken(districtId, schoolName.trim()).catch(() => false);
-      if (taken) {
-        setNameTaken(true);
-        setSubmitting(false);
-        return;
+      if (districtId) {
+        const taken = await CloudSchoolSignupService.isNameTaken(districtId, schoolName.trim()).catch(() => false);
+        if (taken) {
+          setNameTaken(true);
+          setSubmitting(false);
+          return;
+        }
       }
 
       await auth.signUpAndSignIn(email.trim(), password);
 
-      const circuit = circuitChoice === "__other__" ? customCircuit.trim() : circuitChoice;
+      const circuit = notListed ? customCircuit.trim() : circuitChoice === "__other__" ? customCircuit.trim() : circuitChoice;
       await CloudSchoolSignupService.register({
         schoolName: schoolName.trim(),
-        districtId,
+        districtId: districtId || null,
+        districtName: notListed ? manualDistrict.trim() : undefined,
         circuit,
         region: region.trim(),
         isPrivate,
@@ -171,42 +188,82 @@ export function CloudSchoolSignup() {
 
       <div className="mb-3">
         <label className="form-label small">District</label>
-        <select className="form-select" value={districtId} onChange={(e) => setDistrictId(e.target.value)} required>
+        <select
+          className="form-select"
+          value={districtChoice}
+          onChange={(e) => setDistrictChoice(e.target.value)}
+          required
+        >
           <option value="">Select a district…</option>
           {districts.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
             </option>
           ))}
+          <option value={NOT_LISTED}>My district is not on this list yet</option>
         </select>
-        <div className="form-text">
-          Don't see your district listed? <Link to="/signup/district">Register your district first</Link>.
-        </div>
+        {!notListed && (
+          <div className="form-text">
+            Your district office not on EduLink GH yet? Choose &ldquo;My district is not on this list yet&rdquo; and
+            your school can still use everything. Or <Link to="/signup/district">register your district</Link>.
+          </div>
+        )}
       </div>
+
+      {notListed && (
+        <div className="alert alert-info py-2 small">
+          No problem. Your school will work fully on its own. When your district joins EduLink GH, we will connect
+          your school to it. You can type your district and circuit now, or add them later under Settings &rarr; School
+          profile.
+        </div>
+      )}
+
+      {notListed && (
+        <div className="mb-3">
+          <label className="form-label small">District name (optional)</label>
+          <input
+            className="form-control"
+            value={manualDistrict}
+            onChange={(e) => setManualDistrict(e.target.value)}
+            placeholder="e.g. Tarkwa Nsuaem Municipal"
+          />
+        </div>
+      )}
 
       <div className="mb-3">
         <label className="form-label small">Circuit (optional)</label>
-        <select
-          className="form-select"
-          value={circuitChoice}
-          onChange={(e) => setCircuitChoice(e.target.value)}
-          disabled={!districtId}
-        >
-          <option value="">{districtId ? "None / not sure" : "Choose a district first"}</option>
-          {circuits.map((c) => (
-            <option key={c.id} value={c.name}>
-              {c.name}
-            </option>
-          ))}
-          <option value="__other__">My circuit isn't listed…</option>
-        </select>
-        {circuitChoice === "__other__" && (
+        {notListed ? (
           <input
-            className="form-control mt-2"
-            placeholder="Type your circuit's name"
+            className="form-control"
             value={customCircuit}
             onChange={(e) => setCustomCircuit(e.target.value)}
+            placeholder="Type your circuit's name"
           />
+        ) : (
+          <>
+            <select
+              className="form-select"
+              value={circuitChoice}
+              onChange={(e) => setCircuitChoice(e.target.value)}
+              disabled={!districtId}
+            >
+              <option value="">{districtId ? "None / not sure" : "Choose a district first"}</option>
+              {circuits.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="__other__">My circuit isn't listed…</option>
+            </select>
+            {circuitChoice === "__other__" && (
+              <input
+                className="form-control mt-2"
+                placeholder="Type your circuit's name"
+                value={customCircuit}
+                onChange={(e) => setCustomCircuit(e.target.value)}
+              />
+            )}
+          </>
         )}
       </div>
 
