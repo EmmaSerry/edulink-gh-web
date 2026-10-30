@@ -188,3 +188,35 @@ body:has(.actrs-topbar) .theme-fab {
     display: none !important;
   }
 }
+
+/* ---- Sidebar stays dark in light mode: keep its text light --------------
+   The sidebar is dark navy in BOTH modes (it is brand chrome), but the
+   light-mode rule above (".nav-pills .nav-link:not(.active)") turned its
+   menu text dark navy, so it vanished into the dark background. These rules
+   are more specific, so the sidebar text stays white. */
+html[data-bs-theme="light"] .actrs-sidebar,
+html[data-bs-theme="light"] .actrs-sidebar .fw-bold {
+  color: #ffffff;
+}
+
+html[data-bs-theme="light"] .actrs-sidebar .nav-pills .nav-link:not(.active),
+html[data-bs-theme="light"] .actrs-sidebar .nav-link:not(.active) {
+  color: rgba(255, 255, 255, 0.94);
+  font-weight: 600;
+}
+
+html[data-bs-theme="light"] .actrs-sidebar .nav-link:not(.active):hover,
+html[data-bs-theme="light"] .actrs-sidebar .nav-link.active {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+html[data-bs-theme="light"] .actrs-sidebar .nav-link i,
+html[data-bs-theme="light"] .actrs-sidebar .nav-link svg {
+  color: inherit;
+  opacity: 1;
+}
+
+html[data-bs-theme="light"] .actrs-sidebar .text-muted {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
