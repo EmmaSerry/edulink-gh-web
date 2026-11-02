@@ -319,24 +319,32 @@
     if (bg.type === "color") return bg.value;
     return bg.kind === "radial" ? "radial-gradient(circle," + bg.stops.join(",") + ")" : "linear-gradient(" + bg.stops.join(",") + ")";
   }
-  /** Puts the cut-out photo on the chosen background. Returns a Blob (PNG if no background, else JPEG). */
-  function compose(blob, bg) {
+  /** Draws a cut-out photo onto the chosen background at the chosen size.
+   *  spec: {mode:'id'|'whole', w, h}  (w/h null = keep the photo's own size)
+   *  maxW: optional, makes a small copy for on-screen thumbnails.
+   *  Returns a Blob (PNG if the background is "none", otherwise JPEG). */
+  function render(blob, bg, spec, maxW) {
     return createImageBitmap(blob).then(function (bmp) {
+      var W = spec && spec.w ? spec.w : bmp.width, H = spec && spec.h ? spec.h : bmp.height;
+      if (maxW && W > maxW) { H = Math.round(H * maxW / W); W = maxW; }
       var c = document.createElement("canvas");
-      c.width = bmp.width; c.height = bmp.height;
+      c.width = W; c.height = H;
       var x = c.getContext("2d");
+      x.imageSmoothingQuality = "high";
       if (bg && bg.type !== "none") {
         if (bg.type === "color") x.fillStyle = bg.value;
         else {
           var g = bg.kind === "radial"
-            ? x.createRadialGradient(c.width / 2, c.height * 0.4, 10, c.width / 2, c.height * 0.5, Math.max(c.width, c.height) * 0.75)
-            : x.createLinearGradient(0, 0, 0, c.height);
+            ? x.createRadialGradient(W / 2, H * 0.4, 10, W / 2, H * 0.5, Math.max(W, H) * 0.75)
+            : x.createLinearGradient(0, 0, 0, H);
           g.addColorStop(0, bg.stops[0]); g.addColorStop(1, bg.stops[1]);
           x.fillStyle = g;
         }
-        x.fillRect(0, 0, c.width, c.height);
+        x.fillRect(0, 0, W, H);
       }
-      x.drawImage(bmp, 0, 0);
+      var sc = (spec && spec.mode === "id") ? Math.max(W / bmp.width, H / bmp.height) : Math.min(W / bmp.width, H / bmp.height);
+      var dw = bmp.width * sc, dh = bmp.height * sc;
+      x.drawImage(bmp, (W - dw) / 2, (H - dh) / 2, dw, dh);
       return new Promise(function (res) {
         if (!bg || bg.type === "none") c.toBlob(res, "image/png");
         else c.toBlob(res, "image/jpeg", 0.93);
@@ -349,12 +357,108 @@
     return all.filter(function (i) { return !i.webkitdirectory && (!i.accept || /image/.test(i.accept)); })[0] || null;
   }
 
+  // ------------------------------------------------- face finding + framing
+  var MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+  var MODEL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
+  var detectorP = null;
+  function getDetector() {
+    if (!detectorP) {
+      detectorP = import(MP + "/vision_bundle.mjs").then(function (m) {
+        return m.FilesetResolver.forVisionTasks(MP + "/wasm").then(function (fs) {
+          return m.FaceDetector.createFromOptions(fs, {
+            baseOptions: { modelAssetPath: MODEL },
+            runningMode: "IMAGE",
+            minDetectionConfidence: 0.4,
+          });
+        });
+      }).catch(function () { return null; });
+    }
+    return detectorP;
+  }
+  /** Largest face in the picture, as {x,y,w,h} in the picture's own pixels, or null. */
+  function findFace(bmp) {
+    var sc = Math.min(1, 720 / Math.max(bmp.width, bmp.height));
+    var c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    return getDetector().then(function (d) {
+      if (d) {
+        try {
+          var dets = d.detect(c).detections || [];
+          var best = null;
+          dets.forEach(function (t) { var b = t.boundingBox; if (!best || b.width * b.height > best.width * best.height) best = b; });
+          if (best) return { x: best.originX / sc, y: best.originY / sc, w: best.width / sc, h: best.height / sc };
+        } catch (e) { /* fall through */ }
+      }
+      if (window.FaceDetector) {
+        try {
+          return new window.FaceDetector({ fastMode: true }).detect(c).then(function (fs) {
+            if (!fs.length) return null;
+            var b = fs.sort(function (p, q) { return q.boundingBox.width - p.boundingBox.width; })[0].boundingBox;
+            return { x: b.x / sc, y: b.y / sc, w: b.width / sc, h: b.height / sc };
+          }, function () { return null; });
+        } catch (e) { return null; }
+      }
+      return null;
+    });
+  }
+  /** The crop (in picture pixels) that frames an ID photo: face centred, head and shoulders. */
+  function idCrop(face, W, H, ar) {
+    var ch, cw, left, top;
+    if (face) {
+      ch = face.h / 0.46; cw = ch * ar;
+      left = face.x + face.w / 2 - cw / 2;
+      top = face.y + face.h / 2 - 0.46 * ch;
+      // keep inside the picture where we can
+      if (cw <= W) left = Math.min(Math.max(left, 0), W - cw);
+      if (ch <= H) top = Math.min(Math.max(top, 0), H - ch);
+    } else { // no face found: a centred upper crop
+      cw = Math.min(W, H * ar); ch = cw / ar;
+      left = (W - cw) / 2; top = Math.max(0, (H - ch) * 0.1);
+    }
+    return { x: left, y: top, w: cw, h: ch };
+  }
+  /** Frames the picture (face centred for ID photos) and shrinks it for the AI. Returns {blob, faceFound}. */
+  function prepare(file, spec) {
+    return createImageBitmap(file, { imageOrientation: "from-image" }).then(function (bmp) {
+      if (spec.mode !== "id") {
+        return { blob: null, bmp: bmp, faceFound: true };
+      }
+      return findFace(bmp).then(function (face) { return { bmp: bmp, face: face, faceFound: !!face }; });
+    }).then(function (p) {
+      var bmp = p.bmp, c = document.createElement("canvas"), x = c.getContext("2d");
+      var max = 1024;
+      if (spec.mode === "id") {
+        var ar = spec.w / spec.h, cr = idCrop(p.face, bmp.width, bmp.height, ar);
+        var sc = Math.min(1, max / Math.max(cr.w, cr.h));
+        c.width = Math.max(1, Math.round(cr.w * sc)); c.height = Math.max(1, Math.round(cr.h * sc));
+        x.fillStyle = "#ffffff"; x.fillRect(0, 0, c.width, c.height);
+        x.drawImage(bmp, cr.x, cr.y, cr.w, cr.h, 0, 0, c.width, c.height); // outside the picture stays white
+      } else {
+        var s2 = Math.min(1, max / Math.max(bmp.width, bmp.height));
+        c.width = Math.round(bmp.width * s2); c.height = Math.round(bmp.height * s2);
+        x.drawImage(bmp, 0, 0, c.width, c.height);
+      }
+      return new Promise(function (res) { c.toBlob(function (b) { res({ blob: b, faceFound: p.faceFound }); }, "image/jpeg", 0.9); });
+    });
+  }
+
+  var SIZES = [
+    { id: "passport", name: "Passport 35 x 45 mm", w: 413, h: 531 },
+    { id: "us", name: "Square 2 x 2 inch", w: 600, h: 600 },
+    { id: "p34", name: "Portrait 3:4 (600 x 800 px)", w: 600, h: 800 },
+    { id: "id25", name: "Small ID 25 x 30 mm", w: 295, h: 354 },
+    { id: "sq", name: "Square 500 x 500 px", w: 500, h: 500 },
+    { id: "custom", name: "Custom size..." },
+  ];
+
   // ------------------------------------------------------------ the studio
   function openStudio(cfg) {
     cfg = cfg || {};
     var page = !!cfg.page, embed = !!cfg.embed;
-    var files = [], results = [], sample = null, processed = false;
+    var files = [], results = [], flags = [], sample = null, processed = false;
     var mode = "remove", color = "#ffffff", presetId = "", enhance = false;
+    var ptype = "id", sizeId = "passport", cw = "35", ch = "45", cunit = "mm";
     var prices = null;
 
     var root = document.createElement("div");
@@ -367,14 +471,22 @@
       "<div class='edp-drop' id='edp-drop'>Tap here to choose photos<br><span style='font-weight:500;font-size:13px;color:#7c3aed'>" + (embed ? "one photo" : "up to 50 photos at a time") + "</span></div>" +
       "<input id='edp-files' type='file' accept='image/*' " + (embed ? "" : "multiple") + " style='display:none'>" +
       "<div class='edp-grid' id='edp-grid'></div></div>" +
-      "<div class='edp-card'><h3>2. What should the AI do?</h3><div class='edp-opts'>" +
+      "<div class='edp-card'><h3>2. Photo type and size</h3><div class='edp-opts'>" +
+      "<div class='edp-opt edp-on' data-type='id'><b>ID photo</b><span>The AI finds the face, centres it, and crops head and shoulders to your size.</span></div>" +
+      "<div class='edp-opt' data-type='whole'><b>Whole photo</b><span>Keeps the whole picture. Only the background is changed.</span></div></div>" +
+      "<div class='edp-row'><label for='edp-size'>Size:</label><select id='edp-size' style='padding:9px;border-radius:8px;border:1px solid #cbd5e1;font-size:15px'></select></div>" +
+      "<div class='edp-row' id='edp-custom' style='display:none'>" +
+      "<input type='number' id='edp-cw' min='1' value='35' style='width:90px'> × <input type='number' id='edp-ch' min='1' value='45' style='width:90px'>" +
+      "<select id='edp-cu' style='padding:9px;border-radius:8px;border:1px solid #cbd5e1'><option value='mm'>mm</option><option value='cm'>cm</option><option value='px'>pixels</option></select>" +
+      "<span class='edp-note'>width × height (printed at 300 dots per inch)</span></div></div>" +
+      "<div class='edp-card'><h3>3. What should the AI do with the background?</h3><div class='edp-opts'>" +
       "<div class='edp-opt edp-on' data-mode='remove'><b>Remove background only</b><span>Cuts the person out. Saved as a transparent PNG.</span></div>" +
       "<div class='edp-opt' data-mode='color'><b>Change background colour</b><span>Pick any colour you like.</span>" +
       "<div class='edp-row' style='margin:8px 0 0'><input type='color' id='edp-color' value='#ffffff' style='width:60px;height:38px;border:0;padding:0;background:none'><div class='edp-sw' id='edp-solids'></div></div></div>" +
       "<div class='edp-opt' data-mode='preset'><b>Ready-made backgrounds</b><span>Choose a studio colour or gradient.</span><div class='edp-sw' id='edp-presets'></div></div>" +
       "</div><div class='edp-row'><label><input type='checkbox' id='edp-enh'> Also fix lighting and colour (AI)</label></div>" +
       "<div class='edp-note'>Colours and backgrounds can be changed again after payment at no extra cost.</div></div>" +
-      "<div class='edp-card'><h3>3. Free sample, then pay</h3><div class='edp-two'>" +
+      "<div class='edp-card'><h3>4. Free sample, then pay</h3><div class='edp-two'>" +
       "<div><div class='edp-stage' id='edp-stage'><span class='edp-note'>Your free sample appears here</span></div>" +
       "<div class='edp-note' style='margin-top:6px'>Only the first photo is shown, small and marked EduLinkGH. The rest appear after payment.</div></div>" +
       "<div><div id='edp-price' class='edp-note'>Add photos to see the price.</div>" +
@@ -382,11 +494,11 @@
       "<div class='edp-row'><button class='edp-btn edp-ai edp-big' id='edp-prev' disabled>See free sample of photo 1</button></div>" +
       "<div class='edp-row'><button class='edp-btn edp-big' id='edp-go' disabled>Pay &amp; edit all photos</button></div>" +
       "<div id='edp-msg'></div><div class='edp-bar' id='edp-bar' style='display:none'><div></div></div></div></div></div>" +
-      "<div class='edp-card' id='edp-done' style='display:none'><h3>4. Your finished photos</h3>" +
+      "<div class='edp-card' id='edp-done' style='display:none'><h3>5. Your finished photos</h3>" +
       "<div class='edp-row'><button class='edp-btn edp-big' id='edp-zip'>Download all (ZIP)</button>" +
       "<button class='edp-btn edp-alt' id='edp-toed' style='display:none'>Add to the Photo Editor</button>" +
       "<button class='edp-btn edp-big' id='edp-use' style='display:none'>Use this photo</button></div>" +
-      "<div class='edp-grid' id='edp-res'></div></div>" +
+      "<div id='edp-check' class='edp-note'></div><div class='edp-grid' id='edp-res'></div></div>" +
       "<p class='edp-note'>Photos are sent to an AI service only to be edited and are not kept by EduLink GH. Only use photos you have permission to process. Always check the result.</p>" +
       "</div>";
     document.body.appendChild(root);
@@ -401,12 +513,42 @@
     }
     if ($("#edp-close")) $("#edp-close").onclick = close;
     function say(html, kind) { msg.innerHTML = html ? "<div class='" + (kind === "err" ? "edp-err" : kind === "ok" ? "edp-ok" : "edp-note") + "'>" + html + "</div>" : ""; }
+    function stale() { if (sample) { sample = null; refreshStage(); say("You changed an option, so please take the free sample again.", "info"); } }
+
+    // ---- size + type
+    var sizeSel = $("#edp-size");
+    function fillSizes() {
+      sizeSel.innerHTML = "";
+      if (ptype === "whole") sizeSel.innerHTML = "<option value='orig'>Keep the original size</option>";
+      SIZES.forEach(function (z) { sizeSel.innerHTML += "<option value='" + z.id + "'>" + z.name + "</option>"; });
+      if (ptype === "id" && sizeId === "orig") sizeId = "passport";
+      sizeSel.value = sizeId;
+    }
+    fillSizes();
+    function toPx(v, unit) { v = Number(v) || 0; return Math.max(50, Math.min(4000, Math.round(unit === "px" ? v : unit === "cm" ? v / 2.54 * 300 : v / 25.4 * 300))); }
+    function spec() {
+      if (ptype === "whole" && sizeId === "orig") return { mode: "whole", w: null, h: null };
+      if (sizeId === "custom") return { mode: ptype, w: toPx(cw, cunit), h: toPx(ch, cunit) };
+      var z = SIZES.filter(function (s) { return s.id === sizeId; })[0] || SIZES[0];
+      return { mode: ptype, w: z.w, h: z.h };
+    }
+    sizeSel.onchange = function () { sizeId = sizeSel.value; $("#edp-custom").style.display = sizeId === "custom" ? "" : "none"; stale(); };
+    ["#edp-cw", "#edp-ch"].forEach(function (id) { $(id).oninput = function () { cw = $("#edp-cw").value; ch = $("#edp-ch").value; stale(); }; });
+    $("#edp-cu").onchange = function () { cunit = $("#edp-cu").value; stale(); };
+    Array.prototype.forEach.call(root.querySelectorAll("[data-type]"), function (o) {
+      o.onclick = function () {
+        ptype = o.dataset.type;
+        Array.prototype.forEach.call(root.querySelectorAll("[data-type]"), function (x) { x.classList.toggle("edp-on", x.dataset.type === ptype); });
+        sizeId = ptype === "whole" ? "orig" : "passport";
+        fillSizes(); $("#edp-custom").style.display = "none"; stale(); refreshResultsLater();
+      };
+    });
 
     function curBg() {
       if (mode === "remove") return { type: "none" };
       if (mode === "color") return { type: "color", value: color };
-      var s = SOLIDS.filter(function (x) { return "s-" + x[1] === presetId; })[0];
-      if (s) return { type: "color", value: s[1] };
+      var s1 = SOLIDS.filter(function (x) { return "s-" + x[1] === presetId; })[0];
+      if (s1) return { type: "color", value: s1[1] };
       var g = GRADS.filter(function (x) { return x.id === presetId; })[0];
       return g ? { type: "grad", kind: g.kind, stops: g.stops } : { type: "none" };
     }
@@ -427,14 +569,14 @@
     }
     $("#edp-color").oninput = function (e) { color = e.target.value; setMode("color"); };
     $("#edp-color").onclick = function (e) { e.stopPropagation(); };
-    $("#edp-enh").onchange = function (e) { enhance = e.target.checked; if (sample) { sample = null; refreshStage(); say("You changed an option, so please take the free sample again.", "info"); } };
-    Array.prototype.forEach.call(root.querySelectorAll(".edp-opt"), function (o) {
+    $("#edp-enh").onchange = function (e) { enhance = e.target.checked; stale(); };
+    Array.prototype.forEach.call(root.querySelectorAll("[data-mode]"), function (o) {
       o.onclick = function () { setMode(o.dataset.mode); };
     });
     function setMode(m) {
       mode = m;
       if (m === "preset" && !presetId) presetId = "s-" + SOLIDS[0][1];
-      Array.prototype.forEach.call(root.querySelectorAll(".edp-opt"), function (o) { o.classList.toggle("edp-on", o.dataset.mode === m); });
+      Array.prototype.forEach.call(root.querySelectorAll("[data-mode]"), function (o) { o.classList.toggle("edp-on", o.dataset.mode === m); });
       Array.prototype.forEach.call(presetsEl.children, function (i) { i.classList.toggle("edp-on", m === "preset" && i.dataset.id === presetId); });
       refreshStage(); refreshResults();
     }
@@ -443,7 +585,7 @@
     $("#edp-drop").onclick = function () { $("#edp-files").click(); };
     $("#edp-files").onchange = function (e) {
       files = Array.prototype.slice.call(e.target.files || []).slice(0, embed ? 1 : 50);
-      results = []; sample = null; processed = false;
+      results = []; flags = []; sample = null; processed = false;
       $("#edp-done").style.display = "none";
       drawGrid(); refreshStage(); updatePrice();
     };
@@ -461,10 +603,14 @@
         grid.appendChild(d);
       });
     }
+    function sampleSpec() {
+      var sp = spec();
+      if (sp.w) return { mode: sp.mode, w: 360, h: Math.round(360 * sp.h / sp.w) };
+      return { mode: "whole", w: null, h: null };
+    }
     function refreshStage() {
-      stage.style.background = "";
       if (!sample) { stage.innerHTML = "<span class='edp-note'>Your free sample appears here</span>"; return; }
-      compose(sample, curBg()).then(function (b) {
+      render(sample, curBg(), sampleSpec()).then(function (b) {
         stage.innerHTML = ""; var im = document.createElement("img"); im.src = URL.createObjectURL(b); stage.appendChild(im);
       });
     }
@@ -474,7 +620,6 @@
       $("#edp-prev").disabled = n === 0;
       $("#edp-go").disabled = n === 0;
       $("#edp-go").innerHTML = n ? "Pay &amp; edit " + (n === 1 ? "this photo" : "all " + n + " photos") : "Pay &amp; edit all photos";
-      $("#edp-prev").textContent = "See free sample of photo 1";
       var pe = $("#edp-price");
       if (!prices) { pe.textContent = "Loading prices..."; return; }
       if (prices.free) { pe.innerHTML = "<div class='edp-ok'>Super Admin: free</div>"; $("#edp-email-row").style.display = "none"; return; }
@@ -488,19 +633,43 @@
       prices = p; updatePrice();
       if (p.enabled === false && !p.free) { say("The AI studio is paused for now. Please try again later.", "err"); $("#edp-go").disabled = true; $("#edp-prev").disabled = true; }
     }, function () { say("Could not reach the service. Check your internet connection.", "err"); });
+    getDetector(); // start loading the face finder in the background
+
+    /** Frame the photo, send it to the AI, retry politely if the AI is busy. */
+    function aiOne(file, useTokens) {
+      var sp = spec();
+      return prepare(file, sp).then(function (p) {
+        return toBase64(p.blob).then(function (b64) {
+          var list = useTokens ? (tokens().length ? tokens() : [""]) : [null], k = 0, tries = 0;
+          function go() {
+            var payload = { image: b64, mime: "image/jpeg", enhance: enhance };
+            if (useTokens) payload.token = list[k];
+            return call(useTokens ? "ai_process" : "ai_preview", payload).then(function (r) {
+              if (r && r.ok) return { blob: b64ToBlob(r.image, r.mime || "image/png"), faceFound: p.faceFound };
+              if (r && r._status === 402 && useTokens && ++k < list.length) return go();
+              var m = String((r && r.error) || "");
+              if (/rate limit|try again|busy|overloaded/i.test(m) && ++tries <= 3) {
+                return new Promise(function (res) { setTimeout(res, 4000 * tries); }).then(go);
+              }
+              throw new Error(m || "The AI edit failed.");
+            });
+          }
+          return go();
+        });
+      });
+    }
 
     // free sample
     $("#edp-prev").onclick = function () {
       if (!files.length) return;
-      var b = $("#edp-prev"); b.disabled = true; b.textContent = "Making sample... (20-40 seconds)";
+      var b = $("#edp-prev"); b.disabled = true; b.textContent = "Making sample... (up to 40 seconds)";
       say("");
-      downscale(files[0], 1280).then(toBase64).then(function (b64) {
-        return call("ai_preview", { image: b64, mime: "image/jpeg", enhance: enhance });
-      }).then(function (r) {
-        if (!r.ok) throw new Error(r.error || "The sample could not be made.");
-        sample = b64ToBlob(r.image, r.mime || "image/png");
+      aiOne(files[0], false).then(function (r) {
+        sample = r.blob;
         refreshStage();
-        say("This is a small sample marked EduLinkGH. Pay to get all your photos clean and full size.", "info");
+        say(r.faceFound || spec().mode !== "id"
+          ? "This is a small sample marked EduLinkGH. Pay to get all your photos clean and full size."
+          : "A face was not found in this photo, so it was centred roughly. Check it carefully.", "info");
       }).catch(function (e) { say(esc(e.message || e), "err"); }).then(function () { b.disabled = false; b.textContent = "See free sample of photo 1"; });
     };
 
@@ -516,27 +685,24 @@
       });
       need.then(function (ok) {
         if (!ok) { go.disabled = false; return; }
-        var done = 0, failed = 0, next = 0;
-        results = new Array(n);
+        var done = 0, failed = 0, next = 0, startedAt = Date.now();
+        results = new Array(n); flags = new Array(n);
         var bar = $("#edp-bar"); bar.style.display = ""; bar.firstChild.style.width = "0";
         function worker() {
           if (next >= n) return Promise.resolve();
           var i = next++;
-          return downscale(files[i], 1536).then(toBase64).then(function (b64) {
-            var list = tokens().length ? tokens() : [""], k = 0;
-            function tryTok() {
-              return call("ai_process", { token: list[k], image: b64, mime: "image/jpeg", enhance: enhance }).then(function (r) {
-                if (r && r.ok) return r;
-                if (r && r._status === 402 && ++k < list.length) return tryTok();
-                throw new Error((r && r.error) || "The AI edit failed.");
-              });
-            }
-            return tryTok();
-          }).then(function (r) { results[i] = b64ToBlob(r.image, "image/png"); },
+          return aiOne(files[i], true).then(function (r) { results[i] = r.blob; flags[i] = r.faceFound; },
             function (e) { failed++; say("Photo " + (i + 1) + " could not be edited: " + esc(e.message || e) + " (you are not charged for it).", "err"); })
-            .then(function () { done++; bar.firstChild.style.width = Math.round(done / n * 100) + "%"; say("Editing... " + done + " of " + n + " done"); return worker(); });
+            .then(function () {
+              done++; bar.firstChild.style.width = Math.round(done / n * 100) + "%";
+              var el = (Date.now() - startedAt) / 1000, left = Math.round(el / done * (n - done));
+              say("Editing... " + done + " of " + n + " done" + (done < n ? " (about " + Math.max(1, Math.round(left / 60)) + " min left)" : ""));
+              return worker();
+            });
         }
-        return Promise.all([worker(), worker()]).then(function () {
+        var N = Math.min(4, n), ws = [];
+        for (var q = 0; q < N; q++) ws.push(worker());
+        return Promise.all(ws).then(function () {
           bar.style.display = "none"; go.disabled = false;
           processed = results.some(Boolean);
           say(processed ? (n - failed) + " photo(s) edited." + (failed ? " " + failed + " failed (not charged)." : "") : "", processed ? "ok" : "");
@@ -546,6 +712,8 @@
     };
 
     // results
+    var rrTimer = null;
+    function refreshResultsLater() { clearTimeout(rrTimer); rrTimer = setTimeout(refreshResults, 50); }
     function refreshResults() {
       if (!processed) return;
       $("#edp-done").style.display = "";
@@ -553,24 +721,26 @@
       $("#edp-toed").style.display = (!page && editorInput()) ? "" : "none";
       $("#edp-use").style.display = embed ? "" : "none";
       $("#edp-zip").style.display = embed ? "none" : "";
-      var bg = curBg();
+      var bg = curBg(), sp = spec(), nofaces = 0;
       results.forEach(function (b, i) {
         if (!b) return;
+        if (sp.mode === "id" && flags[i] === false) nofaces++;
         var d = document.createElement("div"); d.className = "edp-th";
         var im = document.createElement("img"); d.appendChild(im);
-        d.appendChild(document.createTextNode(files[i].name.slice(0, 16)));
+        d.appendChild(document.createTextNode(files[i].name.slice(0, 16) + (sp.mode === "id" && flags[i] === false ? " ⚠" : "")));
         var a = document.createElement("div"); a.style.marginTop = "4px";
         var bt = document.createElement("button"); bt.className = "edp-btn edp-alt"; bt.style.padding = "5px 10px"; bt.style.fontSize = "12px"; bt.textContent = "Download";
-        bt.onclick = function () { compose(b, curBg()).then(function (o) { saveBlob(o, baseName(files[i].name) + (curBg().type === "none" ? ".png" : ".jpg")); }); };
+        bt.onclick = function () { render(b, curBg(), spec()).then(function (o) { saveBlob(o, baseName(files[i].name) + (curBg().type === "none" ? ".png" : ".jpg")); }); };
         a.appendChild(bt); d.appendChild(a); resEl.appendChild(d);
-        compose(b, bg).then(function (o) { im.src = URL.createObjectURL(o); im.style.background = cssFor(bg); });
+        render(b, bg, sp, 260).then(function (o) { im.src = URL.createObjectURL(o); im.style.background = cssFor(bg); im.style.objectFit = "contain"; });
       });
+      $("#edp-check").innerHTML = nofaces ? "⚠ " + nofaces + " photo(s) had no clear face, so they were centred roughly. Please check them." : "";
     }
-    function allComposed() {
-      var bg = curBg(), ext = bg.type === "none" ? ".png" : ".jpg", used = {};
+    function allRendered() {
+      var bg = curBg(), sp = spec(), ext = bg.type === "none" ? ".png" : ".jpg", used = {};
       return Promise.all(results.map(function (b, i) {
         if (!b) return null;
-        return compose(b, bg).then(function (o) {
+        return render(b, bg, sp).then(function (o) {
           var nm = baseName(files[i].name), k = nm, c = 1;
           while (used[k + ext]) k = nm + "-" + (++c);
           used[k + ext] = 1;
@@ -581,13 +751,13 @@
     $("#edp-zip").onclick = function () {
       askName(cfg.zipName || "edited-photos", "Name your zip folder").then(function (nm) {
         if (!nm) return;
-        allComposed().then(function (list) { saveBlob(makeZip(list), safeName(nm, "edited-photos") + ".zip"); });
+        allRendered().then(function (list) { saveBlob(makeZip(list), safeName(nm, "edited-photos") + ".zip"); });
       });
     };
     $("#edp-toed").onclick = function () {
       var inp = editorInput();
       if (!inp) { say("Could not find the editor's upload box here.", "err"); return; }
-      allComposed().then(function (list) {
+      allRendered().then(function (list) {
         var dt = new DataTransfer();
         list.forEach(function (f) { dt.items.add(new File([f.blob], f.name, { type: f.blob.type })); });
         inp.files = dt.files; inp.dispatchEvent(new Event("change", { bubbles: true }));
@@ -595,7 +765,7 @@
       });
     };
     $("#edp-use").onclick = function () {
-      allComposed().then(function (list) {
+      allRendered().then(function (list) {
         if (!list.length) return;
         var fr = new FileReader();
         fr.onload = function () {
