@@ -13,6 +13,8 @@ function money(n: number): string {
 export function CloudPhotoSales() {
   const [price, setPrice] = useState("1.00");
   const [aiPrice, setAiPrice] = useState("2.00");
+  const [aiBulkPrice, setAiBulkPrice] = useState("1.50");
+  const [aiBulkMin, setAiBulkMin] = useState("5");
   const [enabled, setEnabled] = useState(true);
   const [orders, setOrders] = useState<PhotoOrderRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +27,8 @@ export function CloudPhotoSales() {
       const [s, o] = await Promise.all([PhotoSalesService.getSettings(), PhotoSalesService.listOrders()]);
       setPrice(Number(s.price).toFixed(2));
       setAiPrice(Number(s.aiPrice).toFixed(2));
+      setAiBulkPrice(Number(s.aiBulkPrice).toFixed(2));
+      setAiBulkMin(String(s.aiBulkMin));
       setEnabled(s.enabled);
       setOrders(o);
     } catch (e) {
@@ -42,7 +46,13 @@ export function CloudPhotoSales() {
     setSaved(false);
     setError(null);
     try {
-      await PhotoSalesService.setSettings({ price: Number(price), aiPrice: Number(aiPrice), enabled });
+      await PhotoSalesService.setSettings({
+        price: Number(price),
+        aiPrice: Number(aiPrice),
+        aiBulkPrice: Number(aiBulkPrice),
+        aiBulkMin: Math.floor(Number(aiBulkMin)),
+        enabled,
+      });
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");
@@ -65,8 +75,9 @@ export function CloudPhotoSales() {
     <div>
       <h1 className="h4 mb-1">Photo editor</h1>
       <p className="text-muted">
-        Anyone can edit photos at edulinkgh.com/tools/photo-editor.html. Downloading the edited photos, and the AI
-        fix, are paid through Paystack at the prices below. You (signed in as Super Admin) pass through free.
+        Anyone can edit photos at edulinkgh.com/tools/photo-editor.html and use the AI Photo Studio at
+        edulinkgh.com/tools/ai-photo.html. Downloads and AI edits are paid through Paystack at the prices below. The
+        AI price is lower when a customer edits the bulk number of photos or more at once. You (signed in as Super Admin) pass through free.
       </p>
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -87,7 +98,7 @@ export function CloudPhotoSales() {
             />
           </div>
           <div className="col-6">
-            <label className="form-label small">Extra price per AI fix (GHS)</label>
+            <label className="form-label small">AI edit, one photo (GHS each)</label>
             <input
               type="number"
               step="0.01"
@@ -95,6 +106,30 @@ export function CloudPhotoSales() {
               className="form-control"
               value={aiPrice}
               onChange={(e) => setAiPrice(e.target.value)}
+              required
+            />
+          </div>
+          <div className="col-6">
+            <label className="form-label small">AI edit, bulk (GHS each)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="form-control"
+              value={aiBulkPrice}
+              onChange={(e) => setAiBulkPrice(e.target.value)}
+              required
+            />
+          </div>
+          <div className="col-6">
+            <label className="form-label small">Bulk starts at (photos)</label>
+            <input
+              type="number"
+              step="1"
+              min="2"
+              className="form-control"
+              value={aiBulkMin}
+              onChange={(e) => setAiBulkMin(e.target.value)}
               required
             />
           </div>

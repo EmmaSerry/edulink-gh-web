@@ -274,9 +274,18 @@ export function CloudPhotoImport() {
           <div className="text-muted small">Attach finished photos to a class in one go.</div>
         </div>
         <div className="d-flex gap-2">
-          <a href="/tools/photo-editor.html" target="_blank" rel="noopener" className="btn btn-outline-primary text-nowrap">
+          <a
+            href="/tools/ai-photo.html"
+            target="_blank"
+            rel="noopener"
+            className="btn text-white fw-bold text-nowrap"
+            style={{ background: "linear-gradient(90deg,#7c3aed,#db2777)" }}
+          >
+            {"\u2728"} AI Photo Studio
+          </a>
+          <a href="/tools/photo-editor.html" target="_blank" rel="noopener" className="btn btn-primary fw-bold text-nowrap">
             <i className="bi bi-images me-1" />
-            Open Photo Editor
+            Edit Photo
           </a>
           <Link to="/students" className="btn btn-outline-secondary text-nowrap">
             Back to learners
