@@ -403,16 +403,16 @@
     });
   }
   /** The crop (in picture pixels) that frames an ID photo: face centred, head and shoulders. */
+  var FRAME = { head: 12, size: 42 }; // % space above hair, % of photo height taken by the face
   function idCrop(face, W, H, ar) {
     var ch, cw, left, top;
     if (face) {
-      ch = face.h / 0.46; cw = ch * ar;
+      ch = face.h / (FRAME.size / 100); cw = ch * ar;
+      var hairTop = face.y - 0.5 * face.h; // the detector box starts at the forehead, hair is above it
+      top = hairTop - (FRAME.head / 100) * ch;
       left = face.x + face.w / 2 - cw / 2;
-      top = face.y + face.h / 2 - 0.46 * ch;
-      // keep inside the picture where we can
-      if (cw <= W) left = Math.min(Math.max(left, 0), W - cw);
-      if (ch <= H) top = Math.min(Math.max(top, 0), H - ch);
-    } else { // no face found: a centred upper crop
+      // never shift the crop to fit the picture: any gap is filled with white so the head is never cut
+    } else {
       cw = Math.min(W, H * ar); ch = cw / ar;
       left = (W - cw) / 2; top = Math.max(0, (H - ch) * 0.1);
     }
@@ -433,7 +433,9 @@
         var sc = Math.min(1, max / Math.max(cr.w, cr.h));
         c.width = Math.max(1, Math.round(cr.w * sc)); c.height = Math.max(1, Math.round(cr.h * sc));
         x.fillStyle = "#ffffff"; x.fillRect(0, 0, c.width, c.height);
-        x.drawImage(bmp, cr.x, cr.y, cr.w, cr.h, 0, 0, c.width, c.height); // outside the picture stays white
+        var kx = c.width / cr.w, ky = c.height / cr.h;
+        var sx = Math.max(0, cr.x), sy = Math.max(0, cr.y), ex = Math.min(bmp.width, cr.x + cr.w), ey = Math.min(bmp.height, cr.y + cr.h);
+        if (ex > sx && ey > sy) x.drawImage(bmp, sx, sy, ex - sx, ey - sy, (sx - cr.x) * kx, (sy - cr.y) * ky, (ex - sx) * kx, (ey - sy) * ky);
       } else {
         var s2 = Math.min(1, max / Math.max(bmp.width, bmp.height));
         c.width = Math.round(bmp.width * s2); c.height = Math.round(bmp.height * s2);
@@ -475,6 +477,8 @@
       "<div class='edp-opt edp-on' data-type='id'><b>ID photo</b><span>The AI finds the face, centres it, and crops head and shoulders to your size.</span></div>" +
       "<div class='edp-opt' data-type='whole'><b>Whole photo</b><span>Keeps the whole picture. Only the background is changed.</span></div></div>" +
       "<div class='edp-row'><label for='edp-size'>Size:</label><select id='edp-size' style='padding:9px;border-radius:8px;border:1px solid #cbd5e1;font-size:15px'></select></div>" +
+      "<div id='edp-frame'><div class='edp-row'><label style='min-width:170px'>Space above head: <b id='edp-hv'>12</b>%</label><input type='range' id='edp-head' min='0' max='30' value='12' style='flex:1;min-width:140px'></div>" +
+      "<div class='edp-row'><label style='min-width:170px'>Face size: <b id='edp-sv'>42</b>%</label><input type='range' id='edp-fsize' min='25' max='65' value='42' style='flex:1;min-width:140px'><span class='edp-note'>smaller = more shoulders</span></div></div>" +
       "<div class='edp-row' id='edp-custom' style='display:none'>" +
       "<input type='number' id='edp-cw' min='1' value='35' style='width:90px'> × <input type='number' id='edp-ch' min='1' value='45' style='width:90px'>" +
       "<select id='edp-cu' style='padding:9px;border-radius:8px;border:1px solid #cbd5e1'><option value='mm'>mm</option><option value='cm'>cm</option><option value='px'>pixels</option></select>" +
@@ -532,6 +536,8 @@
       var z = SIZES.filter(function (s) { return s.id === sizeId; })[0] || SIZES[0];
       return { mode: ptype, w: z.w, h: z.h };
     }
+    $("#edp-head").oninput = function (e) { FRAME.head = +e.target.value; $("#edp-hv").textContent = e.target.value; stale(); };
+    $("#edp-fsize").oninput = function (e) { FRAME.size = +e.target.value; $("#edp-sv").textContent = e.target.value; stale(); };
     sizeSel.onchange = function () { sizeId = sizeSel.value; $("#edp-custom").style.display = sizeId === "custom" ? "" : "none"; stale(); };
     ["#edp-cw", "#edp-ch"].forEach(function (id) { $(id).oninput = function () { cw = $("#edp-cw").value; ch = $("#edp-ch").value; stale(); }; });
     $("#edp-cu").onchange = function () { cunit = $("#edp-cu").value; stale(); };
@@ -540,7 +546,7 @@
         ptype = o.dataset.type;
         Array.prototype.forEach.call(root.querySelectorAll("[data-type]"), function (x) { x.classList.toggle("edp-on", x.dataset.type === ptype); });
         sizeId = ptype === "whole" ? "orig" : "passport";
-        fillSizes(); $("#edp-custom").style.display = "none"; stale(); refreshResultsLater();
+        fillSizes(); $("#edp-custom").style.display = "none"; $("#edp-frame").style.display = ptype === "id" ? "" : "none"; stale(); refreshResultsLater();
       };
     });
 
