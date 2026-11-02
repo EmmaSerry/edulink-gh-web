@@ -69,10 +69,16 @@ class CloudEnrollmentServiceImpl {
     });
   }
 
-  /** Class roster for a specific term (matches ACTRS's Module 12 Class Lists). */
+  /** Class roster for a specific term (matches ACTRS's Module 12 Class Lists).
+   *
+   *  Only ACTIVE learners: an archived, withdrawn, transferred or graduated
+   *  learner is left out. Every screen that builds on the roster - report
+   *  generation (single and whole-class), subject and class positions,
+   *  assessment entry, remarks - therefore ignores them automatically. */
   async getRoster(termId: string, classId: string): Promise<EnrollmentRow[]> {
     return rest.select<EnrollmentRow>("enrollments", {
-      filters: { term_id: `eq.${termId}`, class_id: `eq.${classId}` },
+      select: "*,students!inner(status)",
+      filters: { term_id: `eq.${termId}`, class_id: `eq.${classId}`, "students.status": "eq.ACTIVE" },
     });
   }
 }

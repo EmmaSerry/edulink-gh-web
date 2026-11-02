@@ -7,9 +7,15 @@
  * account to this school via the create_staff_profile() RPC. Both
  * happen from create() below so the rest of the app only ever sees one
  * call.
+ *
+ * Before anything is created, create() asks the database whether a staff
+ * account with the same email, phone or name already exists in this school
+ * or district (see STEP-B_duplicate_checks.sql) and, if so, asks the admin
+ * to confirm.
  */
 import { auth, rest } from "@/lib/supabaseClient";
 import type { UserProfileRow, UserRole } from "@/types/database";
+import { DuplicateService, DuplicateCancelled, confirmDuplicates } from "./DuplicateService";
 
 export type StaffRole = Extract<UserRole, "teacher" | "bursar" | "school_admin">;
 
@@ -60,6 +66,15 @@ class CloudStaffServiceImpl {
   }
 
   async create(input: CreateStaffInput): Promise<CreateStaffResult> {
+    const matches = await DuplicateService.users({ fullName: input.fullName, phone: input.phone, email: input.email });
+    if (matches.length > 0) {
+      const lines = matches.map(
+        (m) =>
+          `${m.full_name} (${m.role.replace("_", " ")}${m.is_active ? "" : ", archived"}) at ${m.school_name ?? "the district"}: ${m.reason.toLowerCase()}`
+      );
+      if (!confirmDuplicates("This staff member may already have an account:", lines)) throw new DuplicateCancelled();
+    }
+
     const tempPassword = generateTempPassword();
     let id: string;
     try {

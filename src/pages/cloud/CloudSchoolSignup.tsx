@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { auth } from "@/lib/supabaseClient";
 import { CloudSchoolSignupService } from "@services/cloud/SchoolSignupService";
+import { DuplicateService, type SchoolMatch } from "@services/cloud/DuplicateService";
 import type { DistrictOption, CircuitOption } from "@/types/database";
 
 /** The drop-down value meaning "my district is not on EduLink GH yet". */
@@ -69,6 +70,12 @@ export function CloudSchoolSignup() {
   // OPEN - registration is never blocked just because this helper couldn't be reached.
   const [nameTaken, setNameTaken] = useState<boolean | null>(null);
 
+  // Similar-name warning (see STEP-B_duplicate_checks.sql): the same school may
+  // be spelled a little differently. The person can confirm it is a different
+  // school and carry on.
+  const [similar, setSimilar] = useState<SchoolMatch[]>([]);
+  const [confirmDifferent, setConfirmDifferent] = useState(false);
+
   useEffect(() => {
     CloudSchoolSignupService.listDistricts()
       .then(setDistricts)
@@ -105,18 +112,38 @@ export function CloudSchoolSignup() {
     };
   }, [schoolName, districtId]);
 
+  useEffect(() => {
+    setSimilar([]);
+    setConfirmDifferent(false);
+    const name = schoolName.trim();
+    if (name.length < 4 || !districtChoice) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      DuplicateService.schools({
+        name,
+        districtId: districtId || null,
+        districtName: notListed ? manualDistrict.trim() : null,
+      }).then((rows) => !cancelled && setSimilar(rows));
+    }, 600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [schoolName, districtChoice, districtId, notListed, manualDistrict]);
+
   const passwordsMatch = password.length > 0 && password === confirmPassword;
   const readyToSubmit = useMemo(
     () =>
       schoolName.trim().length > 0 &&
       nameTaken !== true &&
+      (similar.length === 0 || confirmDifferent) &&
       districtChoice.length > 0 &&
       fullName.trim().length > 0 &&
       phone.trim().length > 0 &&
       email.trim().length > 0 &&
       password.length >= 6 &&
       passwordsMatch,
-    [schoolName, nameTaken, districtChoice, fullName, phone, email, password, passwordsMatch]
+    [schoolName, nameTaken, similar, confirmDifferent, districtChoice, fullName, phone, email, password, passwordsMatch]
   );
 
   async function handleSubmit(e: FormEvent) {
@@ -185,6 +212,37 @@ export function CloudSchoolSignup() {
           </div>
         )}
       </div>
+
+      {similar.length > 0 && nameTaken !== true && (
+        <div className="alert alert-warning small" role="alert">
+          <div className="fw-semibold mb-1">A school with a similar name is already registered here:</div>
+          <ul className="mb-2 ps-3">
+            {similar.map((m, i) => (
+              <li key={i}>
+                {m.school_name}
+                {m.circuit ? ` (${m.circuit} circuit)` : ""}
+                {m.approval_status === "pending" ? " - waiting for approval" : ""}
+              </li>
+            ))}
+          </ul>
+          <div className="mb-2">
+            If this is your school, please do not register it again - contact your district office, or WhatsApp EduLink
+            GH on 0203555130.
+          </div>
+          <div className="form-check">
+            <input
+              id="diffSchool"
+              type="checkbox"
+              className="form-check-input"
+              checked={confirmDifferent}
+              onChange={(e) => setConfirmDifferent(e.target.checked)}
+            />
+            <label htmlFor="diffSchool" className="form-check-label">
+              My school is a different school from the one(s) above
+            </label>
+          </div>
+        </div>
+      )}
 
       <div className="mb-3">
         <label className="form-label small">District</label>

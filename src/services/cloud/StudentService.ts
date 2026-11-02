@@ -3,25 +3,18 @@
  *
  * Same shape deliberately: register(), updateStudent(), updateStatus(),
  * deleteStudent(), deleteMany() all exist here with equivalent
- * signatures, so screens built against the Dexie version port over with
- * minimal changes. What changed underneath:
- *   - "One Dexie transaction touching N tables" becomes "one Postgres
- *     function (RPC) doing the same N writes atomically on the server"
- *     - see register_student() / delete_student() in
- *       edulink_gh_phase0b_functions.sql. The client-side code below
- *       does not (and cannot) orchestrate a multi-table transaction
- *       itself over plain REST calls.
- *   - There is no manual "which school is this" filtering anywhere in
- *     this file. Row Level Security on the database does that
- *     automatically for every request, based on the signed-in user's
- *     own school_id - the same query a teacher and a platform admin
- *     both run returns different rows for each of them, with no branch
- *     in this code for it.
- *   - Numeric auto-increment ids become UUID strings throughout.
+ * signatures. Multi-table writes are done by Postgres functions (RPCs);
+ * Row Level Security limits every request to the signed-in user's school.
+ *
+ * register() and registerForDistrict() first ask the database for likely
+ * duplicates (same name + date of birth, a probable typo, or the same name)
+ * in the same class, school or district (see STEP-B_duplicate_checks.sql)
+ * and ask the user to confirm before saving.
  */
 
 import { rest } from "@/lib/supabaseClient";
 import type { StudentRow, StudentStatus } from "@/types/database";
+import { DuplicateService, DuplicateCancelled, confirmDuplicates, describeLearnerMatch } from "./DuplicateService";
 
 export interface StudentRegistration {
   schoolId: string;
@@ -44,10 +37,27 @@ export interface StudentFilterCriteria {
   gender?: "M" | "F";
 }
 
+async function checkDuplicates(values: StudentRegistration): Promise<void> {
+  const matches = await DuplicateService.learners({
+    schoolId: values.schoolId,
+    firstName: values.firstName,
+    lastName: values.lastName,
+    dateOfBirth: values.dateOfBirth,
+    classId: values.classId,
+  });
+  if (matches.length === 0) return;
+  const lines = matches.map((m) => {
+    const d = describeLearnerMatch(m);
+    return `${d.title} - ${d.detail}`;
+  });
+  if (!confirmDuplicates("This learner may already be registered:", lines)) throw new DuplicateCancelled();
+}
+
 class CloudStudentServiceImpl {
   /** Registers a new student: identity + guardian + initial enrollment,
    *  atomically, via the register_student() Postgres function. */
   async register(values: StudentRegistration): Promise<StudentRow> {
+    await checkDuplicates(values);
     return rest.rpc<StudentRow>("register_student", {
       p_school_id: values.schoolId,
       p_first_name: values.firstName,
@@ -66,10 +76,9 @@ class CloudStudentServiceImpl {
 
   /** Same as register(), but for a district/platform admin registering
    *  into a DIFFERENT school than their own - see
-   *  edulink_gh_phase0t_district_registration.sql. Same payload shape,
-   *  routed to the definer RPC that carries its own district check
-   *  instead of relying on ordinary tenant-isolation RLS. */
+   *  edulink_gh_phase0t_district_registration.sql. */
   async registerForDistrict(values: StudentRegistration): Promise<StudentRow> {
+    await checkDuplicates(values);
     return rest.rpc<StudentRow>("register_student_for_district", {
       p_school_id: values.schoolId,
       p_first_name: values.firstName,
@@ -86,9 +95,6 @@ class CloudStudentServiceImpl {
     });
   }
 
-  /** Lists students. RLS already limits results to the caller's own
-   *  school (or, for a district admin, schools in their district) - no
-   *  school_id filter needs to be added here by hand. */
   /** Just these learners (a class roster) - much lighter than list() for big schools. */
   async listByIds(studentIds: string[]): Promise<StudentRow[]> {
     if (studentIds.length === 0) return [];
@@ -99,6 +105,8 @@ class CloudStudentServiceImpl {
     });
   }
 
+  /** Lists students. RLS already limits results to the caller's own
+   *  school (or, for a district admin, schools in their district). */
   async list(filters: StudentFilterCriteria = {}): Promise<StudentRow[]> {
     const restFilters: Record<string, string> = {};
     if (filters.status) restFilters.status = `eq.${filters.status}`;
@@ -129,11 +137,7 @@ class CloudStudentServiceImpl {
 
   /** The soft-delete: changes status instead of removing the row. */
   async updateStatus(id: string, status: StudentStatus, reason?: string): Promise<void> {
-    await rest.update<StudentRow>(
-      "students",
-      { id: `eq.${id}` },
-      { status, status_reason: reason }
-    );
+    await rest.update<StudentRow>("students", { id: `eq.${id}` }, { status, status_reason: reason });
   }
 
   /** Genuine, permanent hard delete - see delete_student() in

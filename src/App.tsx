@@ -10,6 +10,7 @@ import { CloudStudentRegister } from "@pages/cloud/CloudStudentRegister";
 import { CloudStudentEdit } from "@pages/cloud/CloudStudentEdit";
 import { CloudPhotoImport } from "@pages/cloud/CloudPhotoImport";
 import { CloudIndependentSchools } from "@pages/cloud/CloudIndependentSchools";
+import { CloudPhotoSales } from "@pages/cloud/CloudPhotoSales";
 import { CloudAssessmentWorkspace } from "@pages/cloud/CloudAssessmentWorkspace";
 import { CloudReportView } from "@pages/cloud/CloudReportView";
 import { CloudBatchReportGeneration } from "@pages/cloud/CloudBatchReportGeneration";
@@ -253,6 +254,14 @@ export default function App() {
             element={
               <RequireAdmin roles="platform">
                 <CloudDistrictAdmins />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/photo-sales"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudPhotoSales />
               </RequireAdmin>
             }
           />
