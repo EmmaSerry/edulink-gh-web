@@ -8,6 +8,7 @@ import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudLevelService } from "@services/cloud/LevelService";
 import { CloudPromotionService } from "@services/cloud/PromotionService";
 import { PhotoPickerField } from "@components/PhotoPickerField";
+import { DeleteLearnerCard } from "@components/DeleteLearnerCard";
 import type {
   StudentRow,
   StudentStatus,
@@ -94,6 +95,9 @@ function toGuardianForm(g: GuardianRow | null): GuardianForm {
  * period), and saves immediately rather than waiting for the big form's
  * "Save changes" button below, since it's a structurally different kind
  * of write (bulk_promote_class(), not a plain student/guardian PATCH).
+ *
+ * Admins can also permanently delete a learner who is no longer Active
+ * (see DeleteLearnerCard at the bottom).
  */
 export function CloudStudentEdit() {
   const { id } = useParams<{ id: string }>();
@@ -240,6 +244,11 @@ export function CloudStudentEdit() {
   if (loading) return <p className="text-muted">Loading…</p>;
   if (loadError) return <div className="alert alert-danger">{loadError}</div>;
   if (!student || !bio || !guardian) return <div className="alert alert-warning">Student not found.</div>;
+
+  const canDelete =
+    (profile?.role === "school_admin" || profile?.role === "district_admin" || profile?.role === "platform_admin") &&
+    student.status !== "ACTIVE";
+  const studentFullName = [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ");
 
   return (
     <div>
@@ -561,6 +570,12 @@ export function CloudStudentEdit() {
           {saving ? "Saving…" : "Save changes"}
         </button>
       </form>
+
+      {canDelete && (
+        <div className="mt-4">
+          <DeleteLearnerCard studentId={student.id} fullName={studentFullName} />
+        </div>
+      )}
     </div>
   );
 }
