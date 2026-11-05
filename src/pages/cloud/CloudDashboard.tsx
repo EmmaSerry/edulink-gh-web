@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
-import { CloudStudentService } from "@services/cloud/StudentService";
+import { rest } from "@/lib/supabaseClient";
 import { CloudClassService } from "@services/cloud/ClassService";
 import { CloudAcademicStandardsService, type ClassAcademicStandards } from "@services/cloud/AcademicStandardsService";
 import { AcademicStandardsPanel } from "@components/AcademicStandardsPanel";
 import { LearnerStatsPanel } from "@components/LearnerStatsPanel";
-import type { SchoolRow, StudentRow, SchoolAcademicStandards } from "@/types/database";
+import type { SchoolRow, SchoolAcademicStandards } from "@/types/database";
 
 /** Roles that can legitimately have a single school_id of their own AND
  *  are meant to see that one school's card/standards on this page. A
@@ -41,7 +41,7 @@ function hasOwnSchoolScope(role: string | undefined): boolean {
 export function CloudDashboard() {
   const { profile } = useCloudAuth();
   const [school, setSchool] = useState<SchoolRow | null>(null);
-  const [students, setStudents] = useState<StudentRow[] | null>(null);
+  const [counts, setCounts] = useState<{ total: number; active: number } | null>(null);
   const [standards, setStandards] = useState<SchoolAcademicStandards | null>(null);
   const [classStandards, setClassStandards] = useState<ClassAcademicStandards | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +60,12 @@ export function CloudDashboard() {
     // enough on its own to trigger this.
     const schoolPromise =
       profile?.school_id && isSingleSchoolRole ? CloudSchoolService.getProfile() : Promise.resolve(null);
-    Promise.all([schoolPromise, CloudStudentService.list()])
-      .then(([schoolRow, studentRows]) => {
+    Promise.all([schoolPromise, rest.rpc<unknown>("dashboard_student_counts", {})])
+      .then(([schoolRow, cRes]) => {
         if (cancelled) return;
         setSchool(schoolRow);
-        setStudents(studentRows);
+        const c: any = Array.isArray(cRes) ? cRes[0] : cRes;
+        setCounts({ total: Number(c?.total ?? 0), active: Number(c?.active ?? 0) });
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not load dashboard data.");
@@ -109,7 +110,7 @@ export function CloudDashboard() {
     };
   }, [profile?.role, profile?.school_id]);
 
-  const activeCount = students?.filter((s) => s.status === "ACTIVE").length ?? null;
+  const activeCount = counts ? counts.active : null;
 
   return (
     <div>
@@ -141,7 +142,7 @@ export function CloudDashboard() {
         <div className="col-sm-6 col-lg-4">
           <div className="actrs-card p-3 h-100">
             <div className="text-muted small mb-1">Students on file</div>
-            <div className="fw-semibold fs-4">{students ? students.length : "…"}</div>
+            <div className="fw-semibold fs-4">{counts ? counts.total.toLocaleString() : "…"}</div>
             {activeCount !== null && <div className="text-muted small">{activeCount} active</div>}
           </div>
         </div>
