@@ -11,6 +11,14 @@ const CSS = `
 @keyframes cxShine{0%{background-position:-220% 0}100%{background-position:220% 0}}
 @keyframes cxPulse{0%,100%{box-shadow:0 0 0 0 rgba(28,111,235,.0)}50%{box-shadow:0 0 22px 2px rgba(28,111,235,.28)}}
 @keyframes cxGrad{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes cxDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes cxFade{from{opacity:0}to{opacity:1}}
+@keyframes cxPop{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}
+@keyframes cxBlink{0%,100%{box-shadow:0 0 0 0 rgba(220,53,69,.55)}50%{box-shadow:0 0 0 7px rgba(220,53,69,0)}}
+.cx-line{stroke-dasharray:1;stroke-dashoffset:1;animation:cxDraw 1.7s cubic-bezier(.3,.7,.2,1) forwards}
+.cx-area{opacity:0;animation:cxFade 1s ease .9s forwards}
+.cx-dot{opacity:0;transform-box:fill-box;transform-origin:center;animation:cxPop .4s ease forwards}
+.cx-owing{animation:cxBlink 2.2s ease-in-out infinite}
 @keyframes cxDrawIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
 
 .cx-wrap{position:relative;isolation:isolate}
@@ -62,6 +70,7 @@ const CSS = `
 @media (prefers-reduced-motion: reduce){
   .cx-rise,.cx-hero,.cx-hero:before,.cx-aurora i,.cx-num,.cx-live,.cx-donut,.cx-pills .nav-link.active{animation:none!important;opacity:1}
   .cx-bar,.cx-slice,.cx-col,.cx-glass{transition:none!important}
+  .cx-line{stroke-dashoffset:0!important}.cx-area,.cx-dot{opacity:1!important}.cx-owing{animation:none!important}
 }
 
 /* ---- readability: strong text in light AND dark mode (inherits the app's own text colour) ---- */

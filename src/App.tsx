@@ -21,6 +21,7 @@ import { CloudAttendanceReports } from "@pages/cloud/CloudAttendanceReports";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
 import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
+import { CloudSportsFeeAccounts } from "@pages/cloud/CloudSportsFeeAccounts";
 import { CloudDistrictCensus } from "@pages/cloud/CloudDistrictCensus";
 import { CloudStaffPage } from "@pages/cloud/CloudStaffPage";
 import { CloudPromoteClass } from "@pages/cloud/CloudPromoteClass";
@@ -62,7 +63,7 @@ import { ThemeProvider } from "@contexts/ThemeContext";
  * EduLink GH yet to their district once it has joined.
  * "/students/photos" attaches finished photos (from the Batch Photo
  * Editor at /tools/photo-editor.html) to a class.
- * "/census-fees" is the same census for the Super Admin, with the sports affiliation fee tab.
+ * "/census-fees" is the same census for the Super Admin; "/sports-fees" is the Super Admin sports fee accounts page.
  * "/district-census" is the district's own schools census (district admin
  * and Super Admin), separate from the schools registered on EduLink GH.
  */
@@ -177,6 +178,14 @@ export default function App() {
             element={
               <RequireAdmin roles="district">
                 <CloudDistrictCensus />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/sports-fees"
+            element={
+              <RequireAdmin roles="platform">
+                <CloudSportsFeeAccounts />
               </RequireAdmin>
             }
           />

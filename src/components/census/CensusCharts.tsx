@@ -36,7 +36,7 @@ interface TipState {
 }
 
 /** Hover box that follows the mouse. */
-function useTip() {
+export function useTip() {
   const [tip, setTip] = useState<TipState | null>(null);
   const show = (e: { clientX: number; clientY: number }, title: string, lines: string[], color?: string) =>
     setTip({ x: e.clientX, y: e.clientY, title, lines, color });
@@ -299,6 +299,72 @@ export function ChartCard({ title, children, note, i = 0 }: { title: string; chi
       <div className="cx-title mb-2" style={{ fontSize: "0.95rem" }}>{title}</div>
       {children}
       {note && <div className="text-muted mt-2" style={{ fontSize: "0.82rem" }}>{note}</div>}
+    </div>
+  );
+}
+
+export interface LinePoint {
+  label: string;
+  value: number;
+  lines?: string[];
+}
+
+/** Line/area chart that draws itself in. Hover a point for its values. */
+export function LineChart({ points, color = COLORS.a, height = 200, money = false }: { points: LinePoint[]; color?: string; height?: number; money?: boolean }) {
+  const tip = useTip();
+  const [hot, setHot] = useState<number | null>(null);
+  const W = 620;
+  const padL = 56, padR = 14, padT = 14, padB = 30;
+  const plotW = W - padL - padR;
+  const plotH = height - padT - padB;
+  const max = Math.max(1, ...points.map((p) => p.value));
+  const fv = (v: number) => (money ? "GH₵ " + v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : n(v));
+  const x = (i: number) => padL + (points.length <= 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
+  const y = (v: number) => padT + plotH - (v / max) * plotH;
+  const path = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ");
+  const area = points.length ? `${path} L${x(points.length - 1).toFixed(1)} ${padT + plotH} L${x(0).toFixed(1)} ${padT + plotH} Z` : "";
+  const sig = points.map((p) => p.value).join(",");
+  const gid = "lg" + color.replace("#", "");
+  const ticks = [0, 0.5, 1].map((t) => max * t);
+  const every = Math.ceil(points.length / 7);
+  return (
+    <div style={{ position: "relative" }}>
+      {points.length === 0 ? (
+        <div className="text-muted small py-4 text-center">No payments recorded yet.</div>
+      ) : (
+        <svg viewBox={`0 0 ${W} ${height}`} style={{ width: "100%", height: "auto" }} role="img">
+          <defs>
+            <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.45" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={TRACK} />
+              <text x={padL - 6} y={y(t) + 3} fontSize="10.5" textAnchor="end" fill="currentColor" opacity="0.95">{money ? Math.round(t).toLocaleString() : n(t)}</text>
+            </g>
+          ))}
+          <path key={"a" + sig} d={area} fill={`url(#${gid})`} className="cx-area" />
+          <path key={"l" + sig} d={path} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="cx-line" style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
+          {points.map((p, i) => (
+            <g key={i}>
+              {i % every === 0 && <text x={x(i)} y={height - 9} fontSize="10" textAnchor="middle" fill="currentColor">{p.label}</text>}
+              <circle cx={x(i)} cy={y(p.value)} r={hot === i ? 6.5 : 4} fill="#fff" stroke={color} strokeWidth="2.5" className="cx-dot" style={{ animationDelay: `${0.9 + (i / Math.max(1, points.length)) * 0.8}s` }} />
+              <rect
+                x={x(i) - Math.max(8, plotW / Math.max(1, points.length) / 2)}
+                y={0}
+                width={Math.max(16, plotW / Math.max(1, points.length))}
+                height={height}
+                fill="transparent"
+                onMouseMove={(e) => { setHot(i); tip.show(e, p.label, [`Total collected: ${fv(p.value)}`, ...(p.lines ?? [])], color); }}
+                onMouseLeave={() => { setHot(null); tip.hide(); }}
+              />
+            </g>
+          ))}
+        </svg>
+      )}
+      {tip.node}
     </div>
   );
 }
