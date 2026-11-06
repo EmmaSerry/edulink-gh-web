@@ -158,3 +158,58 @@ export function fieldLabel(k: string): string {
   if (t) return `${STAFF_LEVELS.find((l) => l.k === t[2])?.label} ${t[1] === "tt" ? "trained " : ""}teachers (${t[3] === "m" ? "male" : "female"})`;
   return OTHER_STAFF.find((x) => x.key === k)?.label ?? FACILITY_FIELDS.find((x) => x.key === k)?.label ?? k;
 }
+
+// ---------------------------------------------------------------------
+// Level selection ("without KG", "Primary only", ...)
+// ---------------------------------------------------------------------
+export type LevelKey = "nur" | "kg" | "pri" | "jhs";
+export type LevelSel = Record<LevelKey, boolean>;
+export const ALL_LEVELS: LevelSel = { nur: true, kg: true, pri: true, jhs: true };
+export const LEVEL_LABEL: Record<LevelKey, string> = { nur: "Nursery/Creche", kg: "KG", pri: "Primary", jhs: "JHS" };
+
+/** Which stored numbers belong to which level. */
+const LEVEL_KEYS: Record<LevelKey, string[]> = {
+  nur: ["nur_b", "nur_g"],
+  kg: ["kg1_b", "kg1_g", "kg2_b", "kg2_g", "kg_b", "kg_g", "t_kg_m", "t_kg_f", "tt_kg_m", "tt_kg_f", "room_kg", "desk_hex"],
+  pri: [
+    ...PRIMARY_KEYS.flatMap((k) => [`${k}_b`, `${k}_g`]),
+    "pri_b", "pri_g", "t_pri_m", "t_pri_f", "tt_pri_m", "tt_pri_f", "room_pri", "desk_dual",
+  ],
+  jhs: [
+    ...JHS_KEYS.flatMap((k) => [`${k}_b`, `${k}_g`]),
+    "jhs_b", "jhs_g", "t_jhs_m", "t_jhs_f", "tt_jhs_m", "tt_jhs_f", "room_jhs", "desk_mono",
+  ],
+};
+
+export function allLevelsOn(sel: LevelSel): boolean {
+  return sel.nur && sel.kg && sel.pri && sel.jhs;
+}
+
+/** Plain-words description, for example "Without KG" or "Primary and JHS only". */
+export function levelsNote(sel: LevelSel): string {
+  if (allLevelsOn(sel)) return "";
+  const on = (["kg", "pri", "jhs"] as LevelKey[]).filter((k) => sel[k]);
+  const off = (["kg", "pri", "jhs"] as LevelKey[]).filter((k) => !sel[k]);
+  const nur = sel.nur ? "" : " (no Nursery/Creche)";
+  if (off.length === 0) return `With KG, Primary and JHS${nur}`;
+  if (on.length === 0) return `No levels selected${nur}`;
+  if (off.length === 1) return `Without ${LEVEL_LABEL[off[0]]}${nur}`;
+  return `${on.map((k) => LEVEL_LABEL[k]).join(" and ")} only${nur}`;
+}
+
+/**
+ * Returns copies of the schools with every number of an excluded level set to 0,
+ * so all totals, ratios and charts are worked out without that level.
+ * Optionally drops schools left with no pupils at all.
+ * Staff and furniture that serve the whole school (NSS, CTAs, chairs, tables) stay.
+ */
+export function applyLevels(rows: CensusRow[], sel: LevelSel, dropEmpty: boolean): CensusRow[] {
+  if (allLevelsOn(sel)) return rows;
+  const zero = (Object.keys(LEVEL_KEYS) as LevelKey[]).filter((k) => !sel[k]).flatMap((k) => LEVEL_KEYS[k]);
+  const out = rows.map((r) => {
+    const n = { ...r.n };
+    for (const k of zero) n[k] = 0;
+    return { ...r, n };
+  });
+  return dropEmpty ? out.filter((r) => grand(aggregate([r])) + (sel.nur ? (r.n.nur_b ?? 0) + (r.n.nur_g ?? 0) : 0) > 0) : out;
+}

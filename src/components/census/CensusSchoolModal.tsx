@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { CensusService } from "@services/cloud/CensusService";
+import { openPrint } from "./censusPrint";
 import {
   CLASS_ROWS, EDITABLE_NUM_KEYS, FACILITY_FIELDS, OTHER_STAFF, STAFF_LEVELS, aggregate, fieldLabel, fmt, g, grand,
-  jhsT, kgT, levelLabel, pct, priT, recomputeTotals, titleCase, type CensusLogRow, type CensusRow,
+  jhsT, kgT, levelLabel, pct, priT, recomputeTotals, teachers, titleCase, type CensusLogRow, type CensusRow,
 } from "./censusModel";
 
 interface Props {
@@ -161,15 +162,21 @@ export function CensusSchoolModal({ row, districtId, circuits, levels, startEdit
   }
 
   function printProfile() {
-    if (!printRef.current) return;
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(
-      `<html><head><title>${row?.name ?? "School"}</title><style>@page{size:A4;margin:10mm}body{font-family:Arial,sans-serif;font-size:12px;color:#111}h2{margin:0 0 6px}h3{margin:12px 0 4px;color:#0a1f44}table{border-collapse:collapse;width:100%;margin-bottom:6px}th,td{border:1px solid #999;padding:3px 6px;text-align:right}th:first-child,td:first-child{text-align:left}th{background:#0a1f44;color:#fff}.kv{display:grid;grid-template-columns:170px 1fr;gap:2px 10px}.kv b{color:#444}button,input,select{display:none}</style></head><body><h2>${row?.name ?? ""}</h2>${printRef.current.innerHTML}</body></html>`
-    );
-    w.document.close();
-    w.focus();
-    w.print();
+    if (!printRef.current || !row) return;
+    const ra = aggregate([row]);
+    openPrint({
+      title: row.name,
+      subtitle: [row.community, row.head_name ? `Head teacher: ${titleCase(row.head_name)}` : "", row.head_phone].filter(Boolean).join("  |  "),
+      chips: [titleCase(row.school_type), levelLabel(row.school_level), `${titleCase(row.circuit)} circuit`, row.emis_code ? `EMIS ${row.emis_code}` : "", row.gps ?? ""].filter(Boolean),
+      kpis: [
+        { label: "Pupils (KG to JHS)", value: fmt(grand(ra)) },
+        { label: "Boys", value: fmt(g(ra, "kg_b") + g(ra, "pri_b") + g(ra, "jhs_b")) },
+        { label: "Girls", value: fmt(g(ra, "kg_g") + g(ra, "pri_g") + g(ra, "jhs_g")) },
+        { label: "Teachers", value: fmt(teachers(ra)) },
+      ],
+      bodyHtml: printRef.current.innerHTML,
+      useAppStyles: true,
+    });
   }
 
   function setT(k: string, v: string) {

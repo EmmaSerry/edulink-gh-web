@@ -3,9 +3,11 @@ import { downloadCsv } from "@/lib/csvExport";
 import { CensusService } from "@services/cloud/CensusService";
 import { CensusSummary } from "@components/census/CensusSummary";
 import { CensusSchoolModal } from "@components/census/CensusSchoolModal";
+import { Aurora, CensusFx } from "@components/census/censusFx";
+import { escHtml, openPrint } from "@components/census/censusPrint";
 import {
-  aggregate, fmt, g, grand, jhsT, kgT, levelLabel, priT, ratio, rooms, rowTotal, searchText, teachers,
-  titleCase, trained, type Agg, type CensusRow,
+  ALL_LEVELS, LEVEL_LABEL, aggregate, allLevelsOn, applyLevels, fmt, g, grand, jhsT, kgT, levelLabel, priT, ratio, rooms, rowTotal, searchText, teachers,
+  levelsNote, titleCase, trained, type Agg, type CensusRow, type LevelKey, type LevelSel,
 } from "@components/census/censusModel";
 
 /**
@@ -24,6 +26,15 @@ interface Col {
   /** Returns a number (summed/derived) - null shows as a dash. */
   f: (a: Agg) => number | null;
   decimals?: number;
+}
+
+/** Which level a column belongs to (so it can be hidden when that level is left out). */
+function colLevel(label: string): LevelKey | null {
+  if (/nursery/i.test(label)) return "nur";
+  if (/\bKG/.test(label)) return "kg";
+  if (/Primary|^B\d$/.test(label)) return "pri";
+  if (/JHS/.test(label)) return "jhs";
+  return null;
 }
 
 function enrolmentCols(withNursery: boolean, withGrandSplit: boolean): Col[] {
@@ -145,7 +156,7 @@ function buildTable(
   report: ReportId,
   grp: GroupId,
   rows: CensusRow[],
-  opts: { nursery: boolean; grandSplit: boolean; schoolExtras: boolean }
+  opts: { nursery: boolean; grandSplit: boolean; schoolExtras: boolean; sel: LevelSel }
 ): Table {
   if (report === "directory") {
     const headers = ["Name of School", "Community", "Circuit", "Public/Private", "School Level", "EMIS Code", "GPS Address",
@@ -161,11 +172,15 @@ function buildTable(
     const body = withIssues.map((r) => [r.name, titleCase(r.circuit), r.head_phone ?? "", r.follow_up.length, r.follow_up.join("; ")]);
     return { headers, rows: body, total: null, numericFrom: 3, ids: withIssues.map((r) => r.id) };
   }
-  const cols =
+  const allCols =
     report === "enrolment" ? enrolmentCols(opts.nursery, opts.grandSplit)
     : report === "class" ? CLASS_COLS
     : report === "teachers" ? TEACHER_COLS
     : FACILITY_COLS;
+  const cols = allCols.filter((c) => {
+    const lv = colLevel(c.label);
+    return !lv || opts.sel[lv];
+  });
   const firstLabel =
     grp === "school" ? "Name of School"
     : grp === "circuit" ? "Circuit"
@@ -199,19 +214,27 @@ function buildTable(
 }
 
 function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return escHtml(s);
 }
 
-function tableHtml(title: string, subtitle: string, t: Table): string {
+function cellText(c: Cell): string {
+  return typeof c === "number" ? c.toLocaleString(undefined, { maximumFractionDigits: 1 }) : String(c);
+}
+
+function tableMarkup(t: Table): string {
   const all = t.total ? [...t.rows, t.total] : t.rows;
-  const head = t.headers.map((h) => `<th>${esc(h)}</th>`).join("");
+  const head = t.headers.map((h, i) => `<th${i >= t.numericFrom ? ' class="n"' : ""}>${esc(h)}</th>`).join("");
   const body = all
     .map((r, i) => {
       const isTotal = t.total !== null && i === all.length - 1;
-      return `<tr${isTotal ? ' class="tot"' : ""}>${r.map((c, ci) => `<td${ci >= t.numericFrom && typeof c === "number" ? ' class="n"' : ""}>${esc(String(c))}</td>`).join("")}</tr>`;
+      return `<tr${isTotal ? ' class="tot"' : ""}>${r.map((c, ci) => `<td${ci >= t.numericFrom && typeof c === "number" ? ' class="n"' : ""}>${esc(cellText(c))}</td>`).join("")}</tr>`;
     })
     .join("");
-  return `<h2>${esc(title)}</h2><p>${esc(subtitle)}</p><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function tableHtml(title: string, subtitle: string, t: Table): string {
+  return `<h2>${esc(title)}</h2><p>${esc(subtitle)}</p>${tableMarkup(t)}`;
 }
 
 const PAGE_CSS =
@@ -236,6 +259,8 @@ export function CloudDistrictCensus() {
   const [nursery, setNursery] = useState(false);
   const [grandSplit, setGrandSplit] = useState(false);
   const [schoolExtras, setSchoolExtras] = useState(false);
+  const [sel, setSel] = useState<LevelSel>(ALL_LEVELS);
+  const [dropEmpty, setDropEmpty] = useState(true);
 
   const [find, setFind] = useState("");
   const [open, setOpen] = useState<{ id: string | null; edit: boolean } | null>(null);
@@ -267,9 +292,13 @@ export function CloudDistrictCensus() {
     );
   }, [rows, search, circuit, type, level, feeding]);
 
+  // The same schools, with the levels that are switched off taken out of every number.
+  const levelRows = useMemo(() => applyLevels(filtered, sel, dropEmpty), [filtered, sel, dropEmpty]);
+  const note = levelsNote(sel);
+
   const table = useMemo(
-    () => buildTable(report, report === "directory" || report === "followup" ? "school" : grp, filtered, { nursery, grandSplit, schoolExtras }),
-    [report, grp, filtered, nursery, grandSplit, schoolExtras]
+    () => buildTable(report, report === "directory" || report === "followup" ? "school" : grp, levelRows, { nursery, grandSplit, schoolExtras, sel }),
+    [report, grp, levelRows, nursery, grandSplit, schoolExtras, sel]
   );
 
   const found = useMemo(() => {
@@ -283,9 +312,11 @@ export function CloudDistrictCensus() {
   const filterBits = [circuit && `Circuit: ${titleCase(circuit)}`, type && titleCase(type), level && levelLabel(level), feeding && `Feeding: ${feeding}`, search && `Search: ${search}`]
     .filter(Boolean)
     .join(" | ");
-  const baseSubtitle = `Wassa Amenfi Central District - ${filtered.length} school(s)${filterBits ? " - " + filterBits : ""}`;
+  const baseSubtitle = `${levelRows.length} school(s)${note ? " - " + note : ""}${filterBits ? " - " + filterBits : ""}`;
   const subtitle = `${baseSubtitle} - Grouped by: ${groupLabel}`;
-  const fileBase = `wassa-amenfi-central-${reportMeta.id}-${grp}`;
+  const levelSlug = note ? "-" + note.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "") : "";
+  const fileBase = `wassa-amenfi-central-${reportMeta.id}-${grp}${levelSlug}`;
+  const printChips = [note, groupLabel && `Grouped by: ${groupLabel}`, circuit && `Circuit: ${titleCase(circuit)}`, type && titleCase(type), level && levelLabel(level), feeding && `Feeding: ${feeding}`, search && `Search: ${search}`].filter(Boolean) as string[];
 
   function exportCsv() {
     const all = table.total ? [...table.rows, table.total] : table.rows;
@@ -304,12 +335,36 @@ export function CloudDistrictCensus() {
   }
 
   function printReport() {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(`<html><head><title>${esc(reportMeta.label)}</title><style>@page{size:A4 landscape;margin:10mm}${PAGE_CSS}</style></head><body>${tableHtml(reportMeta.label, subtitle, table)}</body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
+    const all = aggregate(levelRows);
+    openPrint({
+      title: reportMeta.label,
+      subtitle: `${levelRows.length} school(s) in Wassa Amenfi Central District`,
+      chips: printChips,
+      kpis:
+        report === "enrolment" || report === "class"
+          ? [
+              { label: "Schools", value: fmt(all.schools) },
+              { label: "Pupils", value: fmt(grand(all)) },
+              { label: "Boys", value: fmt(g(all, "kg_b") + g(all, "pri_b") + g(all, "jhs_b")) },
+              { label: "Girls", value: fmt(g(all, "kg_g") + g(all, "pri_g") + g(all, "jhs_g")) },
+            ]
+          : report === "teachers"
+            ? [
+                { label: "Schools", value: fmt(all.schools) },
+                { label: "Teachers", value: fmt(teachers(all)) },
+                { label: "Trained", value: fmt(trained(all)) },
+                { label: "Pupils per teacher", value: fmt(ratio(grand(all), teachers(all)), 1) },
+              ]
+            : report === "facilities"
+              ? [
+                  { label: "Schools", value: fmt(all.schools) },
+                  { label: "Classrooms", value: fmt(rooms(all)) },
+                  { label: "Pupils per classroom", value: fmt(ratio(grand(all), rooms(all)), 1) },
+                ]
+              : [{ label: "Schools", value: fmt(all.schools) }],
+      bodyHtml: tableMarkup(table) + (report === "enrolment" && nursery ? '<p style="font-size:10px;color:#5b6b8c">* Nursery/Creche pupils are shown separately and are not part of the Grand Total.</p>' : ""),
+      landscape: table.headers.length > 7,
+    });
   }
 
   if (error) return <div className="alert alert-danger">{error}</div>;
@@ -322,7 +377,7 @@ export function CloudDistrictCensus() {
     );
 
   const districtId = rows[0].district_id;
-  const flagged = filtered.filter((r) => r.follow_up.length > 0).length;
+  const flagged = levelRows.filter((r) => r.follow_up.length > 0).length;
   const opened = open?.id ? rows.find((r) => r.id === open.id) ?? null : null;
 
   function onSaved(saved: CensusRow) {
@@ -335,7 +390,7 @@ export function CloudDistrictCensus() {
   }
 
   const filtersBar = (
-    <div className="actrs-card p-3 mb-3">
+    <div className="actrs-card cx-glass p-3 mb-3">
       <div className="row g-2">
         <div className="col-md-3">
           <input className="form-control form-control-sm" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Narrow by any word (school, community, head…)" />
@@ -372,6 +427,42 @@ export function CloudDistrictCensus() {
           </select>
         </div>
       </div>
+      <div className="mt-3 pt-3 border-top">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <span className="small fw-semibold">Levels to include in the figures:</span>
+          {(["nur", "kg", "pri", "jhs"] as LevelKey[]).map((k) => (
+            <span key={k} className={`cx-chip ${sel[k] ? "on" : "off"}`} onClick={() => setSel((p) => ({ ...p, [k]: !p[k] }))} title={sel[k] ? "Click to leave this level out" : "Click to include this level"}>
+              <i className={`bi ${sel[k] ? "bi-check-circle-fill" : "bi-x-circle"}`} />
+              {LEVEL_LABEL[k]}
+            </span>
+          ))}
+        </div>
+        <div className="d-flex align-items-center gap-2 flex-wrap mt-2">
+          <span className="text-muted small">Quick choices:</span>
+          {([
+            ["All levels", { nur: true, kg: true, pri: true, jhs: true }],
+            ["Without KG", { nur: false, kg: false, pri: true, jhs: true }],
+            ["Without JHS", { nur: true, kg: true, pri: true, jhs: false }],
+            ["Without Primary", { nur: true, kg: true, pri: false, jhs: true }],
+            ["Primary only", { nur: false, kg: false, pri: true, jhs: false }],
+            ["JHS only", { nur: false, kg: false, pri: false, jhs: true }],
+            ["KG only", { nur: true, kg: true, pri: false, jhs: false }],
+          ] as [string, LevelSel][]).map(([label, v]) => (
+            <button key={label} type="button" className="btn btn-sm btn-outline-primary py-0" onClick={() => setSel(v)}>{label}</button>
+          ))}
+          {!allLevelsOn(sel) && (
+            <label className="form-check-label small ms-2">
+              <input type="checkbox" className="form-check-input me-1" checked={dropEmpty} onChange={(e) => setDropEmpty(e.target.checked)} />
+              Leave out schools that have no pupils in these levels
+            </label>
+          )}
+        </div>
+        {!allLevelsOn(sel) && (
+          <div className="small mt-2 cx-live d-inline-block px-2 py-1 rounded-pill" style={{ background: "rgba(28,111,235,.14)" }}>
+            <i className="bi bi-funnel-fill me-1" />Showing: <b>{note}</b>. Every total, chart, report and download below follows this choice.
+          </div>
+        )}
+      </div>
       {(search || circuit || type || level || feeding) && (
         <div className="mt-2 small">
           Showing {filtered.length} of {rows.length} schools.{" "}
@@ -384,20 +475,22 @@ export function CloudDistrictCensus() {
   );
 
   return (
-    <div>
-      <div className="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div className="cx-wrap">
+      <CensusFx />
+      <Aurora />
+      <div className="cx-hero d-flex align-items-start justify-content-between flex-wrap gap-2">
         <div>
-          <h1 className="h4 mb-0">District school census</h1>
+          <h1 className="h3 mb-1">District school census</h1>
           <div className="text-muted small">
             Wassa Amenfi Central District. The district's own schools survey, separate from the schools registered on EduLink GH. All figures can be edited.
           </div>
         </div>
-        <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => setOpen({ id: null, edit: true })}>
+        <button type="button" className="btn btn-light btn-sm" onClick={() => setOpen({ id: null, edit: true })}>
           <i className="bi bi-plus-circle me-1" />Add a school
         </button>
       </div>
 
-      <ul className="nav nav-pills mb-3">
+      <ul className="nav nav-pills cx-pills mb-3">
         {([["summary", "Summary and charts"], ["reports", "Reports and downloads"], ["find", "Find a school"]] as [TabId, string][]).map(([id, label]) => (
           <li className="nav-item" key={id}>
             <button type="button" className={`nav-link ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}</button>
@@ -407,7 +500,7 @@ export function CloudDistrictCensus() {
 
       {tab !== "find" && filtersBar}
 
-      {tab === "summary" && <CensusSummary rows={filtered} subtitle={baseSubtitle} />}
+      {tab === "summary" && <CensusSummary rows={levelRows} subtitle={baseSubtitle} sel={sel} chips={printChips} />}
 
       {tab === "reports" && (
         <>
