@@ -19,6 +19,12 @@ export interface CensusSubmission {
   review_note: string | null;
   data: Record<string, unknown> & { n?: Record<string, number> };
 }
+export interface FeeRates {
+  district_id: string;
+  circuit_rate: number;
+  district_rate: number;
+  overrides: Record<string, { c?: number; d?: number }>;
+}
 export interface PublicInfo {
   ok: boolean;
   district?: string;
@@ -68,6 +74,16 @@ class CensusServiceImpl {
 
   async publicSubmit(token: string, data: Record<string, unknown>): Promise<string> {
     return rest.rpc<string>("census_public_submit", { p_token: token, p_data: data });
+  }
+
+  /** Super Admin only (sports affiliation fee rates). */
+  async feeRates(): Promise<FeeRates | null> {
+    const r = await rest.select<FeeRates>("district_census_fee_rates", { select: "*", limit: 1 });
+    return r[0] ?? null;
+  }
+
+  async saveFeeRates(districtId: string, circuit: number, district: number, overrides: FeeRates["overrides"]): Promise<void> {
+    await rest.rpc<unknown>("census_fee_rates_save", { p_district: districtId, p_circuit_rate: circuit, p_district_rate: district, p_overrides: overrides });
   }
 
   async history(schoolId: string): Promise<CensusLogRow[]> {

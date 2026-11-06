@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { downloadCsv } from "@/lib/csvExport";
 import { CensusService } from "@services/cloud/CensusService";
 import { CensusSummary } from "@components/census/CensusSummary";
+import { CensusSportsFees } from "@components/census/CensusSportsFees";
+import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CensusSubmissions } from "@components/census/CensusSubmissions";
 import { CensusSchoolModal } from "@components/census/CensusSchoolModal";
 import { Aurora, CensusFx } from "@components/census/censusFx";
@@ -235,11 +237,13 @@ function tableMarkup(t: Table): string {
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-type TabId = "summary" | "reports" | "find" | "submissions";
+type TabId = "summary" | "reports" | "find" | "submissions" | "fees";
 
 export function CloudDistrictCensus() {
   const [rows, setRows] = useState<CensusRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { profile } = useCloudAuth();
+  const isSuper = profile?.role === "platform_admin";
   const [tab, setTab] = useState<TabId>("summary");
   const [pendingSubs, setPendingSubs] = useState(0);
 
@@ -548,14 +552,16 @@ export function CloudDistrictCensus() {
       </div>
 
       <ul className="nav nav-pills cx-pills mb-3">
-        {([["summary", "Summary and charts"], ["reports", "Reports and downloads"], ["find", "Find a school"], ["submissions", "School submissions"]] as [TabId, string][]).map(([id, label]) => (
+        {([["summary", "Summary and charts"], ["reports", "Reports and downloads"], ["find", "Find a school"], ["submissions", "School submissions"], ...(isSuper ? [["fees", "Sports affiliation fees"]] : [])] as [TabId, string][]).map(([id, label]) => (
           <li className="nav-item" key={id}>
             <button type="button" className={`nav-link ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}{id === "submissions" && pendingSubs > 0 && <span className="badge bg-danger ms-2">{pendingSubs}</span>}</button>
           </li>
         ))}
       </ul>
 
-      {tab !== "find" && tab !== "submissions" && filtersBar}
+      {tab !== "find" && tab !== "submissions" && tab !== "fees" && filtersBar}
+
+      {tab === "fees" && isSuper && <CensusSportsFees rows={rows} districtId={districtId} />}
 
       {tab === "submissions" && (
         <CensusSubmissions

@@ -62,6 +62,7 @@ import { ThemeProvider } from "@contexts/ThemeContext";
  * EduLink GH yet to their district once it has joined.
  * "/students/photos" attaches finished photos (from the Batch Photo
  * Editor at /tools/photo-editor.html) to a class.
+ * "/census-fees" is the same census for the Super Admin, with the sports affiliation fee tab.
  * "/district-census" is the district's own schools census (district admin
  * and Super Admin), separate from the schools registered on EduLink GH.
  */
@@ -175,6 +176,14 @@ export default function App() {
             path="/district-census"
             element={
               <RequireAdmin roles="district">
+                <CloudDistrictCensus />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/census-fees"
+            element={
+              <RequireAdmin roles="platform">
                 <CloudDistrictCensus />
               </RequireAdmin>
             }

@@ -85,7 +85,15 @@ const CSS = `
 .cx-wrap .cx-glass{background:linear-gradient(145deg,rgba(127,127,127,.2),rgba(127,127,127,.08))}
 .cx-wrap .cx-title{font-size:1.08rem}
 .cx-wrap table td,.cx-wrap table th{font-size:.95rem}
-@media print{.cx-aurora{display:none}}
+.cx-tip{position:fixed;z-index:2000;pointer-events:none;min-width:170px;max-width:260px;background:#0a1f44;color:#fff;border:1.5px solid rgba(255,255,255,.55);border-radius:10px;padding:8px 11px;font-size:.9rem;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.cx-tip-t{font-weight:800;margin-bottom:2px;display:flex;align-items:center;gap:7px}
+.cx-tip-t span{width:11px;height:11px;border-radius:3px;display:inline-block}
+.cx-row{border-radius:6px;transition:background .15s}
+.cx-row:hover{background:rgba(127,127,127,.18)}
+.cx-slice{cursor:pointer}.cx-slice:hover{stroke-width:27px}
+.cx-wrap .cx-pills .nav-link.active{background:linear-gradient(120deg,#1c6feb,#7a5cfa,#e64a9b)!important;background-size:200% 100%;color:#fff!important;border:2px solid #fff!important;box-shadow:0 0 0 3px rgba(122,92,250,.55),0 10px 26px rgba(122,92,250,.55)!important;transform:translateY(-2px);font-weight:800}
+.cx-wrap .cx-pills .nav-link.active:after{content:"";display:block;height:3px;border-radius:3px;background:#ffe08a;margin-top:3px}
+@media print{.cx-aurora{display:none}.cx-tip{display:none}}
 `;
 
 export function CensusFx() {

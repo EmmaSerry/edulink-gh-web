@@ -9,6 +9,8 @@ import { openPrint } from "./censusPrint";
 
 /** Numbers and charts for the (already filtered) schools. */
 
+const detailOf = (a: Agg) => [`Pupils: ${fmt(grand(a))} (boys ${fmt(boysT(a))}, girls ${fmt(girlsT(a))})`, `Teachers: ${fmt(teachers(a))}`, `Classrooms: ${fmt(rooms(a))}`];
+
 function Kpi({ label, value, sub, glow, i, decimals = 0, suffix = "" }: { label: string; value: number | null; sub?: string; glow: string; i: number; decimals?: number; suffix?: string }) {
   return (
     <div className="col-6 col-md-4 col-xl-2">
@@ -40,7 +42,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
     };
     const circuits = countBy((r) => titleCase(r.circuit)).map(([k, list]) => ({ k, list, a: aggregate(list) }));
     const levels = countBy((r) => levelLabel(r.school_level));
-    const sized = rows.map((r) => ({ name: r.name, total: rowTotal(r) })).filter((x) => x.total > 0).sort((a, b) => b.total - a.total);
+    const sized = rows.map((r) => ({ name: r.name, total: rowTotal(r), det: detailOf(aggregate([r])).concat([`Circuit: ${titleCase(r.circuit)}`]) })).filter((x) => x.total > 0).sort((a, b) => b.total - a.total);
     return { all, pub, pri, circuits, levels, sized };
   }, [rows]);
 
@@ -112,7 +114,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
           <div className="col-md-6 col-xl-3">
             <ChartCard i={6} title="Boys and girls">
               <Donut
-                data={[{ label: "Boys", value: boys, color: COLORS.boys }, { label: "Girls", value: girls, color: COLORS.girls }]}
+                data={[{ label: "Boys", value: boys, color: COLORS.boys, detail: [`Public: ${fmt(boysT(pub))}`, `Private: ${fmt(boysT(pri))}`] }, { label: "Girls", value: girls, color: COLORS.girls, detail: [`Public: ${fmt(girlsT(pub))}`, `Private: ${fmt(girlsT(pri))}`] }]}
                 centerTop={pct(girls, grand(all), 0)}
                 centerBottom="girls"
               />
@@ -121,7 +123,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
           <div className="col-md-6 col-xl-3">
             <ChartCard i={7} title="Pupils: public and private">
               <Donut
-                data={[{ label: "Public", value: grand(pub), color: COLORS.public }, { label: "Private", value: grand(pri), color: COLORS.private }]}
+                data={[{ label: "Public", value: grand(pub), color: COLORS.public, detail: [`Boys: ${fmt(boysT(pub))}`, `Girls: ${fmt(girlsT(pub))}`, `KG: ${fmt(kgT(pub))}, Primary: ${fmt(priT(pub))}, JHS: ${fmt(jhsT(pub))}`] }, { label: "Private", value: grand(pri), color: COLORS.private, detail: [`Boys: ${fmt(boysT(pri))}`, `Girls: ${fmt(girlsT(pri))}`, `KG: ${fmt(kgT(pri))}, Primary: ${fmt(priT(pri))}, JHS: ${fmt(jhsT(pri))}`] }]}
                 centerTop={pct(grand(pri), grand(all), 0)}
                 centerBottom="private"
               />
@@ -130,7 +132,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
           <div className="col-md-6 col-xl-3">
             <ChartCard i={8} title="Schools: public and private">
               <Donut
-                data={[{ label: "Public", value: pub.schools, color: COLORS.public }, { label: "Private", value: pri.schools, color: COLORS.private }]}
+                data={[{ label: "Public", value: pub.schools, color: COLORS.public, detail: detailOf(pub) }, { label: "Private", value: pri.schools, color: COLORS.private, detail: detailOf(pri) }]}
                 centerTop={fmt(all.schools)}
                 centerBottom="schools"
               />
@@ -140,8 +142,8 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
             <ChartCard i={9} title="School feeding programme" note="Number of schools">
               <Donut
                 data={[
-                  { label: "Beneficiary", value: feedYes.length, color: COLORS.a },
-                  { label: "Not a beneficiary", value: feedNo.length, color: COLORS.grey },
+                  { label: "Beneficiary", value: feedYes.length, color: COLORS.a, detail: detailOf(aggregate(feedYes)) },
+                  { label: "Not a beneficiary", value: feedNo.length, color: COLORS.grey, detail: detailOf(aggregate(feedNo)) },
                   ...(feedUnknown ? [{ label: "Not stated", value: feedUnknown, color: COLORS.d }] : []),
                 ]}
                 centerTop={fmt(feedYes.length)}
@@ -247,7 +249,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
                 color={COLORS.b}
                 decimals={1}
                 items={circuits
-                  .map((c) => ({ label: c.k, value: ratio(grand(c.a), teachers(c.a)) ?? 0 }))
+                  .map((c) => ({ label: c.k, value: ratio(grand(c.a), teachers(c.a)) ?? 0, detail: [`Schools: ${c.list.length}`, ...detailOf(c.a)] }))
                   .sort((x, y) => y.value - x.value)}
               />
             </ChartCard>
@@ -261,7 +263,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
                 color={COLORS.girls}
                 decimals={1}
                 items={circuits
-                  .map((c) => ({ label: c.k, value: grand(c.a) ? (girlsT(c.a) / grand(c.a)) * 100 : 0 }))
+                  .map((c) => ({ label: c.k, value: grand(c.a) ? (girlsT(c.a) / grand(c.a)) * 100 : 0, detail: [`Schools: ${c.list.length}`, ...detailOf(c.a)] }))
                   .sort((x, y) => y.value - x.value)}
               />
             </ChartCard>
@@ -272,7 +274,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
                 color={COLORS.c}
                 decimals={1}
                 items={circuits
-                  .map((c) => ({ label: c.k, value: ratio(grand(c.a), rooms(c.a)) ?? 0 }))
+                  .map((c) => ({ label: c.k, value: ratio(grand(c.a), rooms(c.a)) ?? 0, detail: [`Schools: ${c.list.length}`, ...detailOf(c.a)] }))
                   .sort((x, y) => y.value - x.value)}
               />
             </ChartCard>
@@ -282,12 +284,12 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
         <div className="row g-3 mb-3">
           <div className="col-lg-6">
             <ChartCard i={18} title="Ten largest schools (pupils)">
-              <HBars items={sized.slice(0, 10).map((s) => ({ label: s.name, value: s.total }))} />
+              <HBars items={sized.slice(0, 10).map((s) => ({ label: s.name, value: s.total, detail: s.det }))} />
             </ChartCard>
           </div>
           <div className="col-lg-6">
             <ChartCard i={19} title="Ten smallest schools (pupils)">
-              <HBars color={COLORS.d} items={sized.slice(-10).reverse().map((s) => ({ label: s.name, value: s.total }))} />
+              <HBars color={COLORS.d} items={sized.slice(-10).reverse().map((s) => ({ label: s.name, value: s.total, detail: s.det }))} />
             </ChartCard>
           </div>
         </div>
@@ -307,7 +309,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
           </div>
           <div className="col-lg-6">
             <ChartCard i={21} title="Schools per circuit">
-              <HBars color={COLORS.a} items={circuits.map((c) => ({ label: c.k, value: c.list.length })).sort((x, y) => y.value - x.value)} />
+              <HBars color={COLORS.a} items={circuits.map((c) => ({ label: c.k, value: c.list.length, detail: detailOf(c.a) })).sort((x, y) => y.value - x.value)} />
               <div className="text-muted mt-2" style={{ fontSize: "0.85rem" }}>
                 {flagged} school(s) still have fields marked for follow-up.
               </div>
