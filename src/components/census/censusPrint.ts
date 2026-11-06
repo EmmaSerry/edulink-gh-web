@@ -77,7 +77,7 @@ export function openPrint(o: PrintOptions): void {
   const kpis = (o.kpis ?? []).map((k) => `<div class="kpi"><div class="l">${escHtml(k.label)}</div><div class="v">${escHtml(k.value)}</div></div>`).join("");
   w.document.write(
     `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(o.title)}</title>${o.useAppStyles ? appStyles() : ""}` +
-      `<style>@page{size:A4 ${o.landscape ? "landscape" : "portrait"};margin:11mm 10mm 14mm;@bottom-left{content:"EduLink GH - District School Census";font-size:11px;color:#5b6b8c}@bottom-right{content:"Page " counter(page) " of " counter(pages);font-size:11px;color:#5b6b8c}}${BASE_CSS}</style></head>` +
+      `<style>@page{size:${o.landscape ? "A4 landscape" : "A4 portrait"}}@page{margin:11mm 10mm 14mm;@bottom-left{content:"EduLink GH - District School Census";font-size:11px;color:#5b6b8c}@bottom-right{content:"Page " counter(page) " of " counter(pages);font-size:11px;color:#5b6b8c}}${BASE_CSS}${o.landscape ? "html,body{width:277mm}" : ""}@page{size:${o.landscape ? "A4 landscape" : "A4 portrait"}}</style></head>` +
       `<body><div class="sheet"><div class="hero"><div class="l"><div class="brand">EduLink GH &middot; Wassa Amenfi Central District</div><h1>${escHtml(o.title)}</h1>` +
       `${o.subtitle ? `<div class="sub">${escHtml(o.subtitle)}</div>` : ""}</div><div class="date">Printed ${today}</div></div>` +
       `${chips ? `<div class="chips">${chips}</div>` : ""}${kpis ? `<div class="kpis">${kpis}</div>` : ""}${o.bodyHtml}` +

@@ -4,6 +4,7 @@ import { CensusService } from "@services/cloud/CensusService";
 import { CensusSummary } from "@components/census/CensusSummary";
 import { CensusSchoolModal } from "@components/census/CensusSchoolModal";
 import { Aurora, CensusFx } from "@components/census/censusFx";
+import { downloadXlsx } from "@components/census/xlsxWriter";
 import { escHtml, openPrint } from "@components/census/censusPrint";
 import {
   ALL_LEVELS, LEVEL_LABEL, aggregate, allLevelsOn, applyLevels, fmt, g, grand, jhsT, kgT, levelLabel, priT, ratio, rooms, rowTotal, searchText, teachers,
@@ -233,15 +234,6 @@ function tableMarkup(t: Table): string {
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-function tableHtml(title: string, subtitle: string, t: Table): string {
-  return `<h2>${esc(title)}</h2><p>${esc(subtitle)}</p>${tableMarkup(t)}`;
-}
-
-const PAGE_CSS =
-  "body{font-family:Arial,sans-serif;font-size:11px;color:#111}h2{margin:0 0 4px}p{margin:0 0 10px;color:#555}" +
-  "table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:3px 5px;text-align:left}th{background:#0a1f44;color:#fff}" +
-  "td.n{text-align:right}tr.tot td{font-weight:bold;background:#eef3fb}";
-
 type TabId = "summary" | "reports" | "find";
 
 export function CloudDistrictCensus() {
@@ -319,8 +311,10 @@ export function CloudDistrictCensus() {
     .join(" | ");
   const baseSubtitle = `${levelRows.length} school(s)${note ? " - " + note : ""}${pickNote ? " - " + pickNote : ""}${filterBits ? " - " + filterBits : ""}`;
   const subtitle = `${baseSubtitle} - Grouped by: ${groupLabel}`;
-  const levelSlug = note ? "-" + note.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "") : "";
-  const fileBase = `wassa-amenfi-central-${reportMeta.id}-${grp}${levelSlug}`;
+  const fileBase = `${circuit ? titleCase(circuit) + " Circuit" : "Wassa Amenfi Central"} - ${reportMeta.label}${note ? " - " + note : ""}`
+    .replace(/[\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const printChips = [note, pickNote, groupLabel && `Grouped by: ${groupLabel}`, circuit && `Circuit: ${titleCase(circuit)}`, type && titleCase(type), level && levelLabel(level), feeding && `Feeding: ${feeding}`, search && `Search: ${search}`].filter(Boolean) as string[];
 
   function exportCsv() {
@@ -329,14 +323,15 @@ export function CloudDistrictCensus() {
   }
 
   function exportExcel() {
-    const html = `<html><head><meta charset="utf-8"><style>${PAGE_CSS}</style></head><body>${tableHtml(reportMeta.label, subtitle, table)}</body></html>`;
-    const blob = new Blob([html], { type: "application/vnd.ms-excel" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${fileBase}.xls`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadXlsx(`${fileBase}.xlsx`, {
+      sheetName: reportMeta.label,
+      title: reportMeta.label,
+      subtitle,
+      headers: table.headers,
+      rows: table.rows as (string | number | null)[][],
+      total: table.total as (string | number | null)[] | null,
+      numericFrom: table.numericFrom,
+    });
   }
 
   function printReport() {
@@ -368,7 +363,7 @@ export function CloudDistrictCensus() {
                 ]
               : [{ label: "Schools", value: fmt(all.schools) }],
       bodyHtml: tableMarkup(table) + (report === "enrolment" && nursery ? '<p style="font-size:10px;color:#5b6b8c">* Nursery/Creche pupils are shown separately and are not part of the Grand Total.</p>' : ""),
-      landscape: table.headers.length > 7,
+      landscape: true,
     });
   }
 
