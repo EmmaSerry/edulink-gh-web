@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { downloadCsv } from "@/lib/csvExport";
 import { CensusService } from "@services/cloud/CensusService";
 import { CensusSummary } from "@components/census/CensusSummary";
+import { CensusSubmissions } from "@components/census/CensusSubmissions";
 import { CensusSchoolModal } from "@components/census/CensusSchoolModal";
 import { Aurora, CensusFx } from "@components/census/censusFx";
 import { downloadXlsx } from "@components/census/xlsxWriter";
@@ -234,12 +235,13 @@ function tableMarkup(t: Table): string {
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-type TabId = "summary" | "reports" | "find";
+type TabId = "summary" | "reports" | "find" | "submissions";
 
 export function CloudDistrictCensus() {
   const [rows, setRows] = useState<CensusRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("summary");
+  const [pendingSubs, setPendingSubs] = useState(0);
 
   const [report, setReport] = useState<ReportId>("enrolment");
   const [grp, setGrp] = useState<GroupId>("school");
@@ -264,6 +266,10 @@ export function CloudDistrictCensus() {
     CensusService.list()
       .then(setRows)
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load the census data."));
+    // number of school submissions waiting (ignored until the submissions SQL has been run)
+    CensusService.submissions()
+      .then((s) => setPendingSubs(s.filter((x) => x.status === "pending").length))
+      .catch(() => undefined);
   }, []);
 
   const circuits = useMemo(
@@ -542,14 +548,21 @@ export function CloudDistrictCensus() {
       </div>
 
       <ul className="nav nav-pills cx-pills mb-3">
-        {([["summary", "Summary and charts"], ["reports", "Reports and downloads"], ["find", "Find a school"]] as [TabId, string][]).map(([id, label]) => (
+        {([["summary", "Summary and charts"], ["reports", "Reports and downloads"], ["find", "Find a school"], ["submissions", "School submissions"]] as [TabId, string][]).map(([id, label]) => (
           <li className="nav-item" key={id}>
-            <button type="button" className={`nav-link ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}</button>
+            <button type="button" className={`nav-link ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}{id === "submissions" && pendingSubs > 0 && <span className="badge bg-danger ms-2">{pendingSubs}</span>}</button>
           </li>
         ))}
       </ul>
 
-      {tab !== "find" && filtersBar}
+      {tab !== "find" && tab !== "submissions" && filtersBar}
+
+      {tab === "submissions" && (
+        <CensusSubmissions
+          onPending={setPendingSubs}
+          onChanged={() => { CensusService.list().then((r) => setRows(r)).catch(() => undefined); }}
+        />
+      )}
 
       {tab === "summary" && <CensusSummary rows={levelRows} subtitle={baseSubtitle} sel={sel} chips={printChips} />}
 
