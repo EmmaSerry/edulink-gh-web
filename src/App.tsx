@@ -21,6 +21,7 @@ import { CloudAttendanceReports } from "@pages/cloud/CloudAttendanceReports";
 import { CloudSettings } from "@pages/cloud/CloudSettings";
 import { CloudAuditLog } from "@pages/cloud/CloudAuditLog";
 import { CloudDistrictDashboard } from "@pages/cloud/CloudDistrictDashboard";
+import { CloudDistrictCensus } from "@pages/cloud/CloudDistrictCensus";
 import { CloudStaffPage } from "@pages/cloud/CloudStaffPage";
 import { CloudPromoteClass } from "@pages/cloud/CloudPromoteClass";
 import { CloudUserDirectory } from "@pages/cloud/CloudUserDirectory";
@@ -60,6 +61,8 @@ import { ThemeProvider } from "@contexts/ThemeContext";
  * EduLink GH yet to their district once it has joined.
  * "/students/photos" attaches finished photos (from the Batch Photo
  * Editor at /tools/photo-editor.html) to a class.
+ * "/district-census" is the district's own schools census (district admin
+ * and Super Admin), separate from the schools registered on EduLink GH.
  */
 export default function App() {
   return (
@@ -163,6 +166,14 @@ export default function App() {
             element={
               <RequireAdmin roles="district">
                 <CloudDistrictDashboard />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/district-census"
+            element={
+              <RequireAdmin roles="district">
+                <CloudDistrictCensus />
               </RequireAdmin>
             }
           />

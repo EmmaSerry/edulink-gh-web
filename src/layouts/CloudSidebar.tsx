@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
 import { BrandMark } from "@components/BrandMark";
+import { rest } from "@/lib/supabaseClient";
 import type { UserRole } from "@/types/database";
 
 const SCHOOL_ADMIN_ROLES: UserRole[] = ["school_admin", "district_admin", "platform_admin"];
@@ -57,11 +58,15 @@ interface NavItem {
   attendanceOnly?: boolean;
   /** Attendance reports: teacher, school_admin, district_admin, platform_admin. */
   attendanceReportsOnly?: boolean;
+  /** District school census: only shown to a district/platform admin who
+   *  actually has census data loaded (the database decides). */
+  censusOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { path: "/dashboard", label: "Dashboard", icon: "bi-speedometer2" },
   { path: "/district", label: "District overview", icon: "bi-diagram-3", districtOnly: true },
+  { path: "/district-census", label: "School census", icon: "bi-clipboard-data", censusOnly: true },
   { path: "/accounts", label: "Accounts", icon: "bi-people-fill", districtOnly: true },
   { path: "/students", label: "Students", icon: "bi-people" },
   { path: "/statistics", label: "Statistics", icon: "bi-bar-chart-line" },
@@ -114,10 +119,26 @@ export function CloudSidebar() {
       .catch(() => setSchoolIsPrivate(false));
   }, [profile?.school_id, profile?.role]);
 
+  // The census link only appears when the database lets this person read
+  // census rows (the Super Admin, and the district admin of the district
+  // the census belongs to).
+  const [hasCensus, setHasCensus] = useState(false);
+  useEffect(() => {
+    if (!profile || !DISTRICT_ADMIN_ROLES.includes(profile.role)) {
+      setHasCensus(false);
+      return;
+    }
+    rest
+      .select<{ id: string }>("district_census_schools", { select: "id", limit: 1 })
+      .then((rows) => setHasCensus(rows.length > 0))
+      .catch(() => setHasCensus(false));
+  }, [profile?.role]);
+
   const isPlatformAdmin = !!profile && PLATFORM_ADMIN_ROLES.includes(profile.role);
   const isSubscriptionSubmitter = !!profile && SUBSCRIPTION_SUBMIT_ROLES.includes(profile.role);
 
   const items = NAV_ITEMS.filter((item) => {
+    if (item.censusOnly) return isDistrictAdmin && hasCensus;
     if (item.attendanceReportsOnly)
       return !!profile && ["teacher", "school_admin", "district_admin", "platform_admin"].includes(profile.role);
     if (item.attendanceOnly) return !!profile && ["school_admin", "teacher"].includes(profile.role);
