@@ -15,7 +15,7 @@ function Kpi({ label, value, sub, glow, i, decimals = 0, suffix = "" }: { label:
       <div className="actrs-card cx-glass cx-kpi cx-rise p-3 h-100" style={{ ["--i" as string]: i, ["--glow" as string]: glow }}>
         <div className="text-muted small">{label}</div>
         <div className="fs-3">{value === null ? "-" : <Count value={value} decimals={decimals} suffix={suffix} />}</div>
-        {sub && <div className="text-muted" style={{ fontSize: "0.72rem" }}>{sub}</div>}
+        {sub && <div className="text-muted" style={{ fontSize: "0.82rem" }}>{sub}</div>}
       </div>
     </div>
   );
@@ -308,7 +308,7 @@ export function CensusSummary({ rows, subtitle, sel, chips }: { rows: CensusRow[
           <div className="col-lg-6">
             <ChartCard i={21} title="Schools per circuit">
               <HBars color={COLORS.a} items={circuits.map((c) => ({ label: c.k, value: c.list.length })).sort((x, y) => y.value - x.value)} />
-              <div className="text-muted mt-2" style={{ fontSize: "0.75rem" }}>
+              <div className="text-muted mt-2" style={{ fontSize: "0.85rem" }}>
                 {flagged} school(s) still have fields marked for follow-up.
               </div>
             </ChartCard>

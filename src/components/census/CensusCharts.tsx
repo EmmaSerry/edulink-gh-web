@@ -65,7 +65,7 @@ export function Donut({ data, centerTop, centerBottom }: { data: Slice[]; center
         <text x="70" y="68" textAnchor="middle" fontSize="17" fontWeight="700" fill="currentColor">
           {centerTop ?? n(total)}
         </text>
-        <text x="70" y="85" textAnchor="middle" fontSize="9.5" fill="currentColor" opacity="0.7">
+        <text x="70" y="85" textAnchor="middle" fontSize="10.5" fill="currentColor" opacity="0.95">
           {centerBottom ?? "total"}
         </text>
       </svg>
@@ -75,7 +75,7 @@ export function Donut({ data, centerTop, centerBottom }: { data: Slice[]; center
             <span style={{ width: 11, height: 11, borderRadius: 3, background: d.color, display: "inline-block", boxShadow: `0 0 8px ${d.color}` }} />
             <span>
               {d.label}: <b><Count value={d.value} className="" /></b>
-              {total > 0 && <span style={{ opacity: 0.7 }}> ({((d.value / total) * 100).toFixed(1)}%)</span>}
+              {total > 0 && <span style={{ opacity: 0.9 }}> ({((d.value / total) * 100).toFixed(1)}%)</span>}
             </span>
           </div>
         ))}
@@ -197,7 +197,7 @@ export function GroupedVBars({ items, labels, colors, height = 210 }: { items: G
           return (
             <g key={t}>
               <line x1={padL} x2={W - 4} y1={y} y2={y} stroke={TRACK} />
-              <text x={padL - 5} y={y + 3} fontSize="9.5" textAnchor="end" fill="currentColor" opacity="0.7">
+              <text x={padL - 5} y={y + 3} fontSize="10.5" textAnchor="end" fill="currentColor" opacity="0.95">
                 {n(t)}
               </text>
             </g>
@@ -231,7 +231,7 @@ export function ChartCard({ title, children, note, i = 0 }: { title: string; chi
     <div className="actrs-card cx-glass cx-rise p-3 h-100" style={{ ["--i" as string]: i, breakInside: "avoid" }}>
       <div className="cx-title mb-2" style={{ fontSize: "0.95rem" }}>{title}</div>
       {children}
-      {note && <div className="text-muted mt-2" style={{ fontSize: "0.72rem" }}>{note}</div>}
+      {note && <div className="text-muted mt-2" style={{ fontSize: "0.82rem" }}>{note}</div>}
     </div>
   );
 }

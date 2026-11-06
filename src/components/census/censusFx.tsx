@@ -63,6 +63,28 @@ const CSS = `
   .cx-rise,.cx-hero,.cx-hero:before,.cx-aurora i,.cx-num,.cx-live,.cx-donut,.cx-pills .nav-link.active{animation:none!important;opacity:1}
   .cx-bar,.cx-slice,.cx-col,.cx-glass{transition:none!important}
 }
+
+/* ---- readability: strong text in light AND dark mode (inherits the app's own text colour) ---- */
+.cx-wrap{font-size:1.02rem}
+.cx-wrap .text-muted,.cx-wrap .small,.cx-wrap small,.cx-wrap label{color:inherit!important;opacity:1!important}
+.cx-wrap .text-muted{font-weight:500}
+.cx-wrap .form-control,.cx-wrap .form-select{color:inherit!important;font-weight:500;border-width:1.5px;background-color:rgba(127,127,127,.14)}
+.cx-wrap .form-control::placeholder{color:inherit!important;opacity:.8!important}
+.cx-wrap .form-select option{color:#111;background:#fff}
+.cx-wrap .btn-outline-primary{color:inherit!important;font-weight:600;border:1.5px solid #4c8dff!important;background:rgba(76,141,255,.16)!important}
+.cx-wrap .btn-outline-primary:hover{background:linear-gradient(120deg,#1c6feb,#7a5cfa)!important;color:#fff!important}
+.cx-wrap .cx-chip{color:inherit;font-weight:700;font-size:.92rem;background:rgba(127,127,127,.16);border:1.5px solid rgba(127,127,127,.55)}
+.cx-wrap .cx-chip.on{color:#fff}
+.cx-wrap .cx-chip.off{opacity:.9}
+.cx-wrap .cx-pills .nav-link{color:inherit!important;font-weight:700;font-size:1.02rem;background:rgba(127,127,127,.16);border:1.5px solid rgba(127,127,127,.5)}
+.cx-wrap .cx-pills .nav-link.active{color:#fff!important}
+.cx-wrap .cx-hero,.cx-wrap .cx-hero h1,.cx-wrap .cx-hero h2,.cx-wrap .cx-hero p,.cx-wrap .cx-hero div,.cx-wrap .cx-hero span,.cx-wrap .cx-hero .text-muted{color:#fff!important;opacity:1!important}
+.cx-wrap .cx-hero{background:linear-gradient(120deg,#0a1f44,#1c4fd0,#5b3fd6,#b02f78)!important;background-size:260% 260%}
+.cx-wrap .cx-hero p,.cx-wrap .cx-hero .text-muted{font-size:1.05rem;font-weight:500;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+.cx-wrap .cx-hero .btn{color:#0a1f44!important;background:#fff!important;font-weight:700}
+.cx-wrap .cx-glass{background:linear-gradient(145deg,rgba(127,127,127,.2),rgba(127,127,127,.08))}
+.cx-wrap .cx-title{font-size:1.08rem}
+.cx-wrap table td,.cx-wrap table th{font-size:.95rem}
 @media print{.cx-aurora{display:none}}
 `;
 

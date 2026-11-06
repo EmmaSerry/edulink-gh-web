@@ -259,6 +259,9 @@ export function CloudDistrictCensus() {
   const [nursery, setNursery] = useState(false);
   const [grandSplit, setGrandSplit] = useState(false);
   const [schoolExtras, setSchoolExtras] = useState(false);
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickSearch, setPickSearch] = useState("");
   const [sel, setSel] = useState<LevelSel>(ALL_LEVELS);
   const [dropEmpty, setDropEmpty] = useState(true);
 
@@ -293,8 +296,10 @@ export function CloudDistrictCensus() {
   }, [rows, search, circuit, type, level, feeding]);
 
   // The same schools, with the levels that are switched off taken out of every number.
-  const levelRows = useMemo(() => applyLevels(filtered, sel, dropEmpty), [filtered, sel, dropEmpty]);
+  const chosen = useMemo(() => filtered.filter((r) => !excluded.has(r.id)), [filtered, excluded]);
+  const levelRows = useMemo(() => applyLevels(chosen, sel, dropEmpty), [chosen, sel, dropEmpty]);
   const note = levelsNote(sel);
+  const pickNote = chosen.length < filtered.length ? `Schools selected: ${chosen.length} of ${filtered.length}` : "";
 
   const table = useMemo(
     () => buildTable(report, report === "directory" || report === "followup" ? "school" : grp, levelRows, { nursery, grandSplit, schoolExtras, sel }),
@@ -312,11 +317,11 @@ export function CloudDistrictCensus() {
   const filterBits = [circuit && `Circuit: ${titleCase(circuit)}`, type && titleCase(type), level && levelLabel(level), feeding && `Feeding: ${feeding}`, search && `Search: ${search}`]
     .filter(Boolean)
     .join(" | ");
-  const baseSubtitle = `${levelRows.length} school(s)${note ? " - " + note : ""}${filterBits ? " - " + filterBits : ""}`;
+  const baseSubtitle = `${levelRows.length} school(s)${note ? " - " + note : ""}${pickNote ? " - " + pickNote : ""}${filterBits ? " - " + filterBits : ""}`;
   const subtitle = `${baseSubtitle} - Grouped by: ${groupLabel}`;
   const levelSlug = note ? "-" + note.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "") : "";
   const fileBase = `wassa-amenfi-central-${reportMeta.id}-${grp}${levelSlug}`;
-  const printChips = [note, groupLabel && `Grouped by: ${groupLabel}`, circuit && `Circuit: ${titleCase(circuit)}`, type && titleCase(type), level && levelLabel(level), feeding && `Feeding: ${feeding}`, search && `Search: ${search}`].filter(Boolean) as string[];
+  const printChips = [note, pickNote, groupLabel && `Grouped by: ${groupLabel}`, circuit && `Circuit: ${titleCase(circuit)}`, type && titleCase(type), level && levelLabel(level), feeding && `Feeding: ${feeding}`, search && `Search: ${search}`].filter(Boolean) as string[];
 
   function exportCsv() {
     const all = table.total ? [...table.rows, table.total] : table.rows;
@@ -396,7 +401,7 @@ export function CloudDistrictCensus() {
           <input className="form-control form-control-sm" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Narrow by any word (school, community, head…)" />
         </div>
         <div className="col-6 col-md-2">
-          <select className="form-select form-select-sm" value={circuit} onChange={(e) => setCircuit(e.target.value)}>
+          <select className="form-select form-select-sm" value={circuit} onChange={(e) => { setCircuit(e.target.value); setExcluded(new Set()); }}>
             <option value="">All circuits</option>
             {circuits.map((c) => (
               <option key={c} value={c}>{titleCase(c)}</option>
@@ -463,6 +468,57 @@ export function CloudDistrictCensus() {
           </div>
         )}
       </div>
+      <div className="mt-3 pt-3 border-top">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => setPickerOpen((o) => !o)}>
+            <i className={`bi ${pickerOpen ? "bi-chevron-up" : "bi-ui-checks"} me-1`} />
+            Choose which schools to include
+          </button>
+          <span className="small">
+            {circuit ? `${titleCase(circuit)} circuit: ` : "Whole district: "}
+            <b>{chosen.length}</b> of {filtered.length} schools selected
+          </span>
+          {chosen.length < filtered.length && (
+            <button type="button" className="btn btn-link btn-sm p-0" onClick={() => setExcluded(new Set())}>Select all again</button>
+          )}
+        </div>
+        {pickerOpen && (
+          <div className="mt-2">
+            <div className="d-flex gap-2 flex-wrap align-items-center mb-2">
+              <input className="form-control form-control-sm" style={{ maxWidth: 260 }} value={pickSearch} onChange={(e) => setPickSearch(e.target.value)} placeholder="Find a school in this list…" />
+              <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setExcluded(new Set())}>Tick all</button>
+              <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setExcluded(new Set(filtered.map((r) => r.id)))}>Untick all</button>
+              <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setExcluded(new Set(filtered.filter((r) => !excluded.has(r.id)).map((r) => r.id)))}>Swap ticks</button>
+              <span className="text-muted small">Ticked schools are used in the summary, reports, downloads and print-outs.</span>
+            </div>
+            <div className="row g-1" style={{ maxHeight: 300, overflowY: "auto" }}>
+              {filtered
+                .filter((r) => !pickSearch.trim() || r.name.toLowerCase().includes(pickSearch.trim().toLowerCase()))
+                .map((r) => (
+                  <div className="col-md-6 col-xl-4" key={r.id}>
+                    <label className="d-flex align-items-center gap-2 border rounded px-2 py-1 h-100" style={{ cursor: "pointer", fontSize: "0.9rem" }}>
+                      <input
+                        type="checkbox"
+                        className="form-check-input mt-0"
+                        checked={!excluded.has(r.id)}
+                        onChange={() =>
+                          setExcluded((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(r.id)) next.delete(r.id);
+                            else next.add(r.id);
+                            return next;
+                          })
+                        }
+                      />
+                      <span className="flex-grow-1">{r.name}</span>
+                      <span className="text-muted small">{titleCase(r.school_type)}</span>
+                    </label>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+      </div>
       {(search || circuit || type || level || feeding) && (
         <div className="mt-2 small">
           Showing {filtered.length} of {rows.length} schools.{" "}
@@ -513,7 +569,7 @@ export function CloudDistrictCensus() {
                     <option key={r.id} value={r.id}>{r.label}</option>
                   ))}
                 </select>
-                <div className="text-muted" style={{ fontSize: "0.72rem" }}>{reportMeta.hint}</div>
+                <div className="text-muted" style={{ fontSize: "0.82rem" }}>{reportMeta.hint}</div>
               </div>
               {report !== "directory" && report !== "followup" && (
                 <div className="col-md-3">
