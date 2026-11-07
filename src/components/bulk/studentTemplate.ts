@@ -151,7 +151,7 @@ export function downloadStudentTemplate(o: { school: string; year: string; term:
       `IF(TRIM(${Gc})="","Fill in parent/guardian name",` +
       `IF(COUNTIF(Lists!$C$2:$C$${RELATIONSHIPS.length + 1},TRIM(${H}))=0,"Relationship: choose from the list",` +
       `IF(NOT(${phoneOk(I)}),"Phone: 10 digits e.g. 0240000000",` +
-      `IF(COUNTIFS($A$${FIRST}:$A$${LAST},${A},$C$${FIRST}:$C$${LAST},${C},$E$${FIRST}:$E$${LAST},${E})>1,"Same learner appears twice in this sheet","OK"))))))))))`;
+      `IF(COUNTIFS($A$${FIRST}:$A$${LAST},${A},$C$${FIRST}:$C$${LAST},${C},$E$${FIRST}:$E$${LAST},${E})>1,"Same learner appears twice in this sheet","OK")))))))))))`;
     st.set(row, 10, { f, s: { border: LINE, v: "center", b: true, fill: "#FFFFFF", indent: 1 } });
   }
   st.freeze = [2, 0];
