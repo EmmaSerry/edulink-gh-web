@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CensusService, type FeeAccount, type FeePayment } from "@services/cloud/CensusService";
 import { downloadCsv } from "@/lib/csvExport";
 import { downloadTablePdf } from "@components/census/pdfWriter";
+import { downloadFeeWorkbook } from "@components/census/censusWorkbook";
 import { downloadXlsx } from "@components/census/xlsxWriter";
 import { escHtml, openPrint } from "@components/census/censusPrint";
 import { Aurora, CensusFx, Count } from "@components/census/censusFx";
@@ -24,6 +25,12 @@ const num = (s: string) => {
   const v = parseFloat(s.replace(/,/g, ""));
   return Number.isFinite(v) && v > 0 ? v : 0;
 };
+// The private schools the Super Admin listed (they form the 13th group)
+const PRIVATE_NAMES = [
+  "ANKASIE EBENEZER PREP", "ANKASIE ODILIA BASIC SCHOOL", "DOMINASE PEACE", "HOLY MOUNT EDUCATIONAL COMPLEX",
+  "JOYLIFE INT SCHOOL", "NEW NATION PREPARATORY SCHOOL", "QUEEN BEATRIX INTERNATIONAL SCHOOL",
+];
+const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
 const today = () => new Date().toISOString().slice(0, 10);
 
 interface Acct {
@@ -156,6 +163,26 @@ export function CloudSportsFeeAccounts() {
       setAssign(new Map((await CensusService.feeAssignments()).map((x) => [x.school_id, x.account_key])));
       setAdder(null);
     }, ok);
+  const hasPrivate = accounts.some((a) => /private/i.test(a.name));
+  const createPrivate = () =>
+    guard(async () => {
+      const want = new Set(PRIVATE_NAMES.map(norm));
+      const ids = (rows ?? []).filter((r) => want.has(norm(r.name))).map((r) => r.id);
+      if (ids.length === 0) throw new Error("None of the listed private schools were found in the census.");
+      await CensusService.saveFeeAccount(null, districtId, "Private Schools", ids, true);
+      setAccounts(await CensusService.feeAccounts());
+    }, "Private Schools group created.");
+  function exportWorkbook() {
+    if (!hasPrivate && !window.confirm("The Private Schools group has not been created yet, so the workbook will have only the circuits. Continue?")) return;
+    downloadFeeWorkbook({
+      groups: list.map((a) => ({ name: a.name, schools: a.schools, paid: a.paid })),
+      sports: sportsN,
+      culture: cultureN,
+      region: regionN,
+      district: "Wassa Amenfi Central District",
+      filename: "Wassa Amenfi Central - Schools by group and fees.xlsx",
+    });
+  }
   const saveEditor = () =>
     guard(async () => {
       if (!editor) return;
@@ -224,9 +251,19 @@ export function CloudSportsFeeAccounts() {
           <h1 className="h3 mb-1">Sports fee accounts</h1>
           <div className="small">Each circuit owes the district the sum of its schools' fees (amount per pupil x pupils in Primary and JHS). Record what each circuit has paid and watch the balance.</div>
         </div>
-        <button type="button" className="btn btn-light btn-sm" onClick={() => setEditor({ id: null, name: "", ids: new Set(), exclusive: true })}>
-          <i className="bi bi-plus-circle me-1" />Add a circuit / group
-        </button>
+        <div className="d-flex flex-wrap gap-2">
+          <button type="button" className="btn btn-warning btn-sm fw-bold" onClick={exportWorkbook}>
+            <i className="bi bi-file-earmark-excel me-1" />Download Excel workbook (all groups)
+          </button>
+          {!hasPrivate && (
+            <button type="button" className="btn btn-light btn-sm" disabled={busy} onClick={createPrivate}>
+              <i className="bi bi-building me-1" />Create Private Schools group
+            </button>
+          )}
+          <button type="button" className="btn btn-light btn-sm" onClick={() => setEditor({ id: null, name: "", ids: new Set(), exclusive: true })}>
+            <i className="bi bi-plus-circle me-1" />Add a circuit / group
+          </button>
+        </div>
       </div>
 
       {err && <div className="alert alert-danger">{err}</div>}
