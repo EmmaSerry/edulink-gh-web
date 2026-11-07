@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ListEmptyState } from "@components/ListEmptyState";
+import { BulkStudentsDialog } from "@components/bulk/BulkStudentsDialog";
+import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { downloadCsv } from "@/lib/csvExport";
 import {
   LearnerService,
@@ -53,8 +55,11 @@ function naturalSort(a: string, b: string) {
  * The learner list for every role. The database limits it to the right
  * schools (own school / whole district / everything for the Super Admin);
  * the filters narrow it further by school, class, level group and gender.
+ * School admins also get a "Bulk onboarding" button (Excel template upload).
  */
 export function CloudStudents() {
+  const { profile } = useCloudAuth();
+  const isSchoolAdmin = profile?.role === "school_admin";
   const [options, setOptions] = useState<LearnerFilterOptions>({ schools: [], classNames: [] });
   const [filters, setFilters] = useState<LearnerFilters>({ status: "ACTIVE" });
   const [searchText, setSearchText] = useState("");
@@ -62,10 +67,12 @@ export function CloudStudents() {
   const [rows, setRows] = useState<LearnerRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     LearnerService.filterOptions().then(setOptions).catch(() => {});
-  }, []);
+  }, [reloadKey]);
 
   // Wait a moment after typing before searching.
   useEffect(() => {
@@ -86,7 +93,7 @@ export function CloudStudents() {
     return () => {
       cancelled = true;
     };
-  }, [filters, page]);
+  }, [filters, page, reloadKey]);
 
   function update(patch: Partial<LearnerFilters>) {
     setFilters((f) => ({ ...f, ...patch }));
@@ -141,20 +148,17 @@ export function CloudStudents() {
             <i className="bi bi-download me-1" />
             Export CSV
           </button>
-          <a
-            href="/tools/photo-editor.html"
-            target="_blank"
-            rel="noopener"
-            className="btn btn-outline-primary text-nowrap"
-            title="Crop, clean and resize a whole class's photos at once (opens in a new tab, works offline)"
-          >
-            <i className="bi bi-images me-1" />
-            Photo editor
-          </a>
-          <Link to="/students/photos" className="btn btn-outline-primary text-nowrap" title="Attach finished photos to a class">
-            <i className="bi bi-person-bounding-box me-1" />
-            Import photos
-          </Link>
+          {isSchoolAdmin && (
+            <button
+              type="button"
+              className="btn btn-outline-primary text-nowrap"
+              onClick={() => setBulkOpen(true)}
+              title="Add many learners at once from an Excel template"
+            >
+              <i className="bi bi-file-earmark-spreadsheet me-1" />
+              Bulk onboarding
+            </button>
+          )}
           <Link to="/students/register" className="btn btn-primary text-nowrap">
             <i className="bi bi-person-plus me-1" />
             Register student
@@ -348,6 +352,8 @@ export function CloudStudents() {
           </div>
         )}
       </div>
+
+      {bulkOpen && <BulkStudentsDialog onClose={() => setBulkOpen(false)} onImported={() => setReloadKey((k) => k + 1)} />}
     </div>
   );
 }
