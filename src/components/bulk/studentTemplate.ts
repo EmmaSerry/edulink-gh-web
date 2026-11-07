@@ -132,6 +132,8 @@ export function downloadStudentTemplate(o: { school: string; year: string; term:
     const c = phoneClean(x);
     return `AND(ISNUMBER(--${c}),OR(AND(LEN(${c})=10,LEFT(${c},1)="0"),LEN(${c})=9,AND(LEN(${c})=12,LEFT(${c},3)="233")))`;
   };
+  // Excel limits a data-validation formula to 255 characters, so this one is deliberately short.
+  const phoneDv = (x: string) => `AND(ISNUMBER(--SUBSTITUTE(${x}," ","")),LEN(SUBSTITUTE(${x}," ",""))>=9,LEN(SUBSTITUTE(${x}," ",""))<=10)`;
   for (let row = FIRST; row <= LAST; row++) {
     for (let c = 1; c <= 9; c++) {
       const extra: St = c === 5 ? { fmt: "dd/mm/yyyy", h: "center" } : c === 9 ? { fmt: "@" } : c === 4 ? { h: "center" } : {};
@@ -167,7 +169,7 @@ export function downloadStudentTemplate(o: { school: string; year: string; term:
     dv("list", `F${FIRST}:F${LAST}`, clsRange, null, "Class", "Choose one of your school's classes."),
     dv("custom", `G${FIRST}:G${LAST}`, `LEN(TRIM(G${FIRST}))>0`, null, "Parent/guardian", "Enter the parent or guardian's full name."),
     dv("list", `H${FIRST}:H${LAST}`, `"${RELATIONSHIPS.join(",")}"`, null, "Relationship", "Choose from the list."),
-    dv("custom", `I${FIRST}:I${LAST}`, phoneOk(`I${FIRST}`), null, "Phone number", "Enter 10 digits starting with 0, for example 0244123456."),
+    dv("custom", `I${FIRST}:I${LAST}`, phoneDv(`I${FIRST}`), null, "Phone number", "Enter 10 digits starting with 0, for example 0244123456 (no spaces or +233)."),
   );
 
   // ---------------- Lists (hidden)

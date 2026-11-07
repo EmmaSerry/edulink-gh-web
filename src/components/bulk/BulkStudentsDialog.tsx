@@ -4,12 +4,12 @@ import { CloudAcademicYearService } from "@services/cloud/AcademicYearService";
 import { CloudTermService } from "@services/cloud/TermService";
 import { CloudLevelService } from "@services/cloud/LevelService";
 import { CloudClassService } from "@services/cloud/ClassService";
-import { CloudStudentService } from "@services/cloud/StudentService";
+import { LearnerService } from "@services/cloud/LearnerService";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
 import { BulkStudentService } from "@services/cloud/BulkStudentService";
 import { downloadStudentTemplate } from "./studentTemplate";
 import { readXlsx } from "./xlsxReader";
-import { MAX_ROWS, checkRow, dupKey, isEmptyRow, type GoodRow, type RawRow } from "./studentRules";
+import { DupIndex, MAX_ROWS, checkRow, isEmptyRow, type GoodRow, type Known, type RawRow } from "./studentRules";
 import type { AcademicYearRow, ClassRow, LevelRow, TermRow } from "@/types/database";
 
 /**
@@ -23,6 +23,8 @@ interface Line {
   state: "ok" | "dup" | "error";
   message: string;
   good?: GoodRow;
+  /** suspected duplicates are skipped unless the user ticks "include" */
+  include?: boolean;
 }
 type Outcome = { n: number; name: string; ok: boolean; message: string };
 
@@ -36,7 +38,7 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
   const [term, setTerm] = useState<TermRow | null>(null);
   const [levels, setLevels] = useState<LevelRow[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
-  const [existing, setExisting] = useState<Set<string>>(new Set());
+  const [known, setKnown] = useState<Known[]>([]);
   const [schoolName, setSchoolName] = useState("School");
   const [ready, setReady] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -45,11 +47,23 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
   const [lines, setLines] = useState<Line[] | null>(null);
   const [fileErr, setFileErr] = useState<string | null>(null);
   const [onlyProblems, setOnlyProblems] = useState(false);
-  const [includeDups, setIncludeDups] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<Outcome[] | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  /** Everyone currently active in the school (re-read after every import, so a second file is checked against the first). */
+  async function loadKnown(schoolId?: string | null): Promise<Known[]> {
+    const out: Known[] = [];
+    for (let offset = 0; offset < 20000; offset += 1000) {
+      const page = await LearnerService.list({ status: "ACTIVE", schoolId: schoolId ?? undefined }, 1000, offset);
+      for (const r of page) {
+        out.push({ first: r.first_name ?? "", middle: r.middle_name ?? "", last: r.last_name ?? "", dob: String(r.date_of_birth ?? "").slice(0, 10), cls: r.class_name ?? "", where: `already registered${r.class_name ? " in " + r.class_name : ""}` });
+      }
+      if (page.length < 1000) break;
+    }
+    return out;
+  }
 
   useEffect(() => {
     if (!isSchoolAdmin) {
@@ -62,15 +76,15 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
       CloudTermService.getActive(sid),
       CloudLevelService.list(sid),
       CloudClassService.list(undefined, sid),
-      CloudStudentService.list(),
+      loadKnown(sid),
       CloudSchoolService.getProfile().catch(() => null),
     ])
-      .then(([y, t, lv, cl, st, sc]) => {
+      .then(([y, t, lv, cl, kn, sc]) => {
         setYear(y);
         setTerm(t);
         setLevels(lv);
         setClasses(cl);
-        setExisting(new Set(st.map((s) => dupKey(String((s as unknown as Record<string, unknown>).first_name ?? ""), String((s as unknown as Record<string, unknown>).last_name ?? ""), String((s as unknown as Record<string, unknown>).date_of_birth ?? "").slice(0, 10)))));
+        setKnown(kn);
         setSchoolName(((sc as unknown as { name?: string } | null)?.name ?? "School") || "School");
       })
       .catch((e) => setLoadErr(e instanceof Error ? e.message : "Could not load your school's setup."))
@@ -100,7 +114,8 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
       if (!sh) throw new Error('This is not the EduLink GH template: there is no "Students" sheet. Please download the template again.');
       const head = String(sh.rows[0]?.[0] ?? "").toLowerCase();
       if (!head.startsWith("first name")) throw new Error("The headings in row 1 have been changed. Please use the template as downloaded.");
-      const seen = new Map<string, number>();
+      const index = new DupIndex();
+      for (const k of known) index.add(k);
       const out: Line[] = [];
       // row 1 = headings, row 2 = the example (always ignored); learners start at row 3
       for (let i = 2; i < sh.rows.length && out.length < MAX_ROWS; i++) {
@@ -112,15 +127,12 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
           out.push({ n: i + 1, raw, state: "error", message: res.error });
           continue;
         }
-        const key = dupKey(res.value.first, res.value.last, res.value.dob);
-        if (seen.has(key)) out.push({ n: i + 1, raw, state: "error", message: `Same learner as row ${seen.get(key)} in this file`, good: res.value });
-        else if (existing.has(key)) {
-          seen.set(key, i + 1);
-          out.push({ n: i + 1, raw, state: "dup", message: "Already registered in your school", good: res.value });
-        } else {
-          seen.set(key, i + 1);
-          out.push({ n: i + 1, raw, state: "ok", message: "Ready", good: res.value });
-        }
+        const clsName = labelled.find((x) => x.label === res.value.cls)?.c.name ?? res.value.cls;
+        const probe = { first: res.value.first, middle: res.value.middle, last: res.value.last, dob: res.value.dob, cls: clsName };
+        const hit = index.find(probe);
+        index.add({ ...probe, where: `on row ${i + 1} of this file` });
+        if (hit) out.push({ n: i + 1, raw, state: "dup", message: hit.reason, good: res.value, include: false });
+        else out.push({ n: i + 1, raw, state: "ok", message: "Ready", good: res.value });
       }
       if (out.length === 0) throw new Error("No learners found. Fill in the Students sheet from row 3 downwards.");
       setLines(out);
@@ -129,11 +141,14 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
     }
   }
 
+  const setInclude = (n: number | "all" | "none", v?: boolean) =>
+    setLines((ls) => (ls ?? []).map((l) => (l.state === "dup" && (n === "all" || n === "none" || l.n === n) ? { ...l, include: n === "all" ? true : n === "none" ? false : !!v } : l)));
+
   const counts = useMemo(() => {
     const l = lines ?? [];
     return { ok: l.filter((x) => x.state === "ok").length, dup: l.filter((x) => x.state === "dup").length, error: l.filter((x) => x.state === "error").length };
   }, [lines]);
-  const toImport = (lines ?? []).filter((x) => x.good && (x.state === "ok" || (includeDups && x.state === "dup")));
+  const toImport = (lines ?? []).filter((x) => x.good && (x.state === "ok" || (x.state === "dup" && x.include)));
 
   async function runImport() {
     if (!year || !term || !profile?.school_id) return;
@@ -178,7 +193,10 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
     setResults(out);
     setBusy(false);
     setLines(null);
-    if (out.some((r) => r.ok)) onImported();
+    if (out.some((r) => r.ok)) {
+      onImported();
+      loadKnown(profile.school_id).then(setKnown).catch(() => {});
+    }
   }
 
   const shell = (body: JSX.Element) => (
@@ -233,17 +251,25 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
           <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
             <div className="fw-bold me-2">Step 3: Check and import ({fileName})</div>
             <span className="badge bg-success fs-6">{counts.ok} ready</span>
-            {counts.dup > 0 && <span className="badge bg-warning text-dark fs-6">{counts.dup} already registered</span>}
+            {counts.dup > 0 && <span className="badge bg-warning text-dark fs-6">{counts.dup} possible duplicate{counts.dup === 1 ? "" : "s"}</span>}
             {counts.error > 0 && <span className="badge bg-danger fs-6">{counts.error} to fix</span>}
           </div>
           <div className="d-flex flex-wrap gap-3 align-items-center mb-2 small">
             <label className="d-flex gap-2 align-items-center"><input type="checkbox" checked={onlyProblems} onChange={(e) => setOnlyProblems(e.target.checked)} />Show only rows with a problem</label>
-            {counts.dup > 0 && <label className="d-flex gap-2 align-items-center"><input type="checkbox" checked={includeDups} onChange={(e) => setIncludeDups(e.target.checked)} />Register the "already registered" ones again anyway</label>}
           </div>
+          {counts.dup > 0 && (
+            <div className="alert alert-warning py-2 small">
+              <b>{counts.dup} possible duplicate{counts.dup === 1 ? "" : "s"} found and skipped.</b> These look like learners already in the school (or repeated in this file). Tick <b>Include</b> only for the ones that are genuinely different children.
+              <div className="mt-1 d-flex gap-2">
+                <button type="button" className="btn btn-sm btn-outline-dark" onClick={() => setInclude("all")}>Include all</button>
+                <button type="button" className="btn btn-sm btn-outline-dark" onClick={() => setInclude("none")}>Exclude all</button>
+              </div>
+            </div>
+          )}
           <div className="table-responsive" style={{ maxHeight: 420, overflow: "auto" }}>
             <table className="table table-sm align-middle mb-0">
               <thead>
-                <tr><th>Row</th><th>Name</th><th>Gender</th><th>Born</th><th>Class</th><th>Parent / guardian</th><th>Phone</th><th>Check</th></tr>
+                <tr><th>Row</th><th>Name</th><th>Gender</th><th>Born</th><th>Class</th><th>Parent / guardian</th><th>Phone</th><th>Check</th><th></th></tr>
               </thead>
               <tbody>
                 {shown.map((l) => (
@@ -255,7 +281,8 @@ export function BulkStudentsDialog({ onClose, onImported }: { onClose: () => voi
                     <td>{l.good?.cls ?? String(l.raw.cls ?? "")}</td>
                     <td>{l.good ? `${l.good.gname} (${l.good.rel})` : String(l.raw.gname ?? "")}</td>
                     <td>{l.good?.phone ?? String(l.raw.phone ?? "")}</td>
-                    <td><span className={`badge ${l.state === "ok" ? "bg-success" : l.state === "dup" ? "bg-warning text-dark" : "bg-danger"}`}>{l.message}</span></td>
+                    <td><span className={`badge ${l.state === "ok" ? "bg-success" : l.state === "dup" ? "bg-warning text-dark" : "bg-danger"}`} style={{ whiteSpace: "normal", textAlign: "left" }}>{l.message}</span></td>
+                    <td>{l.state === "dup" && <label className="d-flex gap-1 align-items-center small text-nowrap"><input type="checkbox" checked={!!l.include} onChange={(e) => setInclude(l.n, e.target.checked)} />Include</label>}</td>
                   </tr>
                 ))}
               </tbody>

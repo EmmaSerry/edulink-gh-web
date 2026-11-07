@@ -98,3 +98,82 @@ export function checkRow(r: RawRow, classLabels: string[], today = new Date()): 
 }
 
 export const dupKey = (first: string, last: string, dob: string) => `${first}|${last}|${dob}`.toLowerCase().replace(/[^a-z0-9|\-]/g, "");
+
+// ---------------------------------------------------------------------------
+// Duplicate detection (used on every upload, so the template can be used many times)
+// ---------------------------------------------------------------------------
+
+/** A learner already in the school, or an earlier row of the same file. */
+export interface Known {
+  first: string;
+  middle: string;
+  last: string;
+  dob: string; // yyyy-mm-dd
+  cls: string; // class name
+  where: string; // text shown to the user, e.g. "registered in Basic 3" or "row 7 of this file"
+}
+
+const words = (s: string): string[] =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+/** First + last name only, order ignored ("Kofi Mensah" = "Mensah Kofi"). */
+const coreKey = (k: { first: string; last: string }) => [...words(k.first), ...words(k.last)].sort().join(" ");
+/** Every name including the middle name, order ignored. */
+const fullKey = (k: { first: string; middle: string; last: string }) => [...words(k.first), ...words(k.middle), ...words(k.last)].sort().join(" ");
+
+function lev(a: string, b: string): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** Names that are the same or nearly the same (a typo, a missing middle name, names swapped). */
+function closeNames(a: Known | GoodLike, b: Known): boolean {
+  const fa = fullKey(a), fb = fullKey(b);
+  if (fa === fb || coreKey(a) === coreKey(b)) return true;
+  const ta = fa.split(" "), tb = fb.split(" ");
+  const [small, big] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  if (small.length >= 2 && small.every((w) => big.includes(w))) return true;
+  return lev(fa, fb) <= (fa.length >= 12 ? 2 : 1);
+}
+type GoodLike = { first: string; middle: string; last: string; dob: string; cls: string };
+
+/**
+ * Finds learners that might be the same child. Rules:
+ *  - same class: same name (any order, middle name optional) -> suspected, whatever the birth date;
+ *    nearly the same name AND the same birth date -> suspected.
+ *  - any class: same name AND same birth date -> suspected (already registered elsewhere in the school).
+ */
+export class DupIndex {
+  private byCore = new Map<string, Known[]>();
+  private byDob = new Map<string, Known[]>();
+  add(k: Known) {
+    const c = coreKey(k);
+    this.byCore.set(c, [...(this.byCore.get(c) ?? []), k]);
+    this.byDob.set(k.dob, [...(this.byDob.get(k.dob) ?? []), k]);
+  }
+  find(r: GoodLike): { reason: string } | null {
+    const cls = r.cls.toLowerCase();
+    for (const k of this.byCore.get(coreKey(r)) ?? []) {
+      const sameClass = k.cls.toLowerCase() === cls;
+      if (k.dob === r.dob) return { reason: `Same name and birth date as a learner ${k.where}` };
+      if (sameClass) return { reason: `Same name as a learner ${k.where} (birth date differs)` };
+    }
+    for (const k of this.byDob.get(r.dob) ?? []) {
+      if (k.cls.toLowerCase() === cls && closeNames(r, k)) return { reason: `Very similar name and same birth date as a learner ${k.where}` };
+    }
+    return null;
+  }
+}
