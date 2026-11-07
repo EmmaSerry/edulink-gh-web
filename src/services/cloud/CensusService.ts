@@ -22,6 +22,9 @@ export interface CensusSubmission {
 export interface FeeRate {
   district_id: string;
   circuit_rate: number;
+  sports_rate: number;
+  culture_rate: number;
+  region_rate: number;
 }
 export interface FeeAccount {
   id: string;
@@ -89,11 +92,11 @@ class CensusServiceImpl {
 
   /** Super Admin only: sports fee accounts. */
   async feeRate(): Promise<FeeRate | null> {
-    const r = await rest.select<FeeRate>("district_census_fee_rates", { select: "district_id,circuit_rate", limit: 1 });
+    const r = await rest.select<FeeRate>("district_census_fee_rates", { select: "district_id,circuit_rate,sports_rate,culture_rate,region_rate", limit: 1 });
     return r[0] ?? null;
   }
-  async setFeeRate(districtId: string, rate: number): Promise<void> {
-    await rest.rpc<unknown>("census_fee_rate_set", { p_district: districtId, p_rate: rate });
+  async setFeeRate(districtId: string, sports: number, culture: number, region: number): Promise<void> {
+    await rest.rpc<unknown>("census_fee_rate_set", { p_district: districtId, p_sports: sports, p_culture: culture, p_region: region });
   }
   async feeAccounts(): Promise<FeeAccount[]> {
     return rest.select<FeeAccount>("district_census_accounts", { select: "id,name,school_ids,exclusive", order: "created_at.asc", limit: 200 });
@@ -103,6 +106,13 @@ class CensusServiceImpl {
   }
   async deleteFeeAccount(id: string): Promise<void> {
     await rest.rpc<unknown>("census_account_delete", { p_id: id });
+  }
+  async feeAssignments(): Promise<{ school_id: string; account_key: string }[]> {
+    return rest.select<{ school_id: string; account_key: string }>("district_census_fee_assign", { select: "school_id,account_key", limit: 3000 });
+  }
+  /** key null = back to the school's own circuit; "none" = not taking part. */
+  async assignFee(districtId: string, schoolIds: string[], key: string | null): Promise<void> {
+    await rest.rpc<unknown>("census_fee_assign", { p_district: districtId, p_school_ids: schoolIds, p_key: key });
   }
   async feePayments(): Promise<FeePayment[]> {
     return rest.select<FeePayment>("district_census_payments", { select: "id,account_key,amount,paid_on,note", order: "paid_on.asc", limit: 5000 });

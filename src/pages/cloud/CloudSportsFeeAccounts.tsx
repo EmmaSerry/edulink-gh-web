@@ -41,7 +41,7 @@ export function CloudSportsFeeAccounts() {
   const [rows, setRows] = useState<CensusRow[] | null>(null);
   const [accounts, setAccounts] = useState<FeeAccount[]>([]);
   const [payments, setPayments] = useState<FeePayment[]>([]);
-  const [rate, setRate] = useState("");
+  const [fee, setFee] = useState({ sports: "", culture: "", region: "" });
   const [savedRate, setSavedRate] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -52,15 +52,20 @@ export function CloudSportsFeeAccounts() {
   const [lineFor, setLineFor] = useState("");
   const [editor, setEditor] = useState<{ id: string | null; name: string; ids: Set<string>; exclusive: boolean } | null>(null);
   const [pick, setPick] = useState("");
+  const [assign, setAssign] = useState<Map<string, string>>(new Map());
+  const [adder, setAdder] = useState<{ key: string; ids: Set<string>; find: string } | null>(null);
 
   async function load() {
     try {
-      const [r, a, p, fr] = await Promise.all([CensusService.list(), CensusService.feeAccounts(), CensusService.feePayments(), CensusService.feeRate()]);
+      const [r, a, p, fr, as] = await Promise.all([CensusService.list(), CensusService.feeAccounts(), CensusService.feePayments(), CensusService.feeRate(), CensusService.feeAssignments()]);
+      setAssign(new Map(as.map((x) => [x.school_id, x.account_key])));
       setRows(r);
       setAccounts(a);
       setPayments(p);
       setSavedRate(fr?.circuit_rate ?? 0);
-      setRate((cur) => (cur === "" ? String(fr?.circuit_rate ?? 0) : cur));
+      // an amount saved before the three-part split counts as "Sports"
+      const sp = fr && !fr.sports_rate && !fr.culture_rate && !fr.region_rate ? fr.circuit_rate : fr?.sports_rate ?? 0;
+      setFee((cur) => (cur.sports === "" && cur.culture === "" && cur.region === "" ? { sports: String(sp), culture: String(fr?.culture_rate ?? 0), region: String(fr?.region_rate ?? 0) } : cur));
     } catch (e) {
       setErr((e instanceof Error ? e.message : "Could not load.") + " If this mentions a missing table, run STEP_census_fees.sql in Supabase.");
     }
@@ -69,7 +74,11 @@ export function CloudSportsFeeAccounts() {
     void load();
   }, []);
 
-  const rateN = num(rate);
+  const sportsN = num(fee.sports);
+  const cultureN = num(fee.culture);
+  const regionN = num(fee.region);
+  const rateN = r2(sportsN + cultureN + regionN);
+  const feeNote = `Sports ${sportsN.toFixed(2)} + Culture ${cultureN.toFixed(2)} + Region ${regionN.toFixed(2)} = GH₵ ${rateN.toFixed(2)} per pupil`;
   const districtId = rows?.[0]?.district_id ?? "";
 
   const list: Acct[] = useMemo(() => {
@@ -86,10 +95,12 @@ export function CloudSportsFeeAccounts() {
       return { key, name, custom, schools, enrol, payable, paid, balance, status: payable <= 0 && paid <= 0 ? "none" : balance <= 0 ? "paid" : "owing" };
     };
     const circuits = Array.from(new Set(rows.map((r) => r.circuit ?? "").filter(Boolean))).sort();
-    const a1 = circuits.map((c) => mk("c:" + c, titleCase(c), null, rows.filter((r) => r.circuit === c && !away.has(r.id))));
-    const a2 = accounts.map((a) => mk("a:" + a.id, a.name, a, rows.filter((r) => a.school_ids.includes(r.id))));
+    // where a school pays: your own choice first, then an extra group, then its own circuit
+    const home = (r: CensusRow) => assign.get(r.id) ?? (away.has(r.id) ? "a:" + away.get(r.id) : "c:" + (r.circuit ?? ""));
+    const a1 = circuits.map((c) => mk("c:" + c, titleCase(c), null, rows.filter((r) => home(r) === "c:" + c)));
+    const a2 = accounts.map((a) => mk("a:" + a.id, a.name, a, rows.filter((r) => (assign.has(r.id) ? assign.get(r.id) === "a:" + a.id : a.school_ids.includes(r.id)))));
     return [...a1, ...a2];
-  }, [rows, accounts, payments, rateN]);
+  }, [rows, accounts, payments, rateN, assign]);
 
   const tot = useMemo(() => {
     const enrol = list.reduce((s, a) => s + a.enrol, 0);
@@ -123,7 +134,7 @@ export function CloudSportsFeeAccounts() {
     }
   }
 
-  const saveRate = () => guard(async () => { await CensusService.setFeeRate(districtId, rateN); setSavedRate(rateN); }, "Amount per pupil saved.");
+  const saveRate = () => guard(async () => { await CensusService.setFeeRate(districtId, sportsN, cultureN, regionN); setSavedRate(rateN); }, "Fee per pupil saved.");
   const addPayment = (a: Acct) =>
     guard(async () => {
       const amt = num(entry[a.key] ?? "");
@@ -138,6 +149,12 @@ export function CloudSportsFeeAccounts() {
       await CensusService.deleteFeePayment(id);
       setPayments(await CensusService.feePayments());
     });
+  const moveSchools = (ids: string[], key: string | null, ok?: string) =>
+    guard(async () => {
+      await CensusService.assignFee(districtId, ids, key);
+      setAssign(new Map((await CensusService.feeAssignments()).map((x) => [x.school_id, x.account_key])));
+      setAdder(null);
+    }, ok);
   const saveEditor = () =>
     guard(async () => {
       if (!editor) return;
@@ -158,7 +175,7 @@ export function CloudSportsFeeAccounts() {
   const headers = ["Name", "Schools", "Total enrolment", "Amount payable (GH₵)", "Amount paid (GH₵)", "Outstanding balance (GH₵)", "Status"];
   const body = list.map((a) => [a.name, a.schools.length, a.enrol, a.payable, a.paid, a.balance, a.status === "paid" ? "Paid" : a.status === "owing" ? "Owing" : "No fee"]);
   const totalRow = ["TOTAL", list.reduce((s, a) => s + a.schools.length, 0), tot.enrol, tot.payable, tot.paid, tot.balance, `${tot.done} of ${list.length} paid`];
-  const sub = `Sports affiliation fee: GH₵ ${rateN.toFixed(2)} per pupil (Primary + JHS; KG and Nursery/Creche excluded). As at ${new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}.`;
+  const sub = `Fee per pupil: ${feeNote} (Primary + JHS pupils; KG and Nursery/Creche excluded). As at ${new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}.`;
   const base = "Wassa Amenfi Central - Sports fee accounts";
 
   function printSummary() {
@@ -168,7 +185,7 @@ export function CloudSportsFeeAccounts() {
     openPrint({
       title: "Sports affiliation fee accounts",
       subtitle: sub,
-      chips: [`GH₵ ${rateN.toFixed(2)} per pupil`, `${list.length} accounts`],
+      chips: [`Sports GH₵ ${sportsN.toFixed(2)}`, `Culture GH₵ ${cultureN.toFixed(2)}`, `Region GH₵ ${regionN.toFixed(2)}`, `Total GH₵ ${rateN.toFixed(2)} per pupil`, `${list.length} accounts`],
       kpis: [{ label: "Total enrolment", value: fmt(tot.enrol) }, { label: "Payable", value: money(tot.payable) }, { label: "Paid", value: money(tot.paid) }, { label: "Outstanding", value: money(tot.balance) }],
       bodyHtml: `<table><thead><tr>${headers.map((h, i) => `<th${i >= 1 && i <= 5 ? ' style="text-align:right"' : ""}>${escHtml(h)}</th>`).join("")}</tr></thead><tbody>${tr}</tbody></table>`,
       landscape: true,
@@ -179,15 +196,15 @@ export function CloudSportsFeeAccounts() {
     const tr = a.schools
       .slice()
       .sort((x, y) => x.name.localeCompare(y.name))
-      .map((r) => `<tr><td>${escHtml(r.name)}</td><td style="text-align:right">${fmt(priOf(r))}</td><td style="text-align:right">${fmt(jhsOf(r))}</td><td style="text-align:right">${fmt(pupilsOf(r))}</td><td style="text-align:right">${money(r2(pupilsOf(r) * rateN))}</td></tr>`)
+      .map((r) => `<tr><td>${escHtml(r.name)}</td><td style="text-align:right">${fmt(priOf(r))}</td><td style="text-align:right">${fmt(jhsOf(r))}</td><td style="text-align:right">${fmt(pupilsOf(r))}</td><td style="text-align:right">${money(r2(pupilsOf(r) * sportsN))}</td><td style="text-align:right">${money(r2(pupilsOf(r) * cultureN))}</td><td style="text-align:right">${money(r2(pupilsOf(r) * regionN))}</td><td style="text-align:right">${money(r2(pupilsOf(r) * rateN))}</td></tr>`)
       .join("");
-    const total = `<tr style="font-weight:800;background:#eef3fb"><td>TOTAL (${a.schools.length} schools)</td><td style="text-align:right">${fmt(a.schools.reduce((s, r) => s + priOf(r), 0))}</td><td style="text-align:right">${fmt(a.schools.reduce((s, r) => s + jhsOf(r), 0))}</td><td style="text-align:right">${fmt(a.enrol)}</td><td style="text-align:right">${money(a.payable)}</td></tr>`;
+    const total = `<tr style="font-weight:800;background:#eef3fb"><td>TOTAL (${a.schools.length} schools)</td><td style="text-align:right">${fmt(a.schools.reduce((s, r) => s + priOf(r), 0))}</td><td style="text-align:right">${fmt(a.schools.reduce((s, r) => s + jhsOf(r), 0))}</td><td style="text-align:right">${fmt(a.enrol)}</td><td style="text-align:right">${money(r2(a.enrol * sportsN))}</td><td style="text-align:right">${money(r2(a.enrol * cultureN))}</td><td style="text-align:right">${money(r2(a.enrol * regionN))}</td><td style="text-align:right">${money(a.payable)}</td></tr>`;
     openPrint({
       title: `${a.name}: sports fees, school by school`,
       subtitle: sub,
-      chips: [`GH₵ ${rateN.toFixed(2)} per pupil`, `Paid: ${money(a.paid)}`, `Outstanding: ${money(Math.max(0, a.balance))}`],
+      chips: [`Sports GH₵ ${sportsN.toFixed(2)}`, `Culture GH₵ ${cultureN.toFixed(2)}`, `Region GH₵ ${regionN.toFixed(2)}`, `Total GH₵ ${rateN.toFixed(2)} per pupil`, `Paid: ${money(a.paid)}`, `Outstanding: ${money(Math.max(0, a.balance))}`],
       kpis: [{ label: "Schools", value: fmt(a.schools.length) }, { label: "Total enrolment", value: fmt(a.enrol) }, { label: "Amount payable", value: money(a.payable) }, { label: "Outstanding", value: money(Math.max(0, a.balance)) }],
-      bodyHtml: `<table><thead><tr><th>School</th><th style="text-align:right">Primary pupils</th><th style="text-align:right">JHS pupils</th><th style="text-align:right">Pupils counted</th><th style="text-align:right">Fee (GH₵)</th></tr></thead><tbody>${tr}${total}</tbody></table>`,
+      bodyHtml: `<table><thead><tr><th>School</th><th style="text-align:right">Primary pupils</th><th style="text-align:right">JHS pupils</th><th style="text-align:right">Pupils counted</th><th style="text-align:right">Sports (GH₵)</th><th style="text-align:right">Culture (GH₵)</th><th style="text-align:right">Region (GH₵)</th><th style="text-align:right">Total fee (GH₵)</th></tr></thead><tbody>${tr}${total}</tbody></table>`,
       landscape: true,
     });
   }
@@ -215,16 +232,25 @@ export function CloudSportsFeeAccounts() {
       {msg && <div className="alert alert-success py-2">{msg}</div>}
 
       <div className="actrs-card cx-glass p-3 mb-3">
+        <div className="cx-title mb-2">Fee per pupil (GH₵)</div>
         <div className="row g-2 align-items-end">
-          <div className="col-md-5">
-            <label className="small fw-semibold">Amount collected per pupil by each school (GH₵)</label>
-            <input className="form-control form-control-sm" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value.replace(/[^0-9.]/g, ""))} />
+          {([["sports", "Sports"], ["culture", "Culture"], ["region", "Region"]] as ["sports" | "culture" | "region", string][]).map(([k, l]) => (
+            <div className="col-6 col-md-2" key={k}>
+              <label className="small fw-semibold">{l}</label>
+              <input className="form-control form-control-sm" inputMode="decimal" value={fee[k]} onChange={(e) => setFee({ ...fee, [k]: e.target.value.replace(/[^0-9.]/g, "") })} />
+            </div>
+          ))}
+          <div className="col-6 col-md-2">
+            <label className="small fw-semibold">Total per pupil</label>
+            <div className="fw-bold fs-5">{money(rateN)}</div>
           </div>
+          <div className="col-12 col-md-4 d-flex align-items-end gap-2">
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={saveRate}>Save fee</button>
+            {rateN !== savedRate && <span className="small fw-semibold">Not saved yet</span>}
+          </div>
+        </div>
+        <div className="row g-2 mt-1">
           <div className="col-md-4">
-            <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={saveRate}>Save amount</button>
-            {rateN !== savedRate && <span className="small ms-2 fw-semibold">Not saved yet</span>}
-          </div>
-          <div className="col-md-3">
             <label className="small fw-semibold">Date for payments you record</label>
             <input type="date" className="form-control form-control-sm" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
           </div>
@@ -322,6 +348,7 @@ export function CloudSportsFeeAccounts() {
             <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
               <div className="cx-title">{a.name}: school by school</div>
               <div className="d-flex gap-2">
+                <button type="button" className="btn btn-success btn-sm" onClick={() => setAdder({ key: a.key, ids: new Set(), find: "" })}><i className="bi bi-plus-circle me-1" />Add schools</button>
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => printAccount(a)}><i className="bi bi-printer me-1" />Print / PDF</button>
                 {a.custom && (
                   <>
@@ -335,12 +362,20 @@ export function CloudSportsFeeAccounts() {
               <div className="col-lg-7">
                 <div className="table-responsive" style={{ maxHeight: 340, overflow: "auto" }}>
                   <table className="table table-sm align-middle mb-0">
-                    <thead><tr><th>School</th><th className="text-end">Primary</th><th className="text-end">JHS</th><th className="text-end">Pupils counted</th><th className="text-end">Fee</th></tr></thead>
+                    <thead><tr><th>School</th><th className="text-end">Primary</th><th className="text-end">JHS</th><th className="text-end">Pupils counted</th><th className="text-end">Fee</th><th>Move or remove</th></tr></thead>
                     <tbody>
                       {a.schools.slice().sort((x, y) => x.name.localeCompare(y.name)).map((r) => (
-                        <tr key={r.id}><td>{r.name}</td><td className="text-end">{fmt(priOf(r))}</td><td className="text-end">{fmt(jhsOf(r))}</td><td className="text-end">{fmt(pupilsOf(r))}</td><td className="text-end">{money(r2(pupilsOf(r) * rateN))}</td></tr>
+                        <tr key={r.id}><td>{r.name}</td><td className="text-end">{fmt(priOf(r))}</td><td className="text-end">{fmt(jhsOf(r))}</td><td className="text-end">{fmt(pupilsOf(r))}</td><td className="text-end">{money(r2(pupilsOf(r) * rateN))}</td>
+                          <td>
+                            <select className="form-select form-select-sm" style={{ minWidth: 150 }} value="" disabled={busy} onChange={(e) => { if (e.target.value) void moveSchools([r.id], e.target.value === "__home" ? null : e.target.value, "School moved."); }}>
+                              <option value="">Choose…</option>
+                              <option value="none">Not taking part (remove)</option>
+                              {r.circuit && a.key !== "c:" + r.circuit && <option value="__home">Back to {titleCase(r.circuit)}</option>}
+                              {list.filter((x) => x.key !== a.key).map((x) => <option key={x.key} value={x.key}>Move to {x.name}</option>)}
+                            </select>
+                          </td></tr>
                       ))}
-                      <tr className="fw-bold"><td>Total</td><td /><td /><td className="text-end">{fmt(a.enrol)}</td><td className="text-end">{money(a.payable)}</td></tr>
+                      <tr className="fw-bold"><td>Total</td><td /><td /><td className="text-end">{fmt(a.enrol)}</td><td className="text-end">{money(a.payable)}</td><td /></tr>
                     </tbody>
                   </table>
                 </div>
@@ -414,6 +449,62 @@ export function CloudSportsFeeAccounts() {
           </ChartCard>
         </div>
       </div>
+
+      {(() => {
+        const out = rows.filter((r) => assign.get(r.id) === "none");
+        if (out.length === 0) return null;
+        return (
+          <div className="actrs-card cx-glass p-3 mb-3 cx-rise">
+            <div className="cx-title mb-2">Schools not taking part ({out.length})</div>
+            <div className="small mb-2">These schools are left out of every account. Put them back in their own circuit or add them to another account.</div>
+            <div className="row g-2">
+              {out.map((r) => (
+                <div key={r.id} className="col-md-6 d-flex align-items-center gap-2">
+                  <span className="flex-grow-1 small">{r.name} <span className="text-muted">({titleCase(r.circuit)}, {fmt(pupilsOf(r))})</span></span>
+                  <select className="form-select form-select-sm" style={{ maxWidth: 170 }} value="" disabled={busy} onChange={(e) => { if (e.target.value) void moveSchools([r.id], e.target.value === "__home" ? null : e.target.value, "School added back."); }}>
+                    <option value="">Add back…</option>
+                    <option value="__home">Own circuit</option>
+                    {list.map((x) => <option key={x.key} value={x.key}>{x.name}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {adder && (() => {
+        const target = list.find((x) => x.key === adder.key);
+        const here = new Set((target?.schools ?? []).map((r) => r.id));
+        const nameOf = (r: CensusRow) => (assign.get(r.id) === "none" ? "not taking part" : list.find((x) => x.schools.some((s2) => s2.id === r.id))?.name ?? "-");
+        const cand = rows.filter((r) => !here.has(r.id) && (!adder.find.trim() || (r.name + " " + (r.circuit ?? "")).toLowerCase().includes(adder.find.trim().toLowerCase())));
+        return (
+          <div className="modal d-block" style={{ background: "rgba(0,0,0,.55)", overflow: "auto" }} onClick={() => setAdder(null)}>
+            <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content p-3">
+                <h5 className="fw-bold">Add schools to {target?.name}</h5>
+                <div className="small mb-2">Ticked schools leave their present account and pay through {target?.name}.</div>
+                <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
+                  <input className="form-control form-control-sm" style={{ maxWidth: 260 }} placeholder="Find a school…" value={adder.find} onChange={(e) => setAdder({ ...adder, find: e.target.value })} />
+                  <span className="small fw-semibold">{adder.ids.size} ticked</span>
+                </div>
+                <div style={{ maxHeight: 340, overflow: "auto" }} className="row g-1 mb-3">
+                  {cand.map((r) => (
+                    <label key={r.id} className="col-md-6 d-flex align-items-center gap-2 small" style={{ cursor: "pointer" }}>
+                      <input type="checkbox" checked={adder.ids.has(r.id)} onChange={() => { const n = new Set(adder.ids); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); setAdder({ ...adder, ids: n }); }} />
+                      <span>{r.name} <span className="text-muted">(now in {nameOf(r)}, {fmt(pupilsOf(r))})</span></span>
+                    </label>
+                  ))}
+                </div>
+                <div className="d-flex gap-2 justify-content-end">
+                  <button type="button" className="btn btn-outline-primary" onClick={() => setAdder(null)}>Cancel</button>
+                  <button type="button" className="btn btn-primary" disabled={busy || adder.ids.size === 0} onClick={() => moveSchools(Array.from(adder.ids), adder.key, "Schools added.")}>Add {adder.ids.size} school(s)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {editor && (
         <div className="modal d-block" style={{ background: "rgba(0,0,0,.55)", overflow: "auto" }} onClick={() => setEditor(null)}>
