@@ -5,6 +5,7 @@ import { CensusSummary } from "@components/census/CensusSummary";
 import { CensusSubmissions } from "@components/census/CensusSubmissions";
 import { CensusSchoolModal } from "@components/census/CensusSchoolModal";
 import { Aurora, CensusFx } from "@components/census/censusFx";
+import { downloadTablePdf } from "@components/census/pdfWriter";
 import { downloadXlsx } from "@components/census/xlsxWriter";
 import { escHtml, openPrint } from "@components/census/censusPrint";
 import {
@@ -340,6 +341,20 @@ export function CloudDistrictCensus() {
     });
   }
 
+  function exportPdf() {
+    downloadTablePdf({
+      filename: `${fileBase}.pdf`,
+      title: reportMeta.label,
+      subtitle: `${levelRows.length} school(s) in Wassa Amenfi Central District`,
+      chips: printChips,
+      headers: table.headers,
+      rows: table.rows,
+      total: table.total,
+      numericFrom: table.numericFrom,
+      landscape: true,
+    });
+  }
+
   function printReport() {
     const all = aggregate(levelRows);
     openPrint({
@@ -596,8 +611,11 @@ export function CloudDistrictCensus() {
                 <button type="button" className="btn btn-outline-primary btn-sm" onClick={exportExcel}>
                   <i className="bi bi-file-earmark-excel me-1" />Excel
                 </button>
-                <button type="button" className="btn btn-primary btn-sm" onClick={printReport}>
-                  <i className="bi bi-printer me-1" />Print / PDF
+                <button type="button" className="btn btn-primary btn-sm" onClick={exportPdf}>
+                  <i className="bi bi-file-earmark-pdf me-1" />Download PDF (landscape)
+                </button>
+                <button type="button" className="btn btn-outline-primary btn-sm" onClick={printReport}>
+                  <i className="bi bi-printer me-1" />Print
                 </button>
               </div>
             </div>

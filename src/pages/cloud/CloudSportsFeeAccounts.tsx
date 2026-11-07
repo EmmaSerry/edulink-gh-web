@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CensusService, type FeeAccount, type FeePayment } from "@services/cloud/CensusService";
 import { downloadCsv } from "@/lib/csvExport";
+import { downloadTablePdf } from "@components/census/pdfWriter";
 import { downloadXlsx } from "@components/census/xlsxWriter";
 import { escHtml, openPrint } from "@components/census/censusPrint";
 import { Aurora, CensusFx, Count } from "@components/census/censusFx";
@@ -280,7 +281,8 @@ export function CloudSportsFeeAccounts() {
           <div className="d-flex gap-2">
             <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => downloadCsv(`${base}.csv`, headers, [...body, totalRow])}>CSV</button>
             <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => downloadXlsx(`${base}.xlsx`, { sheetName: "Sports fee accounts", title: "Sports affiliation fee accounts", subtitle: sub, headers, rows: body, total: totalRow, numericFrom: 1 })}>Excel</button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={printSummary}><i className="bi bi-printer me-1" />Print / PDF</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => downloadTablePdf({ filename: `${base}.pdf`, title: "Sports affiliation fee accounts", subtitle: sub, chips: [`Sports GH₵ ${sportsN.toFixed(2)}`, `Culture GH₵ ${cultureN.toFixed(2)}`, `Region GH₵ ${regionN.toFixed(2)}`, `Total GH₵ ${rateN.toFixed(2)} per pupil`], headers, rows: body, total: totalRow, numericFrom: 1 })}><i className="bi bi-file-earmark-pdf me-1" />Download PDF</button>
+            <button type="button" className="btn btn-outline-primary btn-sm" onClick={printSummary}><i className="bi bi-printer me-1" />Print</button>
           </div>
         </div>
         <div className="table-responsive">
