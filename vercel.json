@@ -1,3 +1,19 @@
 {
+  "redirects": [
+    { "source": "/sports", "destination": "/sports/", "permanent": false }
+  ],
+  "headers": [
+    {
+      "source": "/sports/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Service-Worker-Allowed", "value": "/sports/" }
+      ]
+    },
+    {
+      "source": "/sports/manifest.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    }
+  ],
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

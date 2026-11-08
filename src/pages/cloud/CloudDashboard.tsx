@@ -2,22 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CloudSchoolService } from "@services/cloud/SchoolService";
-import { rest } from "@/lib/supabaseClient";
-import { CloudClassService } from "@services/cloud/ClassService";
-import { CloudAcademicStandardsService, type ClassAcademicStandards } from "@services/cloud/AcademicStandardsService";
+import { CloudStudentService } from "@services/cloud/StudentService";
+import { CloudAcademicStandardsService } from "@services/cloud/AcademicStandardsService";
 import { AcademicStandardsPanel } from "@components/AcademicStandardsPanel";
-import { LearnerStatsPanel } from "@components/LearnerStatsPanel";
-import type { SchoolRow, SchoolAcademicStandards } from "@/types/database";
-
-/** Roles that can legitimately have a single school_id of their own AND
- *  are meant to see that one school's card/standards on this page. A
- *  district_admin/platform_admin is excluded even if their own account
- *  data happens to carry a school_id (it shouldn't - see
- *  edulink_gh_phase1i_dashboard_and_standards_fixes.sql - but this page
- *  no longer trusts that alone; the role itself decides). */
-function hasOwnSchoolScope(role: string | undefined): boolean {
-  return role === "school_admin" || role === "bursar" || role === "teacher";
-}
+import type { SchoolRow, StudentRow, SchoolAcademicStandards } from "@/types/database";
 
 /**
  * First real cloud page: proves the whole stack end to end - Supabase
@@ -26,57 +14,33 @@ function hasOwnSchoolScope(role: string | undefined): boolean {
  * every dashboard widget from the roadmap in one go; assessments,
  * report generation and the district rollup views are the natural next
  * additions on top of this same shell.
- *
- * Academic standards section: a school_admin sees the existing
- * school-wide summary (every level, KG included) - that's correct for
- * them, it's their whole school. A teacher instead sees a summary
- * scoped to just the ONE class they teach (get_class_academic_standards,
- * added in edulink_gh_phase1i_dashboard_and_standards_fixes.sql) -
- * previously this page called the school-wide summary for a teacher
- * too, which is how a JHS teacher with a single pupil ended up looking
- * at primary-wide averages and KG skill ratings that had nothing to do
- * with their class. A bursar sees neither - they don't teach a class,
- * and a school-wide academic view isn't part of their job here.
  */
 export function CloudDashboard() {
   const { profile } = useCloudAuth();
   const [school, setSchool] = useState<SchoolRow | null>(null);
-  const [counts, setCounts] = useState<{ total: number; active: number } | null>(null);
+  const [students, setStudents] = useState<StudentRow[] | null>(null);
   const [standards, setStandards] = useState<SchoolAcademicStandards | null>(null);
-  const [classStandards, setClassStandards] = useState<ClassAcademicStandards | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const isSingleSchoolRole = hasOwnSchoolScope(profile?.role);
 
   useEffect(() => {
     let cancelled = false;
     // A district_admin/platform_admin has no single school of their own
     // - RLS lets them read EVERY school, so calling getProfile() (a
-    // bare "give me a school row" with no filter) for one of them would
-    // return an arbitrary row from the whole table, not "their" school.
-    // Checked by ROLE here, not just by whether school_id happens to be
-    // set - a stray school_id on an admin account (which shouldn't
-    // exist, but see the cleanup in edulink_gh_phase1i) must not be
-    // enough on its own to trigger this.
-    const schoolPromise =
-      profile?.school_id && isSingleSchoolRole ? CloudSchoolService.getProfile() : Promise.resolve(null);
-    Promise.all([schoolPromise, rest.rpc<unknown>("dashboard_student_counts", {})])
-      .then(([schoolRow, cRes]) => {
+    // bare "give me a school row" with no filter) for one of them
+    // would return an arbitrary row from the whole table, not "their"
+    // school. Only ever ask for a school when the signed-in profile
+    // actually has one.
+    const schoolPromise = profile?.school_id ? CloudSchoolService.getProfile() : Promise.resolve(null);
+    Promise.all([schoolPromise, CloudStudentService.list()])
+      .then(([schoolRow, studentRows]) => {
         if (cancelled) return;
         setSchool(schoolRow);
-        const c: any = Array.isArray(cRes) ? cRes[0] : cRes;
-        setCounts({ total: Number(c?.total ?? 0), active: Number(c?.active ?? 0) });
+        setStudents(studentRows);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not load dashboard data.");
       });
-
-    // School-wide standards: only for the role that's actually meant to
-    // see a whole school's picture here (school_admin). district_admin/
-    // platform_admin get their own dedicated standards views elsewhere
-    // (District overview / Super Admin), so this page doesn't duplicate
-    // that for them even if they somehow have a school_id.
-    if (profile?.role === "school_admin" && profile.school_id) {
+    if (profile?.school_id) {
       CloudAcademicStandardsService.getForSchool()
         .then((data) => !cancelled && setStandards(data))
         .catch(() => {
@@ -84,33 +48,12 @@ export function CloudDashboard() {
              shouldn't block the rest of the dashboard from rendering */
         });
     }
-
-    // Class-scoped standards for a teacher: find the one class they're
-    // assigned to (class_teacher_id) and ask only for that class's
-    // numbers. A teacher assigned to more than one class sees the first
-    // - covering more than one class on this summary card is future
-    // work, not something reported as broken.
-    if (profile?.role === "teacher" && profile.school_id) {
-      CloudClassService.list(undefined, profile.school_id)
-        .then((classes) => {
-          if (cancelled) return null;
-          const ownClasses = CloudClassService.forRole(classes, profile);
-          const myClass = ownClasses[0];
-          if (!myClass) return null;
-          return CloudAcademicStandardsService.getForClass(myClass.id);
-        })
-        .then((data) => !cancelled && data && setClassStandards(data))
-        .catch(() => {
-          /* same bonus-panel treatment as the school-wide fetch above */
-        });
-    }
-
     return () => {
       cancelled = true;
     };
   }, [profile?.role, profile?.school_id]);
 
-  const activeCount = counts ? counts.active : null;
+  const activeCount = students?.filter((s) => s.status === "ACTIVE").length ?? null;
 
   return (
     <div>
@@ -121,6 +64,25 @@ export function CloudDashboard() {
         <div className="alert alert-danger" role="alert">
           {error}
         </div>
+      )}
+
+      {/* Sports Album Builder: a separate offline-capable web app hosted as plain files at /sports/.
+          A normal link (not a router Link) on purpose, so the browser loads that folder directly. */}
+      {profile?.school_id && (
+        <a
+          href="/sports/"
+          className="d-flex align-items-center gap-3 p-3 mb-4 rounded-3 text-decoration-none text-white"
+          style={{ background: "linear-gradient(135deg, #0E7A45, #16A864)", boxShadow: "0 6px 18px rgba(14,122,69,.35)" }}
+        >
+          <i className="bi bi-trophy-fill" style={{ fontSize: "2rem" }} />
+          <span className="flex-grow-1">
+            <span className="d-block fw-bold fs-6">Sports Album Builder — install on your phone</span>
+            <span className="d-block small" style={{ opacity: 0.9 }}>
+              Photo albums and team sheets for sports festivals. Works offline once installed.
+            </span>
+          </span>
+          <i className="bi bi-chevron-right" />
+        </a>
       )}
 
       <div className="row g-3 mb-4">
@@ -134,7 +96,7 @@ export function CloudDashboard() {
               </>
             ) : (
               <div className="text-muted small">
-                {!isSingleSchoolRole ? "District/platform-level account (no single school)" : "Loading…"}
+                {!profile?.school_id ? "District/platform-level account (no single school)" : "Loading…"}
               </div>
             )}
           </div>
@@ -142,7 +104,7 @@ export function CloudDashboard() {
         <div className="col-sm-6 col-lg-4">
           <div className="actrs-card p-3 h-100">
             <div className="text-muted small mb-1">Students on file</div>
-            <div className="fw-semibold fs-4">{counts ? counts.total.toLocaleString() : "…"}</div>
+            <div className="fw-semibold fs-4">{students ? students.length : "…"}</div>
             {activeCount !== null && <div className="text-muted small">{activeCount} active</div>}
           </div>
         </div>
@@ -155,23 +117,11 @@ export function CloudDashboard() {
         </div>
       </div>
 
-      <LearnerStatsPanel />
-
       {standards && (
         <AcademicStandardsPanel
           subjectLevelStats={standards.subjectLevelStats}
           kgSkillStats={standards.kgSkillStats}
           termName={standards.termName}
-        />
-      )}
-
-      {classStandards && (
-        <AcademicStandardsPanel
-          subjectLevelStats={classStandards.subjectLevelStats}
-          kgSkillStats={classStandards.kgSkillStats}
-          termName={classStandards.termName}
-          title="My class — academic standards"
-          subtitle={classStandards.className}
         />
       )}
 
