@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
-import { NetworkHeroGraphic } from "@components/NetworkHeroGraphic";
+import { ClassroomShowcase } from "@components/ClassroomShowcase";
 import { Reveal } from "@components/Reveal";
 import { BrandMark } from "@components/BrandMark";
 import { ShowcaseCarousel, type ShowcaseSlide } from "@components/ShowcaseCarousel";
@@ -83,6 +83,12 @@ const STATS = [
   { value: 0, label: "installs required to sign in" },
 ];
 
+const INTRO_POINTS = [
+  { icon: "bi-people-fill", text: "Learner records: registration, photos and class lists for every school." },
+  { icon: "bi-clipboard-data", text: "Assessment and terminal reports: marks, grades, positions and printable report cards." },
+  { icon: "bi-calendar-check", text: "Everyday administration: daily attendance, fees, SMS to parents and district-level oversight." },
+];
+
 function StatCounter({ value, label }: { value: number; label: string }) {
   const { ref, value: shown } = useCountUp(value);
   return (
@@ -125,32 +131,50 @@ export function PublicHome() {
           <div className="ph-hero-blob" />
         </div>
         <div className="container ph-hero-content">
-          <div className="row align-items-center g-5">
+          <div className="row align-items-center g-4 g-lg-5">
             <div className="col-lg-6">
+              <span className="cl-eyebrow">
+                <i className="bi bi-mortarboard-fill" /> Integrated school management for Ghana
+              </span>
               <h1 className="display-5 fw-bold mb-3">
                 School management built for real classrooms across Ghana
               </h1>
-              <p className="lead text-muted mb-4">
+              <p className="lead text-muted mb-3">
                 One cloud dashboard for registration, attendance, assessment and NaCCA-aligned report cards - plus an
                 offline-first companion app for schools with no reliable connection.
               </p>
+              <ul className="cl-points d-none d-sm-grid">
+                {INTRO_POINTS.map((p) => (
+                  <li key={p.icon}>
+                    <span className="cl-pt-icon">
+                      <i className={`bi ${p.icon}`} />
+                    </span>
+                    <span>{p.text}</span>
+                  </li>
+                ))}
+              </ul>
               <div className="d-flex flex-wrap gap-2">
                 {session ? (
                   <Link to="/dashboard" className="btn btn-primary btn-lg">
                     Go to dashboard
                   </Link>
                 ) : (
-                  <Link to="/login" className="btn btn-primary btn-lg">
-                    Sign in
-                  </Link>
+                  <>
+                    <Link to="/login" className="btn btn-primary btn-lg">
+                      Sign in
+                    </Link>
+                    <Link to="/signup" className="btn btn-outline-primary btn-lg">
+                      Register your school
+                    </Link>
+                  </>
                 )}
                 <a href="#how" className="btn btn-outline-secondary btn-lg">
                   See how it works
                 </a>
               </div>
             </div>
-            <div className="col-lg-6 d-flex justify-content-center">
-              <NetworkHeroGraphic />
+            <div className="col-lg-6">
+              <ClassroomShowcase />
             </div>
           </div>
         </div>
@@ -233,30 +257,6 @@ export function PublicHome() {
       <section className="py-5">
         <div className="container">
           <Reveal>
-            <div className="ph-photo-grid">
-              <div className="ph-photo-card">
-                <img
-                  src="https://images.unsplash.com/photo-1744809482817-9a9d4fc280af?auto=format&fit=crop&w=1200&q=80"
-                  alt="A teacher instructing students in a classroom"
-                  loading="lazy"
-                />
-                <div className="ph-photo-caption">Built for the classroom, not just the dashboard</div>
-              </div>
-              <div className="ph-photo-card">
-                <img
-                  src="https://images.unsplash.com/photo-1632215861513-130b66fe97f4?auto=format&fit=crop&w=900&q=80"
-                  alt="A teacher standing in front of a group of children"
-                  loading="lazy"
-                />
-              </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="py-5">
-        <div className="container">
-          <Reveal>
             <div className="actrs-card p-4 p-md-5">
               <div className="row g-4">
                 {STATS.map((s) => (
@@ -274,23 +274,6 @@ export function PublicHome() {
         <div className="container d-flex flex-wrap justify-content-between align-items-center gap-2">
           <span className="text-muted small">&copy; {new Date().getFullYear()} EduLink GH</span>
           <span className="text-muted small">Developed by Emmanuel Serry</span>
-        </div>
-        <div className="container mt-2">
-          <span className="text-muted" style={{ fontSize: "0.7rem" }}>
-            Classroom photos by{" "}
-            <a href="https://unsplash.com/@davidgeneugelijk" target="_blank" rel="noreferrer" className="text-muted">
-              David Geneugelijk
-            </a>{" "}
-            and{" "}
-            <a href="https://unsplash.com/@emmages" target="_blank" rel="noreferrer" className="text-muted">
-              Emmanuel Ikwuegbu
-            </a>{" "}
-            on{" "}
-            <a href="https://unsplash.com" target="_blank" rel="noreferrer" className="text-muted">
-              Unsplash
-            </a>
-            .
-          </span>
         </div>
       </footer>
     </div>
