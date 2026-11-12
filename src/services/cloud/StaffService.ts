@@ -15,6 +15,7 @@
  */
 import { auth, rest } from "@/lib/supabaseClient";
 import type { UserProfileRow, UserRole } from "@/types/database";
+import { CloudCredentialService } from "./CredentialService";
 import { DuplicateService, DuplicateCancelled, confirmDuplicates } from "./DuplicateService";
 
 export type StaffRole = Extract<UserRole, "teacher" | "bursar" | "school_admin">;
@@ -95,6 +96,7 @@ class CloudStaffServiceImpl {
       p_role: input.role,
       p_phone: input.phone,
     });
+    await CloudCredentialService.recordFor(id, tempPassword);
     return { profile, tempPassword };
   }
 

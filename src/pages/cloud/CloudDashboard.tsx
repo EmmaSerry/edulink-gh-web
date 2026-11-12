@@ -122,25 +122,6 @@ export function CloudDashboard() {
         </div>
       )}
 
-      {/* Sports Album Builder: a separate offline-capable web app hosted as plain files at /sports/.
-          A normal link (not a router Link) on purpose, so the browser loads that folder directly. */}
-      {isSingleSchoolRole && profile?.school_id && (
-        <a
-          href="/sports/"
-          className="d-flex align-items-center gap-3 p-3 mb-4 rounded-3 text-decoration-none text-white"
-          style={{ background: "linear-gradient(135deg, #0E7A45, #16A864)", boxShadow: "0 6px 18px rgba(14,122,69,.35)" }}
-        >
-          <i className="bi bi-trophy-fill" style={{ fontSize: "2rem" }} />
-          <span className="flex-grow-1">
-            <span className="d-block fw-bold fs-6">Sports Album Builder — install on your phone</span>
-            <span className="d-block small" style={{ opacity: 0.9 }}>
-              Photo albums and team sheets for sports festivals. Works offline once installed.
-            </span>
-          </span>
-          <i className="bi bi-chevron-right" />
-        </a>
-      )}
-
       <div className="row g-3 mb-4">
         <div className="col-sm-6 col-lg-4">
           <div className="actrs-card p-3 h-100">

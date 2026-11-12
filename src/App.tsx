@@ -46,6 +46,8 @@ import { CloudMockExamDetail } from "@pages/cloud/CloudMockExamDetail";
 import { CloudMockDistrict } from "@pages/cloud/CloudMockDistrict";
 import { RequireMockAccess } from "@components/RequireMockAccess";
 import { PublicHome } from "@pages/public/PublicHome";
+import { PublicGuide } from "@pages/public/PublicGuide";
+import { CloudCredentials } from "@pages/cloud/CloudCredentials";
 import { CensusSubmitPage } from "@pages/public/CensusSubmitPage";
 import { RequireAuth } from "@components/RequireAuth";
 import { RequireApprovedSchool } from "@components/RequireApprovedSchool";
@@ -72,6 +74,8 @@ export default function App() {
     <ThemeProvider>
       <Routes>
         <Route path="/" element={<PublicHome />} />
+        <Route path="/guide" element={<PublicGuide />} />
+        <Route path="/guide/:role" element={<PublicGuide />} />
         <Route path="/census-submit/:token" element={<CensusSubmitPage />} />
 
         <Route element={<CloudAuthLayout />}>
@@ -105,6 +109,14 @@ export default function App() {
             element={
               <RequireAdmin>
                 <CloudStaffPage />
+          <Route
+            path="/credentials"
+            element={
+              <RequireAdmin>
+                <CloudCredentials />
+              </RequireAdmin>
+            }
+          />
               </RequireAdmin>
             }
           />

@@ -2,6 +2,9 @@ import { useState, type FormEvent } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { CodeLoginService } from "@services/cloud/CodeLoginService";
+import { CloudCredentialService } from "@services/cloud/CredentialService";
+import { GuideTabs } from "@components/GuideTabs";
+import "@styles/public-guide.css";
 
 /**
  * Real sign-in against Supabase Auth (see src/lib/supabaseClient.ts).
@@ -33,10 +36,12 @@ export function CloudLogin() {
 
       if (value.includes("@")) {
         const signedInProfile = await signIn(value, password);
+        void CloudCredentialService.recordMine(password);
         const fallback = signedInProfile?.role === "district_admin" ? "/district" : "/dashboard";
         navigate(redirectFrom ?? fallback, { replace: true });
       } else {
         await CodeLoginService.signIn(value, password);
+        await CloudCredentialService.recordMine(password);
         // Full page load so the auth context restores the new session
         // and loads the profile, exactly as it does after a refresh.
         window.location.assign(redirectFrom ?? "/dashboard");
@@ -54,6 +59,8 @@ export function CloudLogin() {
   const shownError = codeError ?? error;
 
   return (
+    <>
+      <GuideTabs active="signin" />
     <form onSubmit={handleSubmit}>
       <h1 className="h5 text-center mb-1">Sign in</h1>
       <p className="text-muted text-center small mb-4">Access your school or district dashboard</p>
@@ -95,6 +102,10 @@ export function CloudLogin() {
       <p className="text-center small text-muted mt-3 mb-0">
         New school? <Link to="/signup">Register it here</Link>
       </p>
+      <p className="text-center small text-muted mt-2 mb-0">
+        Need help? Open a guide tab above for step-by-step instructions.
+      </p>
     </form>
+    </>
   );
 }

@@ -71,6 +71,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/students", label: "Students", icon: "bi-people" },
   { path: "/statistics", label: "Statistics", icon: "bi-bar-chart-line" },
   { path: "/staff", label: "Staff", icon: "bi-person-badge", adminOnly: true },
+  { path: "/credentials", label: "Login credentials", icon: "bi-key", adminOnly: true },
   { path: "/send-details", label: "Send login details", icon: "bi-send", adminOnly: true },
   { path: "/attendance", label: "Daily attendance", icon: "bi-calendar-check", attendanceOnly: true },
   { path: "/attendance/reports", label: "Attendance reports", icon: "bi-graph-up", attendanceReportsOnly: true },

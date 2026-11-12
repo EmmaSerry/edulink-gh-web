@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useCloudAuth } from "@contexts/CloudAuthContext";
 import { ClassroomShowcase } from "@components/ClassroomShowcase";
+import { GUIDES, GUIDE_ORDER, type GuideSlug } from "@/data/guideContent";
 import { Reveal } from "@components/Reveal";
 import { BrandMark } from "@components/BrandMark";
 import { ShowcaseCarousel, type ShowcaseSlide } from "@components/ShowcaseCarousel";
 import { useCountUp } from "@/hooks/useCountUp";
 import "@styles/public-home.css";
 import "@styles/how-it-works.css";
+import "@styles/public-guide.css";
 
 const FEATURES = [
   {
@@ -101,6 +104,47 @@ function StatCounter({ value, label }: { value: number; label: string }) {
   );
 }
 
+function GuidesSection() {
+  const [tab, setTab] = useState<GuideSlug>("school");
+  const g = GUIDES[tab];
+  return (
+    <section id="guides" className="gh-section">
+      <div className="container">
+        <h2 className="h3 text-center mb-1">Step-by-step guides</h2>
+        <p className="text-muted text-center mb-4">Pick your role to see exactly how to do each task.</p>
+        <div className="gt-tabs" role="tablist" aria-label="Guides by role">
+          {GUIDE_ORDER.map((slug) => (
+            <button
+              key={slug}
+              role="tab"
+              aria-selected={tab === slug}
+              type="button"
+              className={`gt-tab border-0 bg-transparent ${tab === slug ? "is-active" : ""}`}
+              onClick={() => setTab(slug)}
+            >
+              <i className={`bi ${GUIDES[slug].icon}`} /> {GUIDES[slug].label}
+            </button>
+          ))}
+        </div>
+        <div className="gh-panel" role="tabpanel">
+          <h3 className="h5 mb-1">{g.title}</h3>
+          <p className="text-muted mb-0">{g.tagline}</p>
+          <ol className="gh-list">
+            {g.sections.slice(0, -1).map((s) => (
+              <li key={s.id}>
+                <Link to={`/guide/${g.slug}#${s.id}`}>{s.title}</Link>
+              </li>
+            ))}
+          </ol>
+          <Link to={`/guide/${g.slug}`} className="btn btn-primary">
+            Open the full {g.label} guide
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function PublicHome() {
   const { session } = useCloudAuth();
 
@@ -112,6 +156,9 @@ export function PublicHome() {
             <BrandMark size={32} />
             <span className="fw-bold">EduLink GH</span>
           </div>
+          <a href="#guides" className="btn btn-link btn-sm ms-auto me-2 text-decoration-none">
+            Guides
+          </a>
           {session ? (
             <Link to="/dashboard" className="btn btn-primary btn-sm">
               Go to dashboard
@@ -179,6 +226,8 @@ export function PublicHome() {
           </div>
         </div>
       </section>
+
+      <GuidesSection />
 
       <section id="features" className="py-5">
         <div className="container">
