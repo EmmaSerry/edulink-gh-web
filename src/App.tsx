@@ -109,14 +109,14 @@ export default function App() {
             element={
               <RequireAdmin>
                 <CloudStaffPage />
+              </RequireAdmin>
+            }
+          />
           <Route
             path="/credentials"
             element={
               <RequireAdmin>
                 <CloudCredentials />
-              </RequireAdmin>
-            }
-          />
               </RequireAdmin>
             }
           />
